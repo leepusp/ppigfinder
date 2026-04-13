@@ -4,7 +4,15 @@ ppigFinder — Protein-Protein Interaction Genomic Finder
 Entry point for the application.
 """
 import sys
+import os
 import logging
+
+# --- O CONSERTO: Ensina o Python a olhar dentro da pasta 'src' ---
+current_dir = os.path.dirname(os.path.abspath(__file__))
+src_dir = os.path.join(current_dir, 'src')
+if src_dir not in sys.path:
+    sys.path.insert(0, src_dir)
+# -----------------------------------------------------------------
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 
@@ -13,7 +21,6 @@ def main():
     logger.info("Starting ppigFinder...")
     
     try:
-        # Importamos as ferramentas gráficas da nossa nova gaveta
         from ppigfinder.gui.app import QApplication, ppigFinderApp, _setup_emoji_font, QT_VERSION
         
         app = QApplication(sys.argv)
