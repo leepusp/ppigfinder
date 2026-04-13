@@ -12,11 +12,45 @@ class ORFFinder:
     def __init__(self, min_aa_length: int = 30):
         self.min_aa_length = min_aa_length
 
-    def find_orfs_standard(self, dna_sequence: str, start_codons: Optional[List[str]] = None) -> List[Dict[str, Any]]:
-        """Finds ORFs using standard start/stop codon rules."""
-        logger.info(f"Scanning sequence of length {len(dna_sequence)} for ORFs...")
-        # TODO: Move the logic from AdvancedORFAnalyzer.find_orfs here
-        return []
+    def find_orfs(self, dna_sequence, min_aa=30, start_codons=None):
+        if start_codons is None: start_codons = {'ATG','GTG','TTG'}
+        stop_codons = {'TAA','TAG','TGA'}
+        min_len = min_aa * 3
+        orfs = []
+        for frame in range(3):
+            for strand_seq, strand_name in [(dna_sequence, '+'),
+                                            (self.reverse_complement(dna_sequence), '-')]:
+                i = frame
+                while i < len(strand_seq) - 2:
+                    codon = strand_seq[i:i+3]
+                    if codon in start_codons:
+                        j = i + 3
+                        while j < len(strand_seq):
+                            if strand_seq[j:j+3] in stop_codons:
+                                length = j + 3 - i
+                                if length >= min_len:
+                                    dna = strand_seq[i:j+3]
+                                    protein = self.translate(dna)
+                                    orfs.append({
+                                        'frame': frame + (3 if strand_name == '-' else 0),
+                                        'strand': strand_name,
+                                        'start': i if strand_name == '+' else len(dna_sequence) - (j + 3),
+                                        'end': j + 3 if strand_name == '+' else len(dna_sequence) - i,
+                                        'dna': dna, 'protein': protein, 'length': length,
+                                        'gc': self.gc_content(dna),
+                                        'domains': [],
+                                        'neighborhood': [], 'candidate_score': 0.0,
+                                        'source': '6frame',
+                                    })
+                                i = j; break
+                            j += 3
+                    i += 3
+        # Sort by genomic start position 5'→3' so ORF numbers increase from
+        # the molecule origin toward the end (lower number = closer to 5')
+        orfs.sort(key=lambda x: x['start'])
+        return orfs
+
+
 
     def find_orfs_pyrodigal(self, dna_sequence, meta=True, min_aa=30, closed_ends=False):
         """
