@@ -2,7 +2,7 @@
 """
 ppigFinder — Protein-Protein Interaction Genomic Finder
 ========================================================
-Version  : 1.01
+Version  : 1.12
 Released : 2026
 License  : MIT (see LICENSE section below)
 
@@ -169,10 +169,72 @@ CITATION
 --------
   If you use ppigFinder in your research, please cite:
     ppigFinder: Protein-Protein Interaction Genomic Finder (2026).
-    https://github.com/<your-org>/ppigfinder
+    https://github.com/goka-lab/ppigfinder
 
 CHANGELOG
 ---------
+  v1.12 (2026) — File menu cleanup + extended zoom to 1,000,000×
+    • Removed from File menu: Open Multi-FASTA, Open SnapGene (.dna),
+      Open GenBank (.gb/.gbk), Export as SnapGene (.dna), Export as GenBank
+    • Genome map zoom ceiling raised from 200× (20 000%) to 10 000×
+      (1 000 000%) to support navigation of large bacterial genomes and
+      metagenome-assembled genomes (MAGs > 5 Mbp)
+    • Manual, Tutorial, and About dialog fully updated to reflect v1.12
+      feature set (FASTA-only input, extended zoom, Download JSONs)
+    • ORF-selection-centering logic and map pan/anchor behaviour unchanged
+
+  v1.11 (2026) — AF3 large-batch OOM fix + Download JSONs button
+    • "Load session as batch" auto-partitions into chunks of 50 when
+      >50 jobs (configurable via _AF3_PARTITION_SIZE), preventing OOM
+    • Each partition is staged as a separate JSON and submitted
+      sequentially (one job at a time in the queue) — not in parallel
+    • Command preview now lists every partition command with job IDs
+    • "Download JSONs" button in Submit tab: saves all staged partition
+      JSONs to a local folder chosen by the user
+    • _dv_on_upload_done handles multi-partition results list
+    • Table rows updated per-partition with individual SLURM IDs
+
+  v1.10 (2026) — ORF table copy & export + code cleanup
+    • Multi-row selection (Ctrl/Shift+click) in ORF table
+    • Ctrl+C copies selected rows as TSV (Excel/Calc ready)
+    • Export toolbar: copy selected, copy all, Export menu
+    • Export TSV: columns only / full (+DNA+Protein) / annotated only
+    • Export FASTA protein/DNA with rich annotation headers
+    • Right-click menu expanded with copy + export submenu
+    • Removed orphan _show_pyrodigal_dialog (228 lines)
+    • Manual and Tutorial fully updated for v1.10
+    • QShortcut import fixed for PyQt5
+
+  v1.09 (2026) — Pyrodigal parameters in ORF Analysis Parameters
+    • Full parameter dialog: mode, translation table (11/4/25/15),
+      min gene size, closed ends, mask N runs
+    • Post-prediction start codon filter (ATG/GTG/TTG)
+    • Parameters persisted in project save/load
+
+  v1.08 (2026) — [merged into v1.09]
+
+  v1.07 (2026) — EVcouplings tab removed (Python 3.12 incompatible)
+
+  v1.06 (2026) — Definitive project save/load (schema v2)
+    • Full ORF annotation state saved and restored
+    • hmm_hits_all saved directly; domains re-injected on load
+    • AF3 selection table, EVC state, Pyrodigal params persisted
+    • AF3 jobs validated; AF3 analysis dir handled gracefully
+
+  v1.05 (2026) — Save/Load critical bug fixes (5 bugs)
+
+  v1.04 (2026) — EVcouplings coevolution tab (test, later removed)
+
+  v1.03 (2026) — DaVinci cluster integration & SLURM defaults
+    • SLURM Array anti-OOM export (batches + run_array.sh)
+    • max50 partition defaults: 7d walltime, 64G RAM, 64 CPUs
+    • Partition tooltips with DaVinci limits
+
+  v1.02 (2026) — Genome-wide interactome scan
+    • 'Add All ORFs' button with size/HMM filter dialog
+    • Mode 'Interactoma Genômico': selected ORF vs all genome ORFs
+    • SLURM array anti-OOM export
+
   v1.01 (2026) — Initial public release
     • Generic HPC server tab (SSH/SFTP, SLURM/PBS/LSF support)
     • AF3 results analysis tab (PAE heatmap, pLDDT, ipTM scoring)
@@ -218,7 +280,7 @@ try:
     )
     from PyQt6.QtGui import (
         QPainter, QPen, QBrush, QColor, QFont,
-        QPolygonF,
+        QPolygonF, QKeySequence, QShortcut,
     )
     from PyQt6.QtCore import QPointF
     QT_VERSION = 6
@@ -252,8 +314,9 @@ except ImportError:
     )
     from PyQt5.QtGui import (
         QPainter, QPen, QBrush, QColor, QFont,
-        QPolygonF,
+        QPolygonF, QKeySequence,
     )
+    from PyQt5.QtWidgets import QShortcut
     QT_VERSION = 5
     AlignLeft = Qt.AlignLeft
     AlignRight = Qt.AlignRight
@@ -909,7 +972,8 @@ class AdvancedORFAnalyzer:
         orfs.sort(key=lambda x: x['start'])
         return orfs
 
-    def find_orfs_pyrodigal(self, dna_sequence, meta=True, min_aa=30, closed_ends=False):
+    def find_orfs_pyrodigal(self, dna_sequence, meta=True, min_aa=30,
+                            closed_ends=False, translation_table=11, mask=False):
         """
         Find ORFs using Pyrodigal (Python binding for Prodigal gene caller).
 
@@ -943,13 +1007,17 @@ class AdvancedORFAnalyzer:
 
         if meta:
             # Metagenomic mode — uses pre-trained models, no training needed
-            gene_finder = pyrodigal.GeneFinder(meta=True, closed=closed_ends,
-                                               min_gene=min_aa * 3)
+            gene_finder = pyrodigal.GeneFinder(
+                meta=True, closed=closed_ends,
+                min_gene=min_aa * 3, mask=mask)
         else:
             # Single-genome mode — trains on the input sequence
-            gene_finder = pyrodigal.GeneFinder(meta=False, closed=closed_ends,
-                                               min_gene=min_aa * 3)
-            gene_finder.train(seq.encode() if isinstance(seq, str) else seq)
+            gene_finder = pyrodigal.GeneFinder(
+                meta=False, closed=closed_ends,
+                min_gene=min_aa * 3, mask=mask)
+            gene_finder.train(
+                seq.encode() if isinstance(seq, str) else seq,
+                translation_table=translation_table)
 
         # Run gene prediction
         genes = gene_finder.find_genes(seq.encode() if isinstance(seq, str) else seq)
@@ -1007,6 +1075,102 @@ class AdvancedORFAnalyzer:
 
         orfs.sort(key=lambda x: x['start'])
         return orfs
+
+    def find_orfs_hybrid(self, dna_sequence,
+                         # --- 6-frame scanner params ---
+                         min_aa=30, start_codons=None,
+                         # --- Pyrodigal params ---
+                         pyro_meta=True, pyro_min_aa=30,
+                         pyro_closed=False, pyro_translation_table=11,
+                         pyro_mask=False, pyro_start_filter=None):
+        """
+        Hybrid gene finder: Pyrodigal as primary caller + 6-frame ORF
+        scanner as gap-filler.
+
+        Strategy
+        --------
+        1. Run Pyrodigal on the full sequence → primary ORF set.
+        2. Build a merged coverage map of every nucleotide position
+           that falls inside at least one Pyrodigal ORF (both strands).
+        3. Identify contiguous uncovered gaps (positions not spanned by
+           any Pyrodigal prediction).
+        4. Run the 6-frame start→stop codon scanner *only* on each gap
+           subsequence, using the user-defined min_aa and start_codons.
+        5. Re-map gap-local coordinates to global genome coordinates.
+        6. Merge both lists and sort by genomic start position so that
+           ORF numbering (ORF1, ORF2 …) follows the 5'→3' order of the
+           chromosome regardless of source.
+
+        Source tags
+        -----------
+        Pyrodigal predictions  → source = 'pyrodigal'
+        Gap-filler predictions → source = 'automatic'
+        """
+        if start_codons is None:
+            start_codons = {'ATG', 'GTG', 'TTG'}
+
+        # ── Step 1: Pyrodigal ────────────────────────────────────────
+        pyro_orfs = self.find_orfs_pyrodigal(
+            dna_sequence,
+            meta=pyro_meta,
+            min_aa=pyro_min_aa,
+            closed_ends=pyro_closed,
+            translation_table=pyro_translation_table,
+            mask=pyro_mask,
+        )
+
+        # Optional post-prediction start-codon filter for Pyrodigal ORFs
+        if pyro_start_filter and not pyro_start_filter.get('all', True):
+            allowed = {k for k in ('ATG', 'GTG', 'TTG')
+                       if pyro_start_filter.get(k)}
+            if allowed:
+                pyro_orfs = [o for o in pyro_orfs
+                             if o.get('dna', '')[:3].upper() in allowed]
+
+        # ── Step 2: build merged coverage intervals ───────────────────
+        # Use genomic coordinates (0-based half-open) from every
+        # Pyrodigal ORF, regardless of strand.
+        seq_len = len(dna_sequence)
+        intervals = sorted((o['start'], o['end']) for o in pyro_orfs)
+
+        merged = []
+        for seg_s, seg_e in intervals:
+            if merged and seg_s <= merged[-1][1]:
+                merged[-1] = (merged[-1][0], max(merged[-1][1], seg_e))
+            else:
+                merged.append([seg_s, seg_e])
+
+        # ── Step 3: compute gaps (uncovered regions) ──────────────────
+        gaps = []
+        prev_end = 0
+        for seg_s, seg_e in merged:
+            if seg_s > prev_end:
+                gaps.append((prev_end, seg_s))
+            prev_end = max(prev_end, seg_e)
+        if prev_end < seq_len:
+            gaps.append((prev_end, seq_len))
+
+        # ── Step 4: 6-frame scan on each gap ─────────────────────────
+        auto_orfs = []
+        min_gap = min_aa * 3 + 3   # smallest meaningful gap
+        for gap_start, gap_end in gaps:
+            if gap_end - gap_start < min_gap:
+                continue
+            subseq = dna_sequence[gap_start:gap_end]
+            sub_orfs = self.find_orfs(subseq,
+                                      min_aa=min_aa,
+                                      start_codons=start_codons)
+            # Re-map sub-sequence coordinates → global genome coordinates
+            for orf in sub_orfs:
+                orf['start'] += gap_start
+                orf['end']   += gap_start
+                orf['source'] = 'automatic'
+            auto_orfs.extend(sub_orfs)
+
+        # ── Step 5: merge + sort by start position ────────────────────
+        all_orfs = pyro_orfs + auto_orfs
+        all_orfs.sort(key=lambda x: x['start'])
+        return all_orfs
 
     def classify_domains(self, protein_seq):
         found = []
@@ -1790,13 +1954,13 @@ class AdvancedORFAnalyzer:
 
 
 # ═══════════════════════════════════════════════════════════════
-# MODULE I: INTERNATIONALISATION (i18n) — v1.01 — English only
+# MODULE I: INTERNATIONALISATION (i18n) — v1.12 — English only
 # ═══════════════════════════════════════════════════════════════
 
 TRANSLATIONS = {
     # ── English ─────────────────────────────────────────────────
     'en': {
-        'app_title':        '🧬 ppigFinder v1.01 — PPI Genomic Finder',
+        'app_title':        '🧬 ppigFinder v1.12 — PPI Genomic Finder',
         'menu_file':        '📁 File',
         'menu_params':      '⚙️ Parameters',
         'menu_language':    '🌐 Language',
@@ -1824,12 +1988,15 @@ TRANSLATIONS = {
         # Help menu
         'manual':           '📖 Manual',
         'tutorial':         '🎓 Tutorial',
+        'install':          '⚙️ Installation Guide',
         'about':            'ℹ️ About',
         # Toolbar
         'btn_open':         '📂 Load a genome file',
         'btn_translate_genome': '🧬 Translate genome',
         'btn_pyrodigal':    '🧪 Pyrodigal',
         'btn_automatic':    '⚙️ Automatic',
+        'btn_hybrid':       '🔀 Hybrid',
+        'desc_hybrid':      'Pyrodigal (primary) + Automatic ORF scanner (gap-filler) — fills unannotated regions',
         'desc_pyrodigal':   'Gene prediction using Pyrodigal (Prodigal successor) - ML-based prokaryotic gene caller',
         'desc_automatic':   'Simple ORF detection using start/stop codons with size filters (30-5000 aa, frame +/-)',
         'btn_annotate_hmm': '🏷️ Annotate HMM',
@@ -1894,6 +2061,7 @@ TRANSLATIONS = {
         'tip_hmm_search':   'Search all ORFs against loaded HMM profiles',
         'tip_af3_add_sel':  'Add currently selected ORF to AF3 prediction list',
         'tip_af3_add_hmm':  'Add all ORFs with HMM hits to AF3 prediction list',
+        'tip_af3_add_all':  'Add ALL ORFs in the genome to AF3 prediction list (genome-wide interactome scan)',
         'tip_af3_remove':   'Remove selected ORFs from AF3 prediction list',  
         'tip_af3_clear_all': 'Clear all ORFs from AF3 prediction list',
         'tip_af3_generate': 'Generate AF3 jobs based on selected prediction mode',
@@ -1909,6 +2077,7 @@ TRANSLATIONS = {
         'af3_sel_frame':        '📌 Select ORFs for Structure Prediction',
         'af3_add_sel':          '➕ Add Selected ORF',
         'af3_add_hmm':          '📋 Add HMM Hits',
+        'af3_add_all':          '🧬 Add All ORFs',
         'af3_remove':           '🗑️ Remove',
         'af3_clear_all':        '🗑️ Clear All',
         'af3_jobs_frame':       '⚡ Generate Jobs',
@@ -1918,6 +2087,7 @@ TRANSLATIONS = {
         'af3_export_json':      '💾 Export AF3 JSON',
         'af3_export_json_single': '📄 Individual JSONs',
         'af3_export_json_batch':  '📦 Batch JSON',
+        'af3_export_slurm_array': '⚡ SLURM Array (anti-OOM)',
         'af3_export_cf':        '🧬 Export ColabFold FASTA',
         'af3_ranking':          '📊 Ranking',
         'af3_clear_jobs':       '🗑️ Clear Jobs',
@@ -2013,161 +2183,1256 @@ def t(key: str) -> str:
 HELP_CONTENT = {
     'manual': {
         'en': """\
-ppigFinder v1.01  (Server Edition v2)
+ppigFinder v1.12
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 User Manual
 
-WHAT THIS APP DOES
+OVERVIEW
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-This application is a local desktop pipeline for exploratory analysis
-of bacterial genomes. It combines ORF detection, HMM annotation,
-BLAST-style homology search, genome map navigation, AlphaFold job
-generation, server submission, and AlphaFold result inspection in a
-single interface.
+ppigFinder is a standalone desktop application for the discovery of novel
+protein-protein interactions (PPIs) in bacterial and archaeal genomes.
 
-MAIN WORKFLOW
+The pipeline starts from a raw FASTA nucleotide sequence and proceeds
+through five stages:
+
+  1. Gene prediction — identify all protein-coding ORFs using one of
+     three complementary prediction engines (see Section 2 below).
+  2. Functional annotation — HMM profile scanning (HMMER3 / Pfam /
+     TIGRFAM / custom .hmm) and BLASTp homology search.
+  3. Visualisation — interactive zoomable genomic map (0.5× – 1,000,000×)
+     with colour-coded ORF arrows and genomic neighbourhood analysis.
+  4. Interaction prediction — AlphaFold 3 (AF3) batch job builder:
+     generates AF3 JSON or ColabFold FASTA files for every desired pair;
+     jobs can be submitted directly to an HPC cluster via SSH/SFTP.
+  5. Result analysis — PAE heatmaps (ChimeraX colour scheme), per-residue
+     pLDDT plots, ipTM / pTM scoring, and inter-chain contact detection
+     imported back into the application for ranking and visual inspection.
+
+WHAT'S NEW IN v1.12
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-1. Load a genome file
-   Supported inputs: FASTA, multi-FASTA, GenBank (.gb/.gbk),
-   and SnapGene (.dna).
+• Hybrid prediction mode (Pyrodigal + Automatic gap-filler) — see §2.
+• File menu streamlined: Multi-FASTA, SnapGene (.dna) and GenBank
+  (.gb/.gbk) import/export options removed; FASTA is the sole input.
+• Genome map zoom extended to 1,000,000× for large chromosomes / MAGs.
 
-2. Translate genome
-   The toolbar button "Translate genome" opens two methods:
-   • Pyrodigal: model-based prokaryotic gene prediction
-   • Automatic: six-frame ORF detection using start/stop codons
-     and the size filters defined in Parameters
-
-3. Inspect ORFs
-   The ORF table lists genomic position, frame, strand, size, GC,
-   HMM hits, AF3 partner metrics, and user notes. Clicking any ORF in
-   the table selects it and centers the genome map on that ORF.
-
-4. Annotate with HMM profiles
-   Add one or multiple .hmm profiles, run the search, then use
-   "Annotate HMM" to color matching ORFs directly on the genome map.
-
-5. Run sequence similarity searches
-   The BLAST tab accepts a protein query and compares it against the
-   translated ORFs in the loaded genome. ORF links in the results are
-   clickable and center the genome map on the selected ORF.
-
-6. Build AlphaFold jobs
-   The AlphaFold tab allows pair, trimer, all-vs-all, homodimer,
-   and custom multimer job generation. Jobs can be exported as
-   AlphaFold Server JSON or ColabFold FASTA.
-
-7. Analyze AlphaFold predictions
-   The AlphaFold Analysis tab loads AF3 result folders, populates a
-   ranking table, and shows embedded PAE and pLDDT plots inside the
-   application. Selecting a job in the table automatically centers the
-   genome map on the first ORF parsed from that job name.
-
-GENOME MAP NAVIGATION
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-• Ctrl + mouse wheel: zoom at cursor position
-• Toolbar − / + buttons: zoom toward the visible center
-• Shift + drag: horizontal pan
-• Search box: jump directly to ORF number or protein substring
-• Clicking a map arrow: select the ORF and show its details
-
-The zoom label in the toolbar always reflects the current map zoom.
-
-ALPHAFOLD ANALYSIS TAB
+SECTION 1 — LOAD A GENOME
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-The AlphaFold Analysis tab is designed for in-app inspection.
-Plots are embedded in the scroll area and can be exported to PDF with
-"Export plots PDF". The table reports job name, chain composition,
-ipTM, pTM, mean pLDDT, ranking score, best inter-chain PAE, and best
-contact pair description.
+File → Open FASTA  —or—  toolbar "Load a genome file"
+Accepted format: FASTA (.fasta .fa .fna), single sequence or first
+record of a multi-record file.
 
-HELP / DIALOGS
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Manual and Tutorial windows open as modal dialogs so they remain tied
-to the main application window.
+After loading, the right-panel Genome tab shows sequence name, length,
+GC%, and a summary of detected features. The genome map resets to 100%
+zoom with the full chromosome visible.
 
-KEY SHORTCUTS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Ctrl + scroll       Zoom the genome map
-Shift + drag        Pan the genome map
-Right-click ORF     Context menu for copy / annotation / color
-Right-click AF3 job Remove selected generated jobs
+SECTION 2 — GENE PREDICTION MODES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Toolbar → "Translate genome" opens a dropdown with three prediction
+engines. The colum "Source" in the ORF table records which engine
+produced each entry.
+
+┌─────────────────────────────────────────────────────────────────┐
+│ 🧪 PYRODIGAL                                   Source: pyrodigal│
+├─────────────────────────────────────────────────────────────────┤
+│ Uses the Prodigal / Pyrodigal dynamic-programming algorithm to  │
+│ predict protein-coding genes. Evaluates GC-content, ribosome-  │
+│ binding site (RBS) motifs, coding potential, and start-codon    │
+│ context simultaneously, making it far more selective than a     │
+│ simple codon scan.                                              │
+│                                                                 │
+│ Parameters (Parameters → ORF Analysis Parameters):             │
+│   Mode        Metagenomic — uses pre-trained models; ideal for  │
+│               short contigs, plasmids, and MAGs.               │
+│               Single genome — trains on the input sequence;    │
+│               best for closed chromosomes > 100 kb.            │
+│   Table       Translation table for start/stop codon logic:    │
+│               11 = standard bacteria & archaea (default)       │
+│                4 = Mycoplasma / Mollicutes / SR1               │
+│               25 = SR1 / Gracilibacteria                       │
+│               15 = yeast mitochondria                          │
+│   Min size    Minimum predicted protein length (aa). Pyrodigal │
+│               internally enforces this as min_gene = aa × 3.  │
+│   Closed ends Allow genes that begin or end at a sequence edge.│
+│   Mask N runs Soft-mask regions of ambiguous nucleotides.      │
+│   Post-filter Optionally restrict results to genes whose first │
+│               codon is ATG, GTG, or TTG (any combination),     │
+│               applied after Pyrodigal finishes.                │
+│                                                                 │
+│ When to use: standard bacterial/archaeal genomes; any case     │
+│ where annotation accuracy is the top priority.                 │
+│ Requires: pip install pyrodigal                                │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│ 🔀 HYBRID (Pyrodigal + gap-filler)             Source: mixed    │
+├─────────────────────────────────────────────────────────────────┤
+│ Addresses a known limitation of Pyrodigal: it occasionally     │
+│ misses short genes, frameshifted ORFs, genes with unusual RBS  │
+│ signals, or ORFs in low-complexity / GC-extreme regions. In    │
+│ those unannotated intervals the 6-frame scanner is applied as  │
+│ a gap-filler, recovering candidates that Pyrodigal skipped.    │
+│                                                                 │
+│ Internal pipeline:                                             │
+│   Step 1 — Run Pyrodigal on the full sequence with the         │
+│            parameters set in ORF Analysis Parameters.          │
+│   Step 2 — Build a merged coverage map: every genomic position │
+│            (0-based) spanned by at least one Pyrodigal ORF     │
+│            (either strand) is marked as covered.               │
+│   Step 3 — Identify contiguous uncovered gaps — runs of        │
+│            positions not touched by any Pyrodigal prediction.  │
+│   Step 4 — For each gap longer than min_aa × 3 + 3 nt, extract│
+│            the subsequence and run the 6-frame start→stop      │
+│            codon scanner using the parameters from the ORF     │
+│            Detection section (min size and start codons).      │
+│            Coordinates are re-mapped from gap-local back to    │
+│            global genome space.                                │
+│   Step 5 — Merge both ORF sets and sort by genomic start       │
+│            position so ORF numbers (ORF1, ORF2 …) always       │
+│            increase 5'→3', regardless of source.               │
+│                                                                 │
+│ Source column values after a Hybrid run:                       │
+│   pyrodigal  — predicted by Pyrodigal (primary caller)         │
+│   automatic  — found by the 6-frame scanner in a gap           │
+│                                                                 │
+│ Parameters used:                                               │
+│   Pyrodigal section  → controls the primary caller             │
+│   ORF Detection section → controls the gap-filler              │
+│     (min size in aa, start codons: ATG / GTG / TTG)            │
+│                                                                 │
+│ When to use: when you suspect important short ORFs or unusual  │
+│ genes are being missed by Pyrodigal alone; genomic islands,    │
+│ phage insertions, toxin-antitoxin systems, small regulatory    │
+│ peptides, or any region of biological interest showing a gap   │
+│ in the Pyrodigal annotation.                                   │
+│ Requires: pip install pyrodigal (Pyrodigal must be installed)  │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│ ⚙️  AUTOMATIC (6-frame scan)                   Source: 6frame   │
+├─────────────────────────────────────────────────────────────────┤
+│ Exhaustive 6-frame start→stop codon scan across the entire     │
+│ sequence on both strands (frames +0, +1, +2, −0, −1, −2).     │
+│ Every in-frame interval from a start codon to the next in-     │
+│ frame stop codon that meets the minimum size threshold is      │
+│ reported. No machine-learning, no training data required.      │
+│                                                                 │
+│ Parameters (Parameters → ORF Analysis Parameters):             │
+│   Min ORF size   Minimum protein length in amino acids.        │
+│                  Default: 30 aa (= 90 nt + stop codon).        │
+│                  Lower values recover very short peptides but  │
+│                  dramatically increase false positives.        │
+│   Start codons   ATG (AUG) — canonical methionine start        │
+│                  GTG (GUG) — valine start, common in bacteria  │
+│                  TTG (UUG) — leucine start, less frequent      │
+│                  All three are enabled by default; uncheck to  │
+│                  restrict to canonical ATG-only starts.        │
+│                                                                 │
+│ When to use: quick exploratory scans; sequences from organisms │
+│ with non-standard genetic codes; when Pyrodigal is not         │
+│ installed; when you want to see every possible reading frame.  │
+│ No external dependency needed.                                 │
+└─────────────────────────────────────────────────────────────────┘
+
+Recommendation for PPI discovery workflows:
+  Use Hybrid mode as the default for bacterial genomes.
+  It combines the biological accuracy of Pyrodigal with the
+  exhaustiveness of the 6-frame scanner, ensuring no annotatable
+  region is left blank.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 3 — ORF TABLE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+All predicted genes are listed with the following columns:
+
+  ID           ORF number (ORF1, ORF2 …), assigned by genomic
+               start position — always increases 5'→3' regardless
+               of prediction mode or strand.
+  Frame        Reading frame (0–2 for +strand, 3–5 for −strand).
+  Strand       + (sense) or − (antisense).
+  Start / End  0-based genomic coordinates (half-open interval).
+  Size(aa)     Protein length in amino acids (stop codon excluded).
+  GC%          GC content of the coding DNA.
+  HMM          Best HMM profile match name and domain region.
+  Score        HMM bit-score or Pyrodigal confidence score (0–100).
+  Source       Prediction engine: pyrodigal / automatic / 6frame.
+               In Hybrid mode both values appear in the same table.
+  Obs          Free-text observation / annotation field.
+  AF3          ✅ if at least one AF3 prediction result is available.
+  Partner      Best interaction partner from AF3 analysis.
+  ipTM         Interface predicted TM-score of the best AF3 result.
+  PAE_inter    Mean inter-chain PAE (Å) of the best AF3 result.
+
+Interactions with the table:
+  • Click a row       → select ORF; genome map centers on that gene.
+  • Ctrl+click        → add/remove rows to/from selection.
+  • Shift+click       → range selection.
+  • Ctrl+C            → copy selected rows as TSV (Excel-ready).
+  • Right-click       → context menu: annotate, color, copy sequences,
+                        export FASTA, add to AlphaFold list.
+  • Export table btn  → TSV (columns only) / TSV full (+DNA+Protein) /
+                        TSV annotated only / FASTA protein / FASTA DNA.
+
+Filtering bar:
+  Search field  — filter by ORF ID or any protein substring.
+  Frame / Strand / Min aa / Source  — additional combo filters.
+  Apply button  — refresh the table with the current filter set.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 4 — HMM ANNOTATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+HMM tab (right panel):
+  1. "Add HMM Profile" — load a single .hmm file.
+     "Add Multiple Profiles" — load an entire folder of .hmm files.
+  2. Assign a display colour and a short function label to each profile.
+  3. "Search All ORFs" — runs HMMER3 hmmscan (or built-in PSSM scanner
+     if HMMER3 is absent) against every predicted ORF protein sequence.
+  4. Toolbar "Annotate HMM" — transfers hit information to the ORF table
+     (HMM and Score columns) and recolours matching arrows on the map.
+
+Compatible databases: Pfam-A, TIGRFAM, custom domain libraries.
+Parameters (Parameters → HMM Parameters): E-value cutoff, bit-score
+threshold, domain overlap handling.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 5 — BLAST HOMOLOGY SEARCH
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BLAST Query tab:
+  Paste or load a protein sequence (FASTA or raw) and click "Run BLAST".
+  ppigFinder runs BLASTp against the local ORF database (all predicted
+  proteins from the current genome). Hits appear in the BLAST Results tab
+  with alignment details. Clicking any ORF link centers the genome map.
+
+Parameters (Parameters → BLAST Parameters):
+  Algorithm, scoring matrix (BLOSUM62 default), E-value cutoff,
+  word size, gap penalties.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 6 — GENOMIC NEIGHBOURHOOD
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Neighborhood tab → set the window size (kb, each side) → Analyze.
+Displays all ORFs within the window around the selected gene in a
+scrollable FASTA list. Useful for operon context analysis and for
+manually identifying candidate interaction partners encoded in the
+same genomic region.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 7 — ALPHAFOLD 3 JOB BUILDER
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+AlphaFold tab — four sub-steps:
+
+A) Build the ORF selection list:
+   "Add Selected ORF"  — add only the currently highlighted ORF.
+   "Add HMM Hits"      — add all ORFs with at least one HMM hit.
+   "Add All ORFs"      — opens a filter dialog (size range, HMM
+                         annotation required); auto-switches to
+                         Interactoma Genômico mode.
+
+B) Choose an interaction mode:
+   Pares (hit vs vizinho)  — pair each selected ORF with its N
+                              nearest genomic neighbours.
+   Pares + Homodímeros     — as above, plus each ORF with itself.
+   Trímeros                — three-way combinations.
+   All vs All              — all pairwise combinations among selected.
+   Hits HMM entre si       — pair ORFs that share an HMM profile.
+   Hit vs all selected     — one query ORF against all others.
+   Homodímero              — single ORF folded as a homodimer.
+   Interactoma Genômico    — every selected ORF vs every genome ORF
+                             (full interaction screen).
+
+C) Generate jobs:
+   Click "Generate" — the jobs table populates with pair names,
+   total residue count, and initial status "pending".
+
+D) Export:
+   Export AF3 JSON     — individual JSONs (one per pair) or a
+                         single Batch JSON file.
+   Export ColabFold    — multi-sequence FASTA for ColabFold batch.
+   SLURM Array         — for large interactomes: auto-splits into
+                         batches of 50 pairs to prevent GPU OOM;
+                         generates run_array.sh for sbatch submission.
+   Download JSONs      — save all staged partition JSON files to a
+                         local folder (useful for manual HPC transfer).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 8 — HPC CLUSTER SUBMISSION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+"Submit AF3 via Server" tab — four sub-tabs:
+
+Connect       Fill SSH credentials: hostname, username, port (22),
+              password or key, remote base directory, AF3 run command,
+              and module-load string. Click "Test connection".
+
+Submit jobs   "Upload only" — transfer JSON files via SFTP.
+              "Upload + Submit all" — transfer and sbatch in one step.
+              Advanced: SLURM partition, model seeds, extra flags.
+              Large batches are partitioned and submitted sequentially
+              (one job per partition) to avoid queue limits.
+
+Monitor       Live job status poll from SLURM / PBS / LSF.
+              Click "Refresh" to update the status column.
+
+Results       Download completed prediction folders via SFTP.
+              "Auto-import" parses ipTM and pLDDT from AF3 output
+              JSONs and updates the AlphaFold Analysis ranking.
+
+DaVinci (ICB/USP) quick reference:
+  --partition=basic   max 72 h,   16 CPU,  100 GB RAM,  0 GPU
+  --partition=max50   max  8 d,   64 CPU,  500 GB RAM,  1 GPU  ← AF3
+  --partition=max90   max 15 d,  110 CPU,    1 TB RAM,  4 GPU
+  AF3 module: module load alphafold3
+  Run command: af3_run
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 9 — ALPHAFOLD 3 RESULT ANALYSIS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+AlphaFold Analysis tab → "Load AF3 results folder".
+
+ppigFinder recursively scans for AF3 output JSON files and parses:
+  ipTM         — interface predicted TM-score (key interaction metric)
+  pTM          — predicted TM-score for the full complex
+  mean_pLDDT   — mean per-residue local distance difference test score
+  PAE_inter    — mean predicted aligned error across inter-chain pairs
+  Contact pair — residue pair with lowest inter-chain PAE value
+
+All predictions are listed in a sortable table. Clicking a row:
+  • Renders the PAE heatmap (ChimeraX colour scheme: blue = confident,
+    yellow/red = uncertain)
+  • Renders the per-residue pLDDT bar plot
+  • Centers the genome map on the query ORF
+  • Lists inter-chain contacts above the configurable PAE threshold (Å)
+
+Confidence guide:
+  ipTM >= 0.75        high-confidence interaction — likely physical
+  ipTM 0.50 – 0.75   moderate confidence — worth experimental follow-up
+  ipTM < 0.40         low confidence — unlikely direct interaction
+  PAE_inter < 10 Å   confident inter-chain contact geometry
+  mean_pLDDT > 70    well-structured complex model
+
+Export: "Export plots PDF" saves all PAE heatmaps and pLDDT plots
+as a multi-page PDF for reporting.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 10 — GENOME MAP NAVIGATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+The genome map renders ORFs as directional arrows on a horizontal
+backbone. Arrow colour reflects HMM annotation (if Annotate HMM was
+run) or strand (+ / −).
+
+Zoom range: 0.5× (full chromosome overview) to 1,000,000×
+(single-nucleotide resolution for fine inspection).
+
+  Ctrl + scroll wheel    smooth zoom anchored at cursor position
+  Toolbar − / +          step zoom ×0.8 (out) / ×1.2 (in)
+  Shift + drag           horizontal pan
+  Search box             jump to ORF number or protein substring
+  Click ORF arrow        select ORF; table scrolls to row; right
+                         panel shows DNA / Protein / Domains tabs
+
+When an ORF row is selected in the table, the map always re-centers
+on that gene at the current zoom level — this behaviour is preserved
+in all prediction modes including Hybrid.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 11 — PROJECT SAVE / LOAD
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+File → Save Project  saves a single JSON workspace (schema v2)
+containing the complete session state:
+  • Full genome sequence
+  • All ORFs with every annotation field: gene name, putative function,
+    observation, notes, custom colour, source (pyrodigal / automatic)
+  • HMM profiles loaded and all hit results
+  • AlphaFold selection list and all generated jobs
+  • AF3 analysis results: PAE matrices, pLDDT arrays, ipTM scores
+  • BLAST results and query history
+  • Pyrodigal parameters and ORF scanner settings
+  • HPC server connection settings
+  • UI state: active filters, zoom level, start codon checkboxes
+
+File → Open Project   restores the entire session.
+File → Save Project As  makes a fully independent snapshot copy.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 12 — EXPORT OPTIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ORF table:
+  Ctrl+C              copy selected rows as TSV
+  Export table menu:
+    TSV (columns)     ID, coordinates, size, GC%, HMM, score, source…
+    TSV full          above + full DNA and protein sequences
+    TSV annotated     only rows with a non-empty Obs / gene name field
+  Export FASTA:
+    Protein FASTA     rich header: >ORFn|frame|start-end|Naa|source
+    DNA FASTA         nucleotide coding sequence with same header
+
+Genome map:
+  "Export Map PDF" toolbar button → saves as PNG, PDF, or SVG
+
+AF3 analysis:
+  "Export plots PDF" → multi-page PDF of all PAE + pLDDT figures
+
+Project and reports:
+  File → Save Project         full JSON workspace
+  File → Report (TSV)         legacy ranked ORF table export
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 13 — KEY SHORTCUTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Ctrl+C              copy selected ORF table rows as TSV
+Ctrl+scroll         zoom genome map
+Shift+drag          pan genome map
+Right-click (ORF)   annotate / colour / copy / export / add to AF3
+Right-click (AF3)   delete selected job
+Delete/Backspace    delete selected AF3 jobs (table must be focused)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 14 — DEPENDENCIES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Required (core GUI and plotting):
+  PyQt6 >= 6.4       pip install PyQt6     (PyQt5 >= 5.15 fallback)
+  matplotlib >= 3.5  pip install matplotlib
+  numpy >= 1.21      pip install numpy
+
+Recommended (gene prediction):
+  pyrodigal >= 2.0   pip install pyrodigal
+  Required for Pyrodigal and Hybrid modes.
+
+Optional (annotation and submission):
+  BLAST+ >= 2.12     https://ftp.ncbi.nlm.nih.gov/blast/executables/
+                     Also detectable via WSL on Windows.
+  HMMER3 >= 3.3      conda install -c bioconda hmmer
+                     Or local install; also via WSL.
+  paramiko >= 2.9    pip install paramiko
+                     Required for HPC SSH/SFTP submission.
+
+Backend status is shown in real time in the Genome tab (right panel)
+and in the toolbar badge (✅ / ❌ per backend).
 """,
     },
 
     'tutorial': {
         'en': """\
-ppigFinder v1.01  (Server Edition v2)
+ppigFinder v1.12 — Step-by-Step Tutorial
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Step-by-Step Tutorial
+A practical guide for novel bacterial PPI discovery using the full
+ppigFinder pipeline: gene prediction → HMM / BLAST annotation →
+genomic neighbourhood → AlphaFold 3 submission → result analysis.
 
-STEP 1 — Load a genome file
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Use "Load a genome file" in the toolbar. FASTA, GenBank, SnapGene,
-and multi-FASTA are supported. After loading, the genome information
-panel is updated and the genomic map becomes available.
+STEP 1 — Load a genome
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. Click "Load a genome file" in the toolbar  —or—  File → Open FASTA.
+2. Select a FASTA file (.fasta .fa .fna).
+3. The right-panel Genome tab immediately shows: sequence name, total
+   length (bp), GC%, and number of ambiguous nucleotides. The genome
+   map renders the backbone at 100% zoom (full sequence visible).
 
-STEP 2 — Translate the genome
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Click "Translate genome" and choose one of the two modes:
-• Pyrodigal: recommended when you want a gene-caller style prediction
-• Automatic: recommended when you want to inspect all possible ORFs
-  from start/stop codons under the current parameter limits
+  Tip: If your sequence is in GenBank or SnapGene format, export it to
+  FASTA first using any sequence editor (Benchling, Geneious, SnapGene
+  Viewer, Biopython: SeqIO.write, or command-line: seqret).
 
-STEP 3 — Explore the ORF table
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-The ORF table is synchronized with the map. Clicking any ORF row:
-• selects the ORF
-• updates the DNA / Protein / Domains tabs
-• centers the genomic map on that ORF
+STEP 2 — Configure prediction parameters
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Before running any prediction, set the parameters once via:
+  Parameters → ORF Analysis Parameters
 
-STEP 4 — Add and search HMM profiles
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Open the HMM tab, add one or multiple .hmm files, then run
-"Search All ORFs". After the search, click "Annotate HMM" in the
-toolbar to transfer those hits to the main ORF table and genome map.
+This dialog has two independent sections that feed two different engines:
 
-STEP 5 — Run BLAST on genome ORFs
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Paste or load a protein sequence in the BLAST Query tab and run the
-search. ORF links in the BLAST results are clickable and recenter the
-map automatically.
+  Section A — 6-frame ORF scanner (used by Automatic and Hybrid gap-filler)
+  ────────────────────────────────────────────────────────────────────────
+  Min ORF size (aa)  The scanner reports only ORFs whose translated
+                     protein is at least this many amino acids long
+                     (stop codon not counted). Default: 30 aa.
+                     Raise to 50–100 to reduce noise; lower to 15–20
+                     to capture very small peptides (more false positives).
+  Start codons       Check ATG, GTG, and/or TTG. ATG is canonical;
+                     GTG and TTG are common alternative starts in
+                     bacteria (e.g. many E. coli genes start with GTG).
+                     Uncheck GTG/TTG for strict ATG-only scanning.
 
-STEP 6 — Build AlphaFold jobs
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Open the AlphaFold tab and add ORFs using the selection controls.
-Generate pairwise or multimer jobs, then export them as:
-• AlphaFold Server JSON
-• ColabFold FASTA
+  Section B — Pyrodigal (used by Pyrodigal and Hybrid primary caller)
+  ────────────────────────────────────────────────────────────────────
+  Mode        Metagenomic — recommended for most use cases. Uses
+              built-in pre-trained models; works on any contig size.
+              Single genome — re-trains on the input sequence; requires
+              a reasonably complete chromosome (> 100 kb recommended)
+              for reliable model training.
+  Table       Choose translation table matching your organism:
+              11 = bacteria/archaea standard (most common)
+               4 = Mycoplasma, Mollicutes, some phages
+              25 = SR1 / Gracilibacteria (opal = Trp)
+              15 = yeast mitochondria (TAG = Gln)
+  Min gene    Minimum protein length for Pyrodigal predictions.
+              Independent of the 6-frame scanner min size — in Hybrid
+              mode you can set a shorter gap-filler threshold to
+              recover small ORFs that Pyrodigal deliberately skips.
+  Closed ends If checked, allows Pyrodigal to predict genes that
+              run off the edges of the input sequence (partial genes
+              at contig boundaries).
+  Mask N runs Soft-masks runs of N/n nucleotides before prediction
+              to avoid spurious gene calls in assembly gaps.
+  Post-filter Optional: after Pyrodigal finishes, keep only genes
+              whose first codon matches the checked subset (ATG /
+              GTG / TTG / All). "All" (default) makes no restriction.
 
-STEP 7 — Load AlphaFold predictions for analysis
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Open the AlphaFold Analysis tab and click "Load AF3 results folder".
-The application scans the selected folder, parses the AF3 outputs, and
-creates a sortable job table.
+Click OK to save. Parameters persist for the entire session and are
+stored in the project file.
 
-STEP 8 — Inspect prediction quality
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Selecting a row in the AlphaFold Analysis table will:
-• embed the PAE plot inside the application
-• embed the pLDDT plot inside the application
-• center the genome map on the first ORF found in the job
+STEP 3 — Predict genes (choose a mode)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Click "Translate genome" in the toolbar to open the mode dropdown.
 
-STEP 9 — Use map navigation effectively
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-• Ctrl + mouse wheel zooms at the cursor
-• Toolbar − / + zoom buttons zoom around the visible center
-• Shift + drag pans horizontally
-• The search box jumps directly to an ORF
+───────────────────────────────────────
+ 🧪 PYRODIGAL
+───────────────────────────────────────
+Best for: complete or nearly complete bacterial/archaeal chromosomes
+where annotation accuracy is the priority.
 
-STEP 10 — Export figures and save the project
+Pyrodigal applies dynamic programming to score every possible gene on
+both strands simultaneously, using GC-content, RBS motif probability,
+coding potential, and start-codon context. This produces a clean,
+biologically motivated gene set with very low false-positive rates.
+
+All ORFs are tagged Source = pyrodigal.
+
+After running: the ORF table fills and the genome map shows coloured
+arrows. Status bar reports: "Pyrodigal: N genes | mode=… table=…".
+
+───────────────────────────────────────
+ 🔀 HYBRID  ← recommended default
+───────────────────────────────────────
+Best for: any bacterial genome where completeness matters — especially
+when searching for novel interaction partners that may include small or
+atypical genes that Pyrodigal tends to miss.
+
+Why Hybrid? Pyrodigal is highly accurate but conservative: it skips
+regions with weak RBS signals, very short ORFs (< 60 aa), genes in
+repetitive or GC-extreme contexts, and sometimes frameshifted or
+overlapping genes. These "dark zones" may encode relevant proteins
+(toxin-antitoxin components, small regulatory peptides, phage-related
+proteins, signal peptides, etc.).
+
+How it works:
+  1. Pyrodigal runs first on the full sequence → primary ORF set.
+  2. A merged coverage map is built from Pyrodigal intervals.
+     Every nucleotide position covered by at least one Pyrodigal ORF
+     (on either strand) is marked. Intervals are merged so that
+     overlapping predictions count as a single covered block.
+  3. Uncovered gaps (contiguous regions with zero Pyrodigal coverage)
+     are identified. Only gaps longer than min_aa × 3 + 3 nt are
+     processed (smaller gaps cannot contain a valid ORF anyway).
+  4. The 6-frame scanner is applied to each gap subsequence using
+     the ORF Detection parameters (min size, start codons).
+     Coordinates are translated back to global genome space.
+  5. Both ORF sets are merged and sorted by genomic start position,
+     so ORF numbering (ORF1, ORF2 …) always follows the 5'→3' order
+     of the chromosome regardless of prediction source.
+
+Result: a unified ORF table where Pyrodigal genes carry
+Source = pyrodigal and gap-filled genes carry Source = automatic.
+You can filter the table by Source to inspect each subset separately.
+
+Status bar after Hybrid run:
+  "✓ Hybrid: N ORFs total — X pyrodigal + Y gap-fill (automatic)"
+
+───────────────────────────────────────
+ ⚙️ AUTOMATIC
+───────────────────────────────────────
+Best for: quick exploratory scans, organisms with non-standard genetic
+codes, validation runs, or when Pyrodigal is not installed.
+
+Exhaustive 6-frame scan: every interval from a start codon to the next
+in-frame stop codon (all 6 reading frames, both strands) that meets the
+minimum size threshold is reported. No biological context is used —
+purely syntactic. Expect a higher number of ORFs than Pyrodigal, many
+of which will be spurious. Use the HMM and BLAST tools to triage.
+
+All ORFs are tagged Source = 6frame.
+
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Use "Export Map PDF" for the genome map and "Export plots PDF" in
-AlphaFold Analysis for PAE / pLDDT figures. Save the project when you
-want to preserve the current state of genome, ORFs, HMM hits, and AF3
-metadata for later reopening.
+STEP 4 — Explore the ORF table and genome map
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+After prediction, the ORF table on the left lists every gene. The
+genome map draws directional arrows on a horizontal chromosome backbone.
+
+Navigation:
+  • Click any row → genome map centers on that arrow; right panel
+    shows the DNA sequence (DNA tab), translated protein (Protein tab),
+    and predicted domains (Domains tab).
+  • Ctrl+scroll or toolbar − / + → zoom the map (0.5× – 1,000,000×).
+  • Shift+drag → pan left/right.
+  • Type in the search box → filter by ORF ID or protein substring.
+
+Annotation via right-click on a row:
+  • Annotate  — opens a dialog to set gene name, putative function,
+                free-text observation, and notes. These fields are
+                saved in the project file and exported in TSV/FASTA.
+  • Color     — assigns a custom colour to the arrow on the genome map.
+  • Copy      — copies the protein sequence, DNA sequence, or full
+                FASTA header + sequence to the clipboard.
+  • Add to AlphaFold  — queues the ORF for interaction prediction.
+
+Multi-selection: Ctrl+click or Shift+click to select multiple rows.
+Ctrl+C copies all selected rows as a tab-separated table (Excel-ready).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 5 — HMM annotation
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+HMM scanning matches predicted ORFs against domain profile databases
+(Pfam, TIGRFAM, custom), revealing functional families and guiding
+which ORFs are worth submitting to AlphaFold.
+
+Workflow:
+  1. Open the HMM tab (right panel).
+  2. Click "Add HMM Profile" (one .hmm file) or "Add Multiple Profiles"
+     (entire folder — useful for full Pfam-A or TIGRFAM libraries).
+  3. Assign a colour and short label (e.g. "ToxIN", "ABC transporter")
+     to each profile for visual identification on the map.
+  4. Click "Search All ORFs" — runs HMMER3 hmmscan against all proteins.
+     If HMMER3 is absent, the built-in PSSM scanner is used as fallback.
+  5. When the search finishes, click "Annotate HMM" in the toolbar.
+     Matching ORFs are recoloured on the map and the HMM and Score
+     columns in the ORF table are filled.
+
+  Tip: run HMM annotation after a Hybrid prediction — both pyrodigal
+  and automatic ORFs are scanned equally. Hits in gap-filled ORFs are
+  particularly informative as evidence of genuine missed genes.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 6 — BLAST homology search
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BLAST Query tab:
+  1. Paste or load a protein sequence (FASTA or raw amino-acid string)
+     into the query box.
+  2. Click "Run BLAST". ppigFinder runs BLASTp against all predicted
+     ORF protein sequences from the current genome.
+  3. Results appear in the BLAST Results tab with e-value, bit-score,
+     identity%, and aligned positions. Clicking an ORF link selects
+     that row in the table and centers the genome map on it.
+
+  Use case: paste a known interaction partner (e.g. a two-component
+  system kinase) to find candidate receiver domains or HAMP linkers
+  in the same genome.
+
+Parameters → BLAST Parameters: algorithm (blastp/tblastn), scoring
+matrix, E-value threshold, word size, gap open/extend penalties.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 7 — Build AlphaFold 3 jobs
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+AlphaFold tab — build the list of protein pairs to predict.
+
+A) Populate the ORF selection list:
+   "Add Selected ORF"  — adds only the currently highlighted ORF.
+   "Add HMM Hits"      — adds all ORFs with at least one HMM match.
+                         Ideal after HMM annotation to focus on
+                         functionally annotated candidates.
+   "Add All ORFs"      — opens a filter dialog (min/max size, require
+                         HMM hit). Automatically switches mode to
+                         Interactoma Genômico for genome-wide screen.
+
+B) Choose the interaction generation mode:
+   Pares (hit vs vizinho) — each ORF paired with its N nearest
+                             genomic neighbours (configurable N).
+                             Best for operon-level PPI hypotheses.
+   Pares + Homodímeros    — as above, plus each ORF paired with
+                             itself (homodimer prediction).
+   Trímeros               — all three-way combinations.
+   All vs All             — all pairwise combinations among selected
+                             ORFs. Scales as N²/2 — use with caution
+                             for large selection sets.
+   Hits HMM entre si      — pair ORFs that share the same HMM profile
+                             (e.g. all ABC-ATPase domains with each
+                             other).
+   Hit vs all selected    — one query ORF against every other
+                             selected ORF.
+   Homodímero             — a single ORF folded as a homodimer.
+   Interactoma Genômico   — every selected ORF vs every ORF in the
+                             genome. Full interaction screen — can
+                             produce thousands of jobs for large
+                             genomes; use SLURM Array export.
+
+C) Generate and review:
+   Click "Generate". The jobs table fills with pair names, total
+   residue count (sum of both chains), and initial status "pending".
+   Review the list — delete unwanted pairs via right-click or
+   Delete / Backspace key (table must be focused).
+
+D) Export jobs:
+   Export AF3 JSON       — individual JSON files (one per pair) or a
+                           single Batch JSON (all pairs in one file).
+   Export ColabFold      — multi-sequence FASTA for ColabFold batch.
+   SLURM Array (anti-OOM)— auto-splits large batches into partitions
+                           of 50 pairs; generates run_array.sh for
+                           single sbatch command; prevents GPU OOM.
+   Download JSONs        — save all staged partition JSON files to a
+                           local folder of your choice, bypassing the
+                           SSH upload (manual HPC transfer workflow).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 8 — Submit to an HPC cluster
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+"Submit AF3 via Server" tab — four sub-tabs:
+
+Connect
+  Fill in: hostname (e.g. davinci.icb.usp.br), username, port (22),
+  password, remote base directory (will hold all job subdirectories),
+  AF3 run command (e.g. af3_run), module-load string
+  (e.g. alphafold3). Click "Test connection" to verify SSH/SFTP access.
+
+Submit jobs
+  "Upload only"         — transfers JSON files to the remote directory
+                          via SFTP without submitting to the scheduler.
+  "Upload + Submit all" — transfers and calls sbatch / qsub / bsub in
+                          a single click.
+  Advanced options: --partition, model seeds, extra SLURM flags.
+  Large batches are submitted as sequential partitions (one job per
+  partition in the queue) to respect scheduler limits.
+
+Monitor
+  Click "Refresh" to poll the scheduler (squeue / qstat / bjobs)
+  and update the status column for each submitted job.
+
+Results
+  Browse remote directories, select completed job folders, and
+  click "Download". ppigFinder downloads via SFTP and optionally
+  auto-imports ipTM and pLDDT values into the Ranking tab.
+
+DaVinci (ICB/USP) cluster reference:
+  --partition=basic   max  72 h,  16 CPU,  100 GB,  0 GPU
+  --partition=max50   max   8 d,  64 CPU,  500 GB,  1 GPU  ← use for AF3
+  --partition=max90   max  15 d, 110 CPU,    1 TB,  4 GPU
+  Module:  module load alphafold3
+  Command: af3_run
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 9 — Analyse AlphaFold 3 predictions
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+AlphaFold Analysis tab → "Load AF3 results folder".
+
+ppigFinder recursively scans the selected folder for AF3 output JSON
+files and automatically parses:
+  ipTM          interface predicted TM-score — the primary metric
+                for assessing whether two proteins physically interact.
+  pTM           predicted TM-score for the entire complex model.
+  mean_pLDDT    average per-residue pLDDT across both chains —
+                measures overall model confidence.
+  PAE_inter     mean predicted aligned error between residues of
+                different chains — measures confidence in the
+                relative positions of the two proteins.
+  Contact pair  the single inter-chain residue pair with the
+                lowest PAE value (most geometrically confident
+                contact in the interface).
+
+Interpreting results:
+  ipTM >= 0.75       high-confidence interaction — structural model
+                     suggests direct physical binding.
+  ipTM 0.50 – 0.75  moderate confidence — candidate worth experimental
+                     validation (pull-down, Y2H, co-IP).
+  ipTM < 0.40        low confidence — direct interaction unlikely in
+                     this structural context.
+  PAE_inter < 10 Å   the inter-chain geometry is well-defined.
+  mean_pLDDT > 70    the complex model is overall well-structured.
+
+Clicking a result row:
+  • The PAE heatmap renders (ChimeraX colour scheme: blue = low PAE =
+    high confidence; yellow / red = high PAE = uncertain geometry).
+    The diagonal blocks represent intra-chain PAE; off-diagonal blocks
+    represent inter-chain PAE — the key interaction signal.
+  • The per-residue pLDDT bar plot renders; low-pLDDT stretches
+    indicate disordered or poorly modelled regions.
+  • The genome map centers on the query ORF of that prediction.
+  • Inter-chain contacts above the threshold (Å, adjustable) are listed.
+
+Export: "Export plots PDF" → multi-page PDF of all PAE and pLDDT
+figures for the selected predictions.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 10 — Navigate the genome map
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+The genome map is central to the ppigFinder workflow — it provides
+spatial context for every ORF and supports rapid visual inspection.
+
+Zoom range: 0.5× (full chromosome) → 1,000,000× (nucleotide level).
+This range is sufficient for any bacterial or archaeal chromosome,
+including large genomes > 5 Mbp and closed plasmids.
+
+  Ctrl + scroll wheel   smooth zoom centred on cursor position.
+  Toolbar − / +         step zoom ×0.8 / ×1.2 per click.
+  Shift + drag          pan the chromosome left or right.
+  Search box            type an ORF number (e.g. "ORF42") or any
+                        substring of a protein sequence to jump to
+                        matching ORFs. Click Search or press Enter.
+  Click an ORF arrow    selects that ORF in the table; right panel
+                        switches to show sequences and domains.
+
+Selecting a row in the ORF table always re-centers the map on that
+gene at the current zoom level. This is true for all prediction modes
+(Pyrodigal, Hybrid, Automatic) — the centering logic is source-agnostic.
+
+  Tip (Hybrid mode): after running Hybrid, zoom to a region of interest
+  and look for arrows coloured differently from the Pyrodigal set —
+  these are the gap-filled (automatic) ORFs. Check the Source column
+  to confirm, then run HMM / BLAST on them to assess biological relevance.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 11 — Save the project
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+File → Save Project   — saves a single .json workspace.
+File → Open Project   — restores the complete session.
+File → Save Project As — independent snapshot copy (all data inlined).
+
+The project file preserves:
+  ✓ Genome sequence and name
+  ✓ All ORFs with every annotation field (gene name, function,
+    observation, notes, custom colour, source tag)
+  ✓ HMM profiles and all search results
+  ✓ AlphaFold selection list and generated job definitions
+  ✓ AF3 analysis results: PAE matrices, pLDDT arrays, ipTM / pTM scores
+  ✓ BLAST query history and result hits
+  ✓ Pyrodigal parameters and ORF scanner settings (both sections)
+  ✓ HPC server credentials and connection settings
+  ✓ UI state: current zoom level, active Source/Frame/Strand filters,
+    start codon checkboxes, min aa spinner
+
+  Tip: save the project immediately after a Hybrid prediction so you
+  can restore the full ORF set (including gap-filled ORFs) without
+  re-running the prediction.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+STEP 12 — Export data
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ORF table exports:
+  Ctrl+C                  copy selected rows as TSV (paste to Excel).
+  Export table → TSV      all visible columns for every ORF (or
+    (columns only)        filtered subset).
+  Export table →          above + full DNA and protein sequences
+    TSV full              appended as extra columns.
+  Export table →          only rows where Obs / gene name is filled;
+    TSV annotated         useful for reporting confirmed candidates.
+  Export FASTA (protein)  >ORFn|Fframe|start–end|Naa|source — one
+                          record per ORF; stop codon excluded.
+  Export FASTA (DNA)      same header, nucleotide coding sequence.
+
+Genome map:
+  "Export Map PDF" toolbar → saves the current map view as PNG, PDF,
+  or SVG; resolution and DPI configurable.
+
+AF3 plots:
+  "Export plots PDF" → multi-page PDF of selected PAE heatmaps and
+  pLDDT bar plots.
+
+Reports:
+  File → Report (TSV)     legacy ranked ORF export for spreadsheets.
+  File → Save Project     full JSON workspace (all data).
+""",
+    },
+
+    'install': {
+        'en': """\
+ppigFinder v1.12 — Installation Guide
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+How to install ppigFinder and all its dependencies on a regular
+personal computer — Windows, macOS, and Linux.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DEPENDENCY OVERVIEW
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+The table below lists every component, whether it is required or
+optional, and what breaks without it.
+
+  Package / Tool    Ver      Type      Without it
+  ──────────────────────────────────────────────────────────────
+  Python            >= 3.8   REQUIRED  app cannot run
+  PyQt6             >= 6.4   REQUIRED  no graphical interface
+    (PyQt5 >= 5.15 is accepted as automatic fallback)
+  matplotlib        >= 3.5   REQUIRED  PAE/pLDDT plots disabled
+  numpy             >= 1.21  REQUIRED  PAE/pLDDT plots disabled
+  pyrodigal         >= 2.0   OPTIONAL  Pyrodigal & Hybrid modes
+                                       unavailable; Automatic mode
+                                       still works
+  paramiko          >= 2.9   OPTIONAL  HPC SSH/SFTP submission
+                                       unavailable; all other
+                                       features still work
+  NCBI BLAST+       >= 2.12  OPTIONAL  uses built-in k-mer/SW
+                                       aligner as fallback
+  HMMER3            >= 3.3   OPTIONAL  uses built-in PSSM scanner
+                                       as fallback
+
+  On Windows, BLAST+ and HMMER3 are most easily installed through
+  WSL (Windows Subsystem for Linux) — see Section 3 below.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 1 — WINDOWS (without Spyder / Anaconda)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+This route uses the standard Python installer from python.org and
+installs packages through pip in a virtual environment.
+
+── 1.1  Install Python ────────────────────────────────────────────
+1. Open your browser and go to  https://www.python.org/downloads/
+2. Download the latest Python 3.x installer (e.g. Python 3.12.x).
+3. Run the installer.
+   IMPORTANT: on the first screen, check the box
+   "Add Python to PATH" before clicking Install Now.
+4. When installation finishes, open the Start menu, search for
+   "Command Prompt" or "PowerShell" and open it.
+5. Verify the installation:
+     python --version
+   Expected output: Python 3.12.x  (or similar 3.8+)
+
+── 1.2  Create a virtual environment (recommended) ────────────────
+A virtual environment keeps ppigFinder's packages isolated from
+other Python projects on your machine.
+
+In the Command Prompt / PowerShell:
+  cd %USERPROFILE%\\Desktop
+  python -m venv ppigfinder_env
+  ppigfinder_env\\Scripts\\activate
+
+Your prompt will now show (ppigfinder_env) at the beginning.
+You must activate this environment every time before running the app.
+
+── 1.3  Install core Python packages ──────────────────────────────
+With the environment active:
+  pip install --upgrade pip
+  pip install PyQt6 matplotlib numpy
+
+  Optional but strongly recommended:
+  pip install pyrodigal paramiko
+
+  Verify:
+  python -c "import PyQt6; import matplotlib; import numpy; print('OK')"
+  python -c "import pyrodigal; print('pyrodigal', pyrodigal.__version__)"
+
+── 1.4  Run ppigFinder ────────────────────────────────────────────
+Place the file ppigfinderv1_12.py anywhere convenient (e.g. Desktop).
+With the virtual environment active:
+  python C:\\Users\\YourName\\Desktop\\ppigfinderv1_12.py
+
+To avoid typing this every time, create a one-line batch file
+(run_ppigfinder.bat) on your Desktop containing:
+  @echo off
+  call %USERPROFILE%\\Desktop\\ppigfinder_env\\Scripts\\activate
+  python %USERPROFILE%\\Desktop\\ppigfinderv1_12.py
+
+Double-clicking that .bat file will open the app.
+
+── 1.5  Install BLAST+ on Windows ─────────────────────────────────
+Option A — Native Windows installer (simplest):
+  1. Go to: https://ftp.ncbi.nlm.nih.gov/blast/executables/blast+/LATEST/
+  2. Download the .exe installer for Windows
+     (e.g. ncbi-blast-2.16.0+-win64.exe).
+  3. Run the installer; accept defaults.
+  4. IMPORTANT: the installer should add BLAST to your PATH.
+     To verify, open a NEW Command Prompt and type:
+       blastp -version
+     Expected: blastp: 2.16.0+
+
+Option B — Via WSL (see Section 3): recommended if you also need HMMER3.
+
+── 1.6  Install HMMER3 on Windows (requires WSL) ──────────────────
+HMMER3 does not have a native Windows build. Install WSL first
+(Section 3), then inside WSL run:
+  sudo apt-get update
+  sudo apt-get install -y hmmer
+  hmmscan -h | head -2     # verify
+
+ppigFinder automatically detects HMMER3 running through WSL.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 2 — WINDOWS (with Spyder / Anaconda)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Anaconda ships Python, Spyder IDE, and conda package manager together.
+Use this route if you already use Anaconda for data science work.
+
+── 2.1  Install Anaconda ──────────────────────────────────────────
+If Anaconda is not yet installed:
+  1. Go to: https://www.anaconda.com/download
+  2. Download the Windows installer and run it.
+  3. During installation, select "Add Anaconda to PATH" (or use
+     Anaconda Prompt for all commands below).
+
+── 2.2  Create a dedicated conda environment ──────────────────────
+Open "Anaconda Prompt" from the Start menu:
+  conda create -n ppigfinder python=3.11 -y
+  conda activate ppigfinder
+
+Your prompt should now show (ppigfinder).
+You must run "conda activate ppigfinder" each time before using the app.
+
+── 2.3  Install Python packages ───────────────────────────────────
+  conda install -c conda-forge pyqt matplotlib numpy -y
+  pip install pyrodigal paramiko
+
+  Verify:
+  python -c "from PyQt6.QtWidgets import QApplication; print('PyQt6 OK')"
+  python -c "import pyrodigal; print('pyrodigal', pyrodigal.__version__)"
+
+  If PyQt6 is not found via conda-forge, fall back to pip:
+  pip install PyQt6
+
+── 2.4  Install BLAST+ and HMMER3 via conda ───────────────────────
+  conda install -c bioconda blast hmmer -y
+  blastp -version    # verify
+  hmmscan -h | head -2
+
+  Note: bioconda packages work natively on Windows only in certain
+  conda configurations. If the install fails, use WSL (Section 3)
+  or the native BLAST+ installer (Section 1.5).
+
+── 2.5  Run ppigFinder from Spyder ────────────────────────────────
+1. Open Spyder from the Anaconda Navigator (make sure the ppigfinder
+   environment is selected in the top-right environment dropdown).
+   — or — from Anaconda Prompt with (ppigfinder) active:
+   conda install spyder -y && spyder
+
+2. In Spyder, open ppigfinderv1_12.py (File → Open).
+3. Press F5 (Run file) or click the green ▶ button.
+4. The ppigFinder window will open alongside Spyder.
+
+   Tip: In Spyder Preferences → Run → "Run in external terminal"
+   will open ppigFinder as a separate window rather than inside
+   Spyder's IPython console, which avoids event-loop conflicts.
+
+── 2.6  Run ppigFinder from Anaconda Prompt ───────────────────────
+  conda activate ppigfinder
+  python C:\\path\\to\\ppigfinderv1_12.py
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 3 — WINDOWS SUBSYSTEM FOR LINUX (WSL)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WSL runs a real Linux environment inside Windows. ppigFinder detects
+BLAST+ and HMMER3 installed in WSL automatically via the backend
+detection code ("via WSL" label in the Backends panel).
+
+── 3.1  Enable WSL ────────────────────────────────────────────────
+Windows 10 (version 2004+) and Windows 11:
+1. Open PowerShell as Administrator (right-click → Run as administrator).
+2. Run:
+     wsl --install
+3. Restart your computer when prompted.
+4. After restart, Ubuntu will finish installing and ask you to create
+   a Linux username and password (this is independent of your Windows
+   account).
+
+To verify WSL is working:
+  wsl --list --verbose     (should show Ubuntu running)
+
+── 3.2  Install BLAST+ inside WSL ────────────────────────────────
+Open the Ubuntu app from the Start menu (or type "wsl" in Powershell):
+  sudo apt-get update
+  sudo apt-get install -y ncbi-blast+
+  blastp -version    # should print blastp: 2.x.x+
+
+── 3.3  Install HMMER3 inside WSL ────────────────────────────────
+  sudo apt-get install -y hmmer
+  hmmscan -h | head -2    # should print HMMER 3.x
+
+── 3.4  Verify ppigFinder detects WSL tools ───────────────────────
+Launch ppigFinder on Windows (Sections 1 or 2). In the right panel,
+look at the Backends section:
+  BLAST+     ✅  via WSL
+  HMMER3     ✅  via WSL
+
+If you see ❌, open a Command Prompt and test:
+  wsl bash -c "blastp -version"
+  wsl bash -c "hmmscan -h"
+These commands must return output for ppigFinder to detect them.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 4 — macOS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+── 4.1  Install Homebrew (package manager) ────────────────────────
+Homebrew is the most convenient way to install system tools on macOS.
+Open Terminal (Applications → Utilities → Terminal) and run:
+  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+Follow the on-screen instructions. On Apple Silicon (M1/M2/M3) Macs
+the installer may ask you to add Homebrew to your PATH:
+  echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile
+  eval "$(/opt/homebrew/bin/brew shellenv)"
+
+Verify:
+  brew --version
+
+── 4.2  Install Python ────────────────────────────────────────────
+macOS ships a system Python (often outdated). Install a fresh one:
+  brew install python@3.12
+
+Then verify:
+  python3 --version    # should be 3.12.x
+
+── 4.3  Create a virtual environment ──────────────────────────────
+  cd ~/Desktop
+  python3 -m venv ppigfinder_env
+  source ppigfinder_env/bin/activate
+
+Your prompt will show (ppigfinder_env). Activate it every session:
+  source ~/Desktop/ppigfinder_env/bin/activate
+
+── 4.4  Install Python packages ───────────────────────────────────
+  pip install --upgrade pip
+  pip install PyQt6 matplotlib numpy
+  pip install pyrodigal paramiko    # optional, strongly recommended
+
+  Verify:
+  python -c "import PyQt6; import matplotlib; print('GUI packages OK')"
+  python -c "import pyrodigal; print(pyrodigal.__version__)"
+
+── 4.5  Install BLAST+ ────────────────────────────────────────────
+  brew install blast
+  blastp -version    # verify
+
+── 4.6  Install HMMER3 ────────────────────────────────────────────
+  brew install hmmer
+  hmmscan -h | head -2    # verify
+
+── 4.7  Run ppigFinder ────────────────────────────────────────────
+  source ~/Desktop/ppigfinder_env/bin/activate
+  python ~/Desktop/ppigfinderv1_12.py
+
+To create a clickable launcher, save the following as
+run_ppigfinder.command on your Desktop:
+  #!/bin/bash
+  source ~/Desktop/ppigfinder_env/bin/activate
+  python ~/Desktop/ppigfinderv1_12.py
+
+Then make it executable:
+  chmod +x ~/Desktop/run_ppigfinder.command
+
+Double-clicking run_ppigfinder.command in Finder will open the app.
+
+── 4.8  macOS with Anaconda / Miniconda ───────────────────────────
+If you prefer conda (similar to the Windows Anaconda route):
+  conda create -n ppigfinder python=3.11 -y
+  conda activate ppigfinder
+  conda install -c conda-forge pyqt matplotlib numpy -y
+  conda install -c bioconda blast hmmer pyrodigal -y
+  pip install paramiko
+  python /path/to/ppigfinderv1_12.py
+
+── 4.9  macOS notes ───────────────────────────────────────────────
+• On Apple Silicon (M1/M2/M3), all packages listed above have native
+  ARM builds — no Rosetta emulation needed.
+• If PyQt6 gives a "This app is not optimised" warning on first launch,
+  go to System Preferences → Privacy & Security and allow it.
+• Gatekeeper may block the first run of BLAST+ executables. Fix with:
+    xattr -dr com.apple.quarantine $(brew --prefix)/bin/blastp
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 5 — LINUX (Ubuntu / Debian)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+── 5.1  Install system dependencies ───────────────────────────────
+  sudo apt-get update
+  sudo apt-get install -y python3 python3-pip python3-venv
+  sudo apt-get install -y ncbi-blast+ hmmer
+  sudo apt-get install -y libgl1 libglib2.0-0    # Qt runtime libs
+
+── 5.2  Create a virtual environment and install packages ──────────
+  python3 -m venv ~/ppigfinder_env
+  source ~/ppigfinder_env/bin/activate
+  pip install --upgrade pip
+  pip install PyQt6 matplotlib numpy pyrodigal paramiko
+
+── 5.3  Run ppigFinder ────────────────────────────────────────────
+  source ~/ppigfinder_env/bin/activate
+  python ~/ppigfinderv1_12.py
+
+── 5.4  Linux with conda ──────────────────────────────────────────
+  conda create -n ppigfinder python=3.11 -y
+  conda activate ppigfinder
+  conda install -c conda-forge pyqt matplotlib numpy -y
+  conda install -c bioconda blast hmmer pyrodigal -y
+  pip install paramiko
+  python /path/to/ppigfinderv1_12.py
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 6 — VERIFY ALL BACKENDS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+After launching ppigFinder, look at the Backends panel in the
+right-side Genome tab. Every installed component shows ✅:
+
+  BLAST+     ✅  blastp: 2.x.x+   (or "via WSL" on Windows)
+  HMMER3     ✅  via WSL / 3.x     (or direct path on Mac/Linux)
+  Pyrodigal  ✅  3.x.x
+
+If any backend shows ❌, the feature degrades gracefully:
+  BLAST+   ❌ → built-in k-mer aligner is used (less sensitive)
+  HMMER3   ❌ → built-in PSSM scanner is used (less sensitive)
+  Pyrodigal❌ → Pyrodigal and Hybrid modes show an error message;
+                use Automatic mode instead
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 7 — QUICK INSTALL REFERENCE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Minimum working installation (all platforms, pip):
+  pip install PyQt6 matplotlib numpy
+
+Recommended full installation:
+  pip install PyQt6 matplotlib numpy pyrodigal paramiko
+
+Full installation via conda:
+  conda install -c conda-forge pyqt matplotlib numpy
+  conda install -c bioconda blast hmmer pyrodigal
+  pip install paramiko
+
+External tools (outside pip/conda):
+  Windows  BLAST+  → NCBI .exe installer or WSL (Section 1.5 / 3.2)
+  Windows  HMMER3  → WSL only (Section 3.3)
+  macOS    BLAST+  → brew install blast
+  macOS    HMMER3  → brew install hmmer
+  Linux    BLAST+  → apt-get install ncbi-blast+
+  Linux    HMMER3  → apt-get install hmmer
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+SECTION 8 — TROUBLESHOOTING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Problem: "No module named PyQt6" when running the app
+  Fix: pip install PyQt6
+       If that fails, try: pip install PyQt5
+       (ppigFinder auto-detects either version)
+
+Problem: The app window opens but plots are blank / grey
+  Fix: pip install matplotlib numpy --upgrade
+
+Problem: Pyrodigal install fails on Windows with a compiler error
+  Fix: pip install --upgrade pip setuptools wheel
+       pip install pyrodigal
+       If still failing, install Visual C++ Build Tools from:
+       https://visualstudio.microsoft.com/visual-cpp-build-tools/
+
+Problem: BLAST+ not detected even though it is installed
+  Check 1: open a terminal and type "blastp -version". If it works
+            there but not in ppigFinder, BLAST+ is not on your PATH.
+  Windows fix: add the BLAST bin folder to System Environment Variables
+               → PATH (e.g. C:\\Program Files\\NCBI\\blast-2.16.0+\\bin)
+  macOS/Linux fix: add to ~/.zshrc or ~/.bashrc:
+               export PATH="/usr/local/ncbi/blast/bin:$PATH"
+               then: source ~/.zshrc
+
+Problem: HMMER3 not detected on Windows
+  Fix: install WSL (Section 3) and then:
+       wsl bash -c "sudo apt-get install -y hmmer"
+
+Problem: "qt.qpa.plugin: Could not load the Qt platform plugin"
+  Linux fix: sudo apt-get install -y libgl1 libxcb-xinerama0
+  Conda fix: conda install -c conda-forge libstdcxx-ng
+
+Problem: app opens but all text appears as boxes / garbled
+  Fix: install a Unicode font:
+       Linux: sudo apt-get install fonts-noto
+       macOS: already included (San Francisco / Helvetica Neue)
+       Windows: already included (Segoe UI)
+
+Problem: "Permission denied" when running the .command file on macOS
+  Fix: chmod +x ~/Desktop/run_ppigfinder.command
 """,
     },
 }
+
 
 
 
@@ -2239,7 +3504,7 @@ class GenomeMapWidget(QWidget):
         position under that pixel is kept in place after the zoom."""
         bw = max(1, self.width() - 80)   # drawable width (margin=40 each side)
         old_gw = max(1, int(bw * self.zoom_level))
-        new_level = max(0.5, min(200.0, level))
+        new_level = max(0.5, min(10000.0, level))
 
         if anchor_x is not None:
             # Genomic fraction under the cursor
@@ -2487,7 +3752,7 @@ class ppigFinderApp(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle('🧬 ppigFinder v1.01 — Protein-Protein Interaction Genomic Finder')
+        self.setWindowTitle('🧬 ppigFinder v1.12 — Protein-Protein Interaction Genomic Finder')
         self.resize(1550, 980)
 
         self.analyzer = AdvancedORFAnalyzer()
@@ -2510,6 +3775,14 @@ class ppigFinderApp(QMainWindow):
 
         # AlphaFold3
         self.af3_jobs = []
+        # Pyrodigal parameters (persisted across runs)
+        self._pyro_params = {
+            'meta':              True,
+            'translation_table': 11,
+            'min_aa':            30,
+            'closed':            False,
+            'mask':              False,
+        }
         self.af3_n_neighbors = 5
         self.af3_max_residues = 5000
 
@@ -2575,9 +3848,6 @@ class ppigFinderApp(QMainWindow):
         # File
         fm = mb.addMenu(t('menu_file'))
         fm.addAction(t('open_fasta'), self.load_fasta)
-        fm.addAction(t('open_multifasta'), self.load_multi_fasta)
-        fm.addAction(t('open_snapgene'), self.load_snapgene)
-        fm.addAction(t('open_genbank'), self.load_genbank)
         fm.addAction(t('load_hmm'), self.load_hmm)
         fm.addSeparator()
         fm.addAction(t('save_project'), self.save_project)
@@ -2586,9 +3856,6 @@ class ppigFinderApp(QMainWindow):
         fm.addSeparator()
         fm.addAction(t('save_orfs_fasta'), self.save_fasta)
         fm.addAction(t('save_report_tsv'), self.save_report_tsv)
-        fm.addSeparator()
-        fm.addAction(t('export_genbank'), self.export_genbank)
-        fm.addAction(t('export_snapgene'), self.export_snapgene)
         fm.addSeparator()
         fm.addAction(t('quit'), self.close)
 
@@ -2602,6 +3869,7 @@ class ppigFinderApp(QMainWindow):
         hm = mb.addMenu(t('menu_help'))
         hm.addAction(t('manual'), self._show_manual)
         hm.addAction(t('tutorial'), self._show_tutorial)
+        hm.addAction(t('install'), self._show_install)
         hm.addSeparator()
         hm.addAction(t('about'), self._show_about)
 
@@ -2621,20 +3889,26 @@ class ppigFinderApp(QMainWindow):
         self._btn_translate = QPushButton(t('btn_translate_genome'))
         translate_menu = QMenu(self._btn_translate)
         
-        # Pyrodigal option with description
+        # Pyrodigal option — runs directly with current _pyro_params
         pyrodigal_action = translate_menu.addAction(
             f"{t('btn_pyrodigal')} — {t('desc_pyrodigal')}")
         pyrodigal_action.triggered.connect(self.analyze_orfs_pyrodigal)
-        
-        # Automatic option with description  
+
+        # Hybrid option — Pyrodigal primary + 6-frame gap-filler
+        hybrid_action = translate_menu.addAction(
+            f"{t('btn_hybrid')} — {t('desc_hybrid')}")
+        hybrid_action.triggered.connect(self.analyze_orfs_hybrid)
+
+        # Automatic option with description
         automatic_action = translate_menu.addAction(
             f"{t('btn_automatic')} — {t('desc_automatic')}")
         automatic_action.triggered.connect(self.analyze_orfs)
-        
+
         self._btn_translate.setMenu(translate_menu)
         self._btn_translate.setToolTip(
             "Choose gene prediction method:\n"
             f"• {t('btn_pyrodigal')}: {t('desc_pyrodigal')}\n"
+            f"• {t('btn_hybrid')}: {t('desc_hybrid')}\n"
             f"• {t('btn_automatic')}: {t('desc_automatic')}")
         tb.addWidget(self._btn_translate)
 
@@ -2838,12 +4112,19 @@ class ppigFinderApp(QMainWindow):
         self._orf_table.setColumnCount(len(cols))
         self._orf_table.setHorizontalHeaderLabels(cols)
         self._orf_table.setSelectionBehavior(SelectRows)
-        self._orf_table.setSelectionMode(SingleSelection)
+        self._orf_table.setSelectionMode(
+            QAbstractItemView.SelectionMode.ExtendedSelection if QT_VERSION == 6
+            else QAbstractItemView.ExtendedSelection)
         self._orf_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers
                                          if QT_VERSION == 6 else QAbstractItemView.NoEditTriggers)
         self._orf_table.horizontalHeader().setStretchLastSection(True)
         self._orf_table.setAlternatingRowColors(True)
         self._orf_table.selectionModel().selectionChanged.connect(self._on_orf_table_select)
+        # Ctrl+C copies selected rows
+        copy_sc = QShortcut(
+            QKeySequence.StandardKey.Copy if QT_VERSION == 6 else QKeySequence.Copy,
+            self._orf_table)
+        copy_sc.activated.connect(self._orf_table_copy_selection)
         self._orf_table.setContextMenuPolicy(
             Qt.ContextMenuPolicy.CustomContextMenu if QT_VERSION == 6 else Qt.CustomContextMenu)
         self._orf_table.customContextMenuRequested.connect(self._on_orf_right_click)
@@ -2857,6 +4138,49 @@ class ppigFinderApp(QMainWindow):
         self._orf_table.setEditTriggers(
             QAbstractItemView.EditTrigger.DoubleClicked
             if QT_VERSION == 6 else QAbstractItemView.DoubleClicked)
+
+        # Export toolbar
+        export_bar = QHBoxLayout()
+        export_bar.setSpacing(4)
+        btn_copy_sel = QPushButton("Copy selected rows")
+        btn_copy_sel.setToolTip(
+            "Copy selected rows as tab-separated text (paste into Excel/Calc).\n"
+            "Select rows with mouse (Ctrl/Shift for multi-select), then click.")
+        btn_copy_sel.clicked.connect(self._orf_table_copy_selection)
+        export_bar.addWidget(btn_copy_sel)
+
+        btn_copy_all = QPushButton("Copy all rows")
+        btn_copy_all.setToolTip("Copy ALL visible rows (current filter) as TSV.")
+        btn_copy_all.clicked.connect(lambda: self._orf_table_copy_rows(all_rows=True))
+        export_bar.addWidget(btn_copy_all)
+
+        btn_exp = QPushButton("Export table...")
+        exp_menu = QMenu(btn_exp)
+        exp_menu.addAction(
+            "TSV — table columns only",
+            lambda: self._export_orf_table(fmt='tsv', include_seqs=False))
+        exp_menu.addAction(
+            "TSV — full (+ DNA + Protein sequences)",
+            lambda: self._export_orf_table(fmt='tsv', include_seqs=True))
+        exp_menu.addSeparator()
+        exp_menu.addAction(
+            "FASTA — protein sequences",
+            lambda: self._export_orf_fasta(aa=True))
+        exp_menu.addAction(
+            "FASTA — DNA sequences",
+            lambda: self._export_orf_fasta(aa=False))
+        exp_menu.addSeparator()
+        exp_menu.addAction(
+            "TSV — annotated only (observation/function/gene)",
+            lambda: self._export_orf_table(fmt='tsv', annotated_only=True, include_seqs=True))
+        btn_exp.setMenu(exp_menu)
+        btn_exp.setToolTip("Export ORF table in various formats")
+        export_bar.addWidget(btn_exp)
+        export_bar.addStretch()
+        self._orf_export_info = QLabel("")
+        self._orf_export_info.setStyleSheet("color: #555; font-size: 11px;")
+        export_bar.addWidget(self._orf_export_info)
+        layout.addLayout(export_bar)
 
         layout.addWidget(self._orf_table, stretch=1)
 
@@ -3228,6 +4552,8 @@ class ppigFinderApp(QMainWindow):
             self._update_map()
             self._status.showMessage(f"✓ {profile['name']} updated: {color_edit.text()}")
 
+
+
     def _create_af3_tab(self):
         w = QWidget()
         layout = QVBoxLayout(w)
@@ -3247,14 +4573,20 @@ class ppigFinderApp(QMainWindow):
         sb.setSpacing(4)
         for text, slot in [(t('af3_add_sel'), self._af3_add_selected),
                            (t('af3_add_hmm'), self._af3_add_hmm_hits),
+                           (t('af3_add_all'), self._af3_add_all_orfs),
                            (t('af3_remove'), self._af3_remove_orf),
                            (t('af3_clear_all'), self._af3_clear_all)]:
             b = QPushButton(text); b.clicked.connect(slot); sb.addWidget(b)
             # Add tooltips
-            if 'add_sel' in slot.__name__:
+            if 'add_selected' in slot.__name__:
                 b.setToolTip(t('tip_af3_add_sel'))
             elif 'add_hmm' in slot.__name__:
                 b.setToolTip(t('tip_af3_add_hmm'))
+            elif 'add_all' in slot.__name__:
+                b.setToolTip(t('tip_af3_add_all'))
+                b.setStyleSheet("QPushButton { background-color: #2e7d32; color: white; font-weight: bold; "
+                                "border-radius: 4px; padding: 3px 8px; }"
+                                "QPushButton:hover { background-color: #388e3c; }")
             elif 'remove' in slot.__name__:
                 b.setToolTip(t('tip_af3_remove'))
             elif 'clear_all' in slot.__name__:
@@ -3291,8 +4623,15 @@ class ppigFinderApp(QMainWindow):
         self._af3_mode_combo = QComboBox()
         self._af3_mode_combo.addItems(["Pares (hit vs vizinho)","Pares + Homodímeros",
             "Trímeros (hit + 2 vizinhos)","All vs All (neighborhood)",
-            "Hits HMM entre si","Hit vs all selected","Homodímero (hit vs si mesmo)"])
-        self._af3_mode_combo.setMinimumWidth(180)
+            "Hits HMM entre si","Hit vs all selected","Homodímero (hit vs si mesmo)",
+            "Interactoma Genômico (All vs All)"])
+        self._af3_mode_combo.setMinimumWidth(220)
+        # Style the new Interactome mode distinctively
+        self._af3_mode_combo.setToolTip(
+            "Interactoma Genômico: predicts each SELECTED ORF against ALL ORFs in the genome.\n"
+            "Add the query ORF(s) via 'Add Selected ORF' or 'Add HMM Hits', then click Generate.\n"
+            "Symmetric pairs (A\u2194B) are collapsed automatically.\n"
+            "Jobs > 5 000 require confirmation. Use size/HMM filters to manage scale.")
         jb.addWidget(self._af3_mode_combo)
         for text, slot in [(t('af3_generate'), self._af3_generate_jobs),
                            (t('af3_export_cf'), self._af3_export_colabfold),
@@ -3314,6 +4653,10 @@ class ppigFinderApp(QMainWindow):
         export_menu = QMenu(export_btn)
         export_menu.addAction(t('af3_export_json_single'), self._af3_export_json)
         export_menu.addAction(t('af3_export_json_batch'), self._af3_export_json_batch)
+        export_menu.addSeparator()
+        _slurm_act = export_menu.addAction(t('af3_export_slurm_array'), self._af3_export_slurm_array)
+        _slurm_act.setToolTip('Export JSONs in numbered batches + one SLURM array script. '
+                              'Submit with: sbatch run_array.sh — one command, no OOM.')
         export_btn.setMenu(export_menu)
         jb.addWidget(export_btn)
         jb.addStretch()
@@ -3431,18 +4774,44 @@ class ppigFinderApp(QMainWindow):
 
         self._run_worker(work, done)
 
+
     def analyze_orfs_pyrodigal(self):
+        """Run Pyrodigal using current _pyro_params (set via Parameters menu)."""
         if not self.dna_sequence:
             QMessageBox.warning(self, "Warning", "Load a FASTA file first!")
             return
         if not PYRODIGAL_AVAILABLE:
             QMessageBox.critical(self, "Pyrodigal", t('pyrodigal_not_avail'))
             return
-        self._status.showMessage("⏳ Running Pyrodigal gene prediction...")
-        min_aa = self._min_length_spin.value()
+        p = self._pyro_params
+        mode_str = 'meta' if p.get('meta', True) else 'single'
+        self._status.showMessage(
+            f"Running Pyrodigal — mode={mode_str}, "
+            f"table={p.get('translation_table',11)}, "
+            f"min={p.get('min_aa',30)}aa...")
 
         def work():
-            return self.analyzer.find_orfs_pyrodigal(self.dna_sequence, meta=True, min_aa=min_aa)
+            orfs = self.analyzer.find_orfs_pyrodigal(
+                self.dna_sequence,
+                meta=p.get('meta', True),
+                min_aa=p.get('min_aa', 30),
+                closed_ends=p.get('closed', False),
+                translation_table=p.get('translation_table', 11),
+                mask=p.get('mask', False),
+            )
+            # Post-prediction start codon filter
+            sf = p.get('start_filter', {'all': True})
+            if not sf.get('all', True):
+                allowed = set()
+                if sf.get('ATG'): allowed.add('ATG')
+                if sf.get('GTG'): allowed.add('GTG')
+                if sf.get('TTG'): allowed.add('TTG')
+                if allowed:
+                    orfs = [
+                        o for o in orfs
+                        if o.get('dna', '')[:3].upper() in allowed
+                    ]
+            return orfs
 
         def done(orfs):
             self.orfs = orfs
@@ -3450,7 +4819,70 @@ class ppigFinderApp(QMainWindow):
             self._update_orfs_list()
             self._update_info()
             self._update_map()
-            self._status.showMessage(f"✓ Pyrodigal: {len(orfs)} genes predicted")
+            sf = p.get('start_filter', {'all': True})
+            filter_str = ('all starts' if sf.get('all', True)
+                else '+'.join(k for k in ('ATG','GTG','TTG') if sf.get(k)))
+            self._status.showMessage(
+                f"Pyrodigal: {len(orfs)} genes | "
+                f"mode={mode_str}, table={p.get('translation_table',11)}, "
+                f"min={p.get('min_aa',30)}aa, starts={filter_str}")
+
+        self._run_worker(work, done)
+
+    def analyze_orfs_hybrid(self):
+        """Hybrid mode: Pyrodigal as primary caller, 6-frame scanner fills gaps."""
+        if not self.dna_sequence:
+            QMessageBox.warning(self, "Warning", "Load a FASTA file first!")
+            return
+        if not PYRODIGAL_AVAILABLE:
+            QMessageBox.critical(self, "Hybrid mode — Pyrodigal required",
+                t('pyrodigal_not_avail') + "\n\nHybrid mode requires Pyrodigal "
+                "as the primary caller.\nUse 'Automatic' mode instead, or "
+                "install Pyrodigal:\n  pip install pyrodigal")
+            return
+
+        # Collect Pyrodigal params
+        p = self._pyro_params
+        mode_str = 'meta' if p.get('meta', True) else 'single'
+
+        # Collect 6-frame scanner params
+        sc = set()
+        if self._cb_atg.isChecked(): sc.add('ATG')
+        if self._cb_gtg.isChecked(): sc.add('GTG')
+        if self._cb_ttg.isChecked(): sc.add('TTG')
+        min_aa = self._min_length_spin.value()
+
+        self._status.showMessage(
+            f"⏳ Hybrid mode — Pyrodigal (mode={mode_str}, "
+            f"table={p.get('translation_table',11)}, min={p.get('min_aa',30)}aa) "
+            f"+ gap-fill scanner (min={min_aa}aa, starts={','.join(sorted(sc)) or 'ATG'})…")
+
+        def work():
+            return self.analyzer.find_orfs_hybrid(
+                self.dna_sequence,
+                # 6-frame scanner params
+                min_aa=min_aa,
+                start_codons=sc,
+                # Pyrodigal params
+                pyro_meta=p.get('meta', True),
+                pyro_min_aa=p.get('min_aa', 30),
+                pyro_closed=p.get('closed', False),
+                pyro_translation_table=p.get('translation_table', 11),
+                pyro_mask=p.get('mask', False),
+                pyro_start_filter=p.get('start_filter', {'all': True}),
+            )
+
+        def done(orfs):
+            self.orfs = orfs
+            self.filtered_orfs = orfs.copy()
+            self._update_orfs_list()
+            self._update_info()
+            self._update_map()
+            n_pyro = sum(1 for o in orfs if o.get('source') == 'pyrodigal')
+            n_auto = sum(1 for o in orfs if o.get('source') == 'automatic')
+            self._status.showMessage(
+                f"✓ Hybrid: {len(orfs)} ORFs total — "
+                f"{n_pyro} pyrodigal + {n_auto} gap-fill (automatic)")
 
         self._run_worker(work, done)
 
@@ -3795,6 +5227,213 @@ class ppigFinderApp(QMainWindow):
                 for j in range(0, len(p), 80): fh.write(p[j:j+80] + "\n")
         self._status.showMessage(f"✓ Saved {len(self.orfs)} ORFs")
 
+
+    # ═══════════════════════════════════════════════════════════
+    # ORF TABLE — COPY & EXPORT
+    # ═══════════════════════════════════════════════════════════
+
+    def _orf_table_headers(self):
+        """Return current column header labels."""
+        t = self._orf_table
+        return [t.horizontalHeaderItem(c).text()
+                for c in range(t.columnCount())]
+
+    def _orf_table_rows_tsv(self, row_indices):
+        """Return header + given rows as tab-separated string."""
+        t = self._orf_table
+        headers = self._orf_table_headers()
+        lines = ['	'.join(headers)]
+        for r in row_indices:
+            cells = []
+            for c in range(t.columnCount()):
+                item = t.item(r, c)
+                cells.append(item.text() if item else '')
+            lines.append('\t'.join(cells))
+        return '\n'.join(lines)
+
+    def _orf_table_copy_selection(self):
+        """Copy selected rows as TSV to clipboard."""
+        rows = sorted(set(
+            idx.row() for idx in self._orf_table.selectedIndexes()))
+        if not rows:
+            self._status.showMessage("No rows selected — use Ctrl/Shift+click to select rows")
+            return
+        text = self._orf_table_rows_tsv(rows)
+        QApplication.clipboard().setText(text)
+        self._status.showMessage(
+            f"Copied {len(rows)} row(s) to clipboard (tab-separated — paste into Excel)")
+
+    def _orf_table_copy_rows(self, all_rows=False):
+        """Copy all visible rows as TSV to clipboard."""
+        n = self._orf_table.rowCount()
+        if n == 0:
+            self._status.showMessage("No ORFs to copy"); return
+        text = self._orf_table_rows_tsv(range(n))
+        QApplication.clipboard().setText(text)
+        self._status.showMessage(
+            f"Copied {n} rows to clipboard (tab-separated — paste into Excel)")
+
+    def _export_orf_table(self, fmt='tsv', include_seqs=False, annotated_only=False):
+        """Export ORF table to TSV or tab-formatted TXT.
+
+        Parameters
+        ----------
+        fmt : 'tsv' | 'txt'
+        include_seqs : bool — add DNA and Protein columns
+        annotated_only : bool — only ORFs with observation/function/gene_name
+        """
+        if not self.orfs:
+            QMessageBox.warning(self, "Export", "No ORFs to export."); return
+
+        suffix = '.tsv' if fmt == 'tsv' else '.txt'
+        filter_str = f"TSV (*.tsv);;All (*)" if fmt == 'tsv' else "TXT (*.txt);;All (*)"
+        genome_safe = re.sub(r'[^\w\-]', '_', self.genome_name or 'orfs')
+        seq_tag = '_full' if include_seqs else ''
+        ann_tag = '_annotated' if annotated_only else ''
+        default = f"{genome_safe}_orfs{ann_tag}{seq_tag}{suffix}"
+
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export ORF table", default, filter_str)
+        if not path: return
+
+        # Build ORF list to export
+        orfs_to_export = []
+        for i, orf in enumerate(self.orfs):
+            if annotated_only:
+                if not any(orf.get(k) for k in
+                           ('observation', 'putative_function', 'gene_name')):
+                    continue
+            orfs_to_export.append((i, orf))
+
+        # Column definitions
+        base_cols = [
+            'ORF_ID', 'Frame', 'Strand', 'Start', 'End', 'Size_aa', 'GC_pct',
+            'Source', 'Score', 'HMM_domains', 'HMM_evalue',
+            'Gene_name', 'Putative_function', 'Observation', 'Notes',
+            'Custom_color', 'RBS_motif', 'Partial',
+            'AF3_done', 'AF3_partner', 'ipTM', 'PAE_inter', 'Contact_region',
+        ]
+        seq_cols = ['DNA_sequence', 'Protein_sequence'] if include_seqs else []
+        all_cols = base_cols + seq_cols
+
+        try:
+            with open(path, 'w', newline='', encoding='utf-8') as fh:
+                w = csv.writer(fh, delimiter='	')
+                w.writerow(all_cols)
+
+                for i, orf in orfs_to_export:
+                    # HMM info
+                    domains = ';'.join(d.get('domain','?') for d in orf.get('domains',[]))
+                    evalues = ';'.join(str(d.get('evalue','?')) for d in orf.get('domains',[]))
+
+                    # AF3 info from analysis results
+                    orf_label = f"ORF{i+1}"
+                    af3_done = partner = iptm_s = pae_s = contact_s = '-'
+                    for res in getattr(self, '_af3_analysis_results', []):
+                        if orf_label in res.get('orf_names', []):
+                            af3_done  = 'yes'
+                            partner   = res.get('partner_name', '-')
+                            iptm_v    = res.get('iptm')
+                            iptm_s    = f"{iptm_v:.4f}" if iptm_v is not None else '-'
+                            pae_v     = res.get('pae_inter')
+                            pae_s     = f"{pae_v:.2f}" if pae_v is not None else '-'
+                            contact_s = res.get('contact_region', '-')
+                            break
+
+                    row = [
+                        orf_label,
+                        orf.get('frame', ''),
+                        orf.get('strand', ''),
+                        orf.get('start', ''),
+                        orf.get('end', ''),
+                        len(orf.get('protein', '').rstrip('*')),
+                        f"{orf.get('gc', 0):.2f}",
+                        orf.get('source', '6frame'),
+                        f"{orf.get('candidate_score', 0):.4f}",
+                        domains or '-',
+                        evalues or '-',
+                        orf.get('gene_name', ''),
+                        orf.get('putative_function', ''),
+                        orf.get('observation', ''),
+                        orf.get('notes', ''),
+                        orf.get('custom_color', ''),
+                        orf.get('rbs_motif', ''),
+                        'yes' if orf.get('partial') else 'no',
+                        af3_done, partner, iptm_s, pae_s, contact_s,
+                    ]
+                    if include_seqs:
+                        row += [
+                            orf.get('dna', ''),
+                            orf.get('protein', '').rstrip('*'),
+                        ]
+                    w.writerow(row)
+
+            n = len(orfs_to_export)
+            kb = Path(path).stat().st_size / 1024
+            msg = (f"Exported {n} ORFs to {Path(path).name} "
+                   f"({len(all_cols)} columns, {kb:.0f} KB)")
+            self._status.showMessage(f"Export: {msg}")
+            if hasattr(self, '_orf_export_info'):
+                self._orf_export_info.setText(msg)
+
+        except OSError as e:
+            QMessageBox.critical(self, "Export error", str(e))
+
+    def _export_orf_fasta(self, aa=True):
+        """Export ORF sequences as FASTA with full annotation headers."""
+        if not self.orfs:
+            QMessageBox.warning(self, "Export", "No ORFs to export."); return
+
+        genome_safe = re.sub(r'[^\w\-]', '_', self.genome_name or 'orfs')
+        mol = 'protein' if aa else 'dna'
+        default = f"{genome_safe}_{mol}.fasta"
+        path, _ = QFileDialog.getSaveFileName(
+            self, f"Export {'protein' if aa else 'DNA'} FASTA",
+            default, "FASTA (*.fasta *.fa);;All (*)")
+        if not path: return
+
+        n_written = 0
+        try:
+            with open(path, 'w', encoding='utf-8') as fh:
+                for i, orf in enumerate(self.orfs):
+                    seq = orf.get('protein', '').rstrip('*') if aa else orf.get('dna', '')
+                    if not seq: continue
+
+                    # Rich FASTA header
+                    gene   = orf.get('gene_name', '')
+                    func   = orf.get('putative_function', '')
+                    obs    = orf.get('observation', '')
+                    hmms   = ';'.join(d.get('domain','') for d in orf.get('domains',[]))
+                    rbs    = orf.get('rbs_motif', '')
+                    parts  = [
+                        f"ORF{i+1}",
+                        f"loc={orf.get('start',0)}-{orf.get('end',0)}{orf.get('strand','')}",
+                        f"frame={orf.get('frame','')}",
+                        f"len={len(seq)}{'aa' if aa else 'bp'}",
+                        f"gc={orf.get('gc',0):.1f}",
+                        f"src={orf.get('source','6frame')}",
+                    ]
+                    if gene:  parts.append(f"gene={gene}")
+                    if func:  parts.append(f"function={func}")
+                    if obs:   parts.append(f"obs={obs}")
+                    if hmms:  parts.append(f"hmm={hmms}")
+                    if rbs:   parts.append(f"rbs={rbs}")
+                    if orf.get('partial'): parts.append("partial=yes")
+
+                    header = ' '.join(parts)
+                    fh.write(f">{header}\n")
+                    # Write 60 chars per line
+                    for j in range(0, len(seq), 60):
+                        fh.write(seq[j:j+60] + '\n')
+                    n_written += 1
+
+            kb = Path(path).stat().st_size / 1024
+            self._status.showMessage(
+                f"FASTA exported: {n_written} sequences -> {Path(path).name} ({kb:.0f} KB)")
+        except OSError as e:
+            QMessageBox.critical(self, "Export error", str(e))
+
+
     def save_report_tsv(self):
         if not self.orfs: return
         f, _ = QFileDialog.getSaveFileName(self, "Save Report", "", "TSV (*.tsv)")
@@ -3817,7 +5456,7 @@ class ppigFinderApp(QMainWindow):
     # PROJECT SAVE / LOAD  (directory-based, v34)
     # ───────────────────────────────────────────────────────────
     PROJECT_MANIFEST = "project.json"
-    PROJECT_VERSION  = "v1.01"
+    PROJECT_VERSION  = "v1.12"
 
     # ─────────────────────────────────────────────────────────
     # PROJECT SAVE / LOAD
@@ -3919,6 +5558,7 @@ class ppigFinderApp(QMainWindow):
             'hmm_score_thresh':    self.hmm_score_thresh,
             'af3_n_neighbors':     self.af3_n_neighbors,
             'af3_max_residues':    self.af3_max_residues,
+            'pyrodigal_params':    getattr(self, '_pyro_params', {}),
         }
 
         genome_rel = ''
@@ -3926,25 +5566,65 @@ class ppigFinderApp(QMainWindow):
             safe = re.sub(r'[^\w\.\-]', '_', self.genome_name or 'genome')
             genome_rel = f"genome/{safe}.fasta"
 
+                # ── AF3 selection table ────────────────────────────────
+        af3_sel = []
+        try:
+            for r in range(self._af3_sel_table.rowCount()):
+                if self._af3_sel_table.item(r, 0):
+                    af3_sel.append({
+                        'orf_name': self._af3_sel_table.item(r, 0).text(),
+                        'position': self._af3_sel_table.item(r, 1).text(),
+                        'size_aa':  self._af3_sel_table.item(r, 2).text(),
+                        'hmm':      self._af3_sel_table.item(r, 3).text(),
+                        'note':     self._af3_sel_table.item(r, 4).text(),
+                    })
+        except Exception:
+            pass
+
+        # ── Sanitise af3_jobs before saving ───────────────────
+        safe_af3_jobs = []
+        for j in self.af3_jobs:
+            jc = dict(j)
+            jc.setdefault('sequences', [])
+            jc.setdefault('iptm', None)
+            jc.setdefault('plddt', None)
+            jc.setdefault('status', 'unknown')
+            safe_af3_jobs.append(jc)
+
         return {
+            # ── Schema version ──────────────────────────────────
             'version':              self.PROJECT_VERSION,
+            'schema':               2,   # bumped: definitive save format
             'saved_at':             datetime.now().isoformat(timespec='seconds'),
+            # ── Genome ──────────────────────────────────────────
             'genome_name':          self.genome_name,
             'genome_file':          genome_rel,
             'dna_sequence':         self.dna_sequence,
+            # ── ORFs (full annotation state) ────────────────────
+            # Every annotation field is preserved inside each orf dict:
+            # start, end, strand, frame, protein, dna, gc, source,
+            # domains, observation, gene_name, putative_function,
+            # custom_color, candidate_score, af3_user_note, notes
             'orfs':                 self.orfs,
+            # ── HMM ─────────────────────────────────────────────
             'hmm_profiles':         hmm_manifest,
-            'af3_jobs':             self.af3_jobs,
+            'hmm_hits_all':         self.hmm_hits_all,
+            # ── AlphaFold jobs ──────────────────────────────────
+            'af3_jobs':             safe_af3_jobs,
+            'af3_selected_orfs':    af3_sel,
             'result_files':         results_manifest,
+            # ── AlphaFold analysis ──────────────────────────────
+            'af3_analysis_results': af3_analysis_ser,
+            'af3_analysis_dir':     getattr(self, '_af3_analysis_dir', ''),
+            # ── BLAST ────────────────────────────────────────────
             'blast_query':          blast_query,
             'blast_results_html':   blast_html,
+            # ── Other ────────────────────────────────────────────
             'snapgene':             {'features': self.snapgene_features,
                                     'primers':  self.snapgene_primers},
             'ui_state':             ui_state,
-            'hpc_server':              hpc_state,
-            'hpc_jobs':         getattr(self, '_hpc_jobs', []),
-            'af3_analysis_results': af3_analysis_ser,
-            'af3_analysis_dir':     getattr(self, '_af3_analysis_dir', ''),
+            'hpc_server':           hpc_state,
+            'hpc_jobs':             getattr(self, '_hpc_jobs', []),
         }
 
     def save_project(self):
@@ -4220,17 +5900,59 @@ class ppigFinderApp(QMainWindow):
 
         ver = data.get('version', 'unknown')
 
-        # ── Core ──────────────────────────────────────────────
+        # ══ DEFINITIVE LOAD (schema v2) ═══════════════════════
+
+        # ── 1. Genome ─────────────────────────────────────────
         self.genome_name   = data.get('genome_name', '')
         self.dna_sequence  = data.get('dna_sequence', '')
-        self.orfs          = data.get('orfs', [])
-        self.filtered_orfs = self.orfs.copy()
-        self.af3_jobs      = data.get('af3_jobs', [])
-
         rel_genome = data.get('genome_file', '')
         if rel_genome:
             abs_g = proj_dir / rel_genome
             self.current_fasta_path = str(abs_g) if abs_g.is_file() else ''
+
+        # ── 2. ORFs (full annotation state) ───────────────────
+        self.orfs = data.get('orfs', [])
+        # Ensure every annotation field exists with safe defaults
+        _orf_defaults = {
+            'domains': [], 'observation': '', 'gene_name': '',
+            'putative_function': '', 'custom_color': '', 'notes': '',
+            'af3_user_note': '', 'candidate_score': 0.0,
+            'gc': 0.0, 'source': '6frame',
+        }
+        for orf in self.orfs:
+            for k, v in _orf_defaults.items():
+                orf.setdefault(k, v)
+        self.filtered_orfs = self.orfs.copy()
+
+        # Re-apply manual annotations saved separately (orf_annotations)
+        # This handles projects where orfs were saved WITHOUT annotation fields
+        for ann in data.get('orf_annotations', []):
+            i = ann.get('idx', -1)
+            if 0 <= i < len(self.orfs):
+                for k in ('observation', 'putative_function', 'gene_name',
+                          'custom_color', 'af3_user_note', 'candidate_score'):
+                    if ann.get(k):
+                        self.orfs[i][k] = ann[k]
+
+        # ── 3. AF3 jobs ────────────────────────────────────────
+        self.af3_jobs = data.get('af3_jobs', [])
+        for _j in self.af3_jobs:
+            _j.setdefault('sequences', [])
+            _j.setdefault('iptm', None)
+            _j.setdefault('plddt', None)
+            _j.setdefault('status', 'unknown')
+
+        # ── Restore AF3 selection table (Bug 1 fix) ──────────
+        self._af3_sel_table.setRowCount(0)
+        for entry in data.get('af3_selected_orfs', []):
+            row = self._af3_sel_table.rowCount()
+            self._af3_sel_table.insertRow(row)
+            for col, key in enumerate(
+                    ['orf_name', 'position', 'size_aa', 'hmm', 'note']):
+                self._af3_sel_table.setItem(
+                    row, col, QTableWidgetItem(entry.get(key, '')))
+        self._af3_sel_count.setText(
+            f"{self._af3_sel_table.rowCount()} ORFs selected")
 
         # ── HMM profiles ──────────────────────────────────────
         self.hmm_profiles = []
@@ -4247,10 +5969,35 @@ class ppigFinderApp(QMainWindow):
                 'function': p.get('function', ''),
                 'hits':     p.get('hits', []),
             })
-        self.hmm_hits_all = []
-        for p in self.hmm_profiles:
-            for h in p.get('hits', []):
-                self.hmm_hits_all.append(dict(h, profile_name=p['name']))
+        if 'hmm_hits_all' in data and data['hmm_hits_all']:
+            self.hmm_hits_all = data['hmm_hits_all']
+        else:
+            self.hmm_hits_all = []
+            for p in self.hmm_profiles:
+                for h in p.get('hits', []):
+                    self.hmm_hits_all.append(dict(h, profile_name=p['name']))
+
+        # ── Re-inject HMM domains into ORFs (Bug 4 fix) ──────
+        if self.hmm_hits_all and self.orfs:
+            for orf in self.orfs:
+                if 'domains' not in orf:
+                    orf['domains'] = []
+            for hit in self.hmm_hits_all:
+                oi = hit.get('orf_index', -1)
+                if 0 <= oi < len(self.orfs):
+                    pn = hit.get('profile_name', hit.get('hmm_name', '?'))
+                    existing_domains = [d['domain'] for d in self.orfs[oi]['domains']]
+                    if pn not in existing_domains:
+                        self.orfs[oi]['domains'].append({
+                            'domain':      pn,
+                            'description': hit.get('profile_function', f'HMM: {pn}'),
+                            'system':      hit.get('profile_function', 'HMM hit'),
+                            'role':        'HMM',
+                            'start':       hit.get('ali_from', 0),
+                            'end':         hit.get('ali_to', 0),
+                            'evalue':      hit.get('evalue', 999),
+                            'score':       hit.get('score', 0),
+                        })
 
         # ── AF3 result JSONs ──────────────────────────────────
         for rel_res in data.get('result_files', []):
@@ -4306,14 +6053,21 @@ class ppigFinderApp(QMainWindow):
         if self._af3_analysis_results:
             needs_af3_rescan = any(r.get('_lightweight') or 'pae_matrix' not in r
                                    for r in self._af3_analysis_results)
-        if needs_af3_rescan and getattr(self, '_af3_analysis_dir', ''):
-            try:
-                self._af3a_scan_folder(self._af3_analysis_dir)
-            except Exception:
+        if needs_af3_rescan:
+            af3_dir = getattr(self, '_af3_analysis_dir', '')
+            if af3_dir and Path(af3_dir).is_dir():
                 try:
-                    self._af3a_populate_table()
+                    self._af3a_scan_folder(af3_dir)
                 except Exception:
-                    pass
+                    try: self._af3a_populate_table()
+                    except Exception: pass
+            else:
+                try: self._af3a_populate_table()
+                except Exception: pass
+                if af3_dir:
+                    self._status.showMessage(
+                        f'\u26a0 AF3 analysis dir not found: {af3_dir} '
+                        '-- scores loaded, PAE/pLDDT unavailable')
         else:
             # Repopulate the AF3 Analysis table
             try:
@@ -4361,6 +6115,8 @@ class ppigFinderApp(QMainWindow):
             if 'af3_n_neighbors' in ui:
                 try: self._af3_nb_spin.setValue(ui['af3_n_neighbors'])
                 except Exception: pass
+            if 'pyrodigal_params' in ui and ui['pyrodigal_params']:
+                self._pyro_params.update(ui['pyrodigal_params'])
             if 'zoom_level' in ui:
                 self.zoom_level = ui['zoom_level']
                 self._zoom_label.setText(f"{int(self.zoom_level * 100)}%")
@@ -4404,27 +6160,31 @@ class ppigFinderApp(QMainWindow):
                          or o.get('custom_color'))
         n_hmm_hits = sum(len(p.get('hits', [])) for p in self.hmm_profiles)
         n_af3a     = len(self._af3_analysis_results)
+        n_af3_sel     = self._af3_sel_table.rowCount() if hasattr(self, '_af3_sel_table') else 0
 
         self._status.showMessage(
-            f"✓ Project loaded: {self.genome_name}  "
-            f"[{len(self.orfs)} ORFs | "
-            f"{len(self.hmm_profiles)} HMM ({n_hmm_hits} hits) | "
-            f"{len(self.af3_jobs)} AF3 jobs | "
+            f"✓ {self.genome_name}  "
+            f"{len(self.orfs)} ORFs | "
+            f"{n_hmm_hits} HMM hits | "
+            f"{len(self.af3_jobs)} AF3 jobs ({n_af3_sel} sel) | "
             f"{n_af3a} AF3 analyses | "
-            f"{n_annot} annotated]  ({ver})")
+            f"{n_annot} annotated  [{ver}]")
 
         saved_at = data.get('saved_at', '')
-        QMessageBox.information(
-            self, "Project Loaded",
-            f"✓ Project loaded!\n\n"
-            f"  Genome:        {self.genome_name}\n"
-            f"  ORFs:          {len(self.orfs)}\n"
-            f"  HMM profiles:  {len(self.hmm_profiles)} ({n_hmm_hits} hits)\n"
-            f"  AF3 jobs:      {len(self.af3_jobs)}\n"
-            f"  AF3 analyses:  {n_af3a} (with PAE/pLDDT)\n"
-            f"  Annotated:     {n_annot}\n"
-            + (f"  Saved: {saved_at}\n" if saved_at else "")
-            + f"  Format: {ver}")
+        lines = [
+            f'Projeto carregado com sucesso!',
+            f'',
+            f'  Genoma:          {self.genome_name}',
+            f'  ORFs:            {len(self.orfs)} ({n_annot} anotadas manualmente)',
+            f'  HMM profiles:    {len(self.hmm_profiles)} ({n_hmm_hits} hits)',
+            f'  HMM hits_all:    {len(self.hmm_hits_all)}',
+            f'  AF3 selecionados:{n_af3_sel} ORFs na fila',
+            f'  AF3 jobs:        {len(self.af3_jobs)}',
+            f'  AF3 analyses:    {n_af3a} (com PAE/pLDDT)',
+            f'  Formato:         {ver}',
+        ]
+        if saved_at: lines.append(f'  Salvo em:        {saved_at}')
+        QMessageBox.information(self, 'Projeto Carregado', '\n'.join(lines))
 
     def export_map_pdf(self):
         """Export genome map as PDF or PNG."""
@@ -4624,7 +6384,7 @@ class ppigFinderApp(QMainWindow):
         self._update_hits_legend()
 
     def _set_zoom(self, level):
-        target = max(0.5, min(200.0, level))
+        target = max(0.5, min(10000.0, level))
         center_x = self._genome_map.width() / 2
         self._genome_map.set_zoom(target, anchor_x=center_x)
 
@@ -4828,6 +6588,35 @@ class ppigFinderApp(QMainWindow):
         menu.addSeparator()
         menu.addAction("➕ Add to AlphaFold3",
                        lambda: self._af3_add_orf_by_index(orf_idx))
+        menu.addSeparator()
+        # ── Copy / Export submenu ──
+        sel_rows = sorted(set(
+            idx.row() for idx in self._orf_table.selectedIndexes()))
+        n_sel = len(sel_rows)
+        menu.addAction(
+            f"Copy {n_sel} selected row(s) as TSV",
+            self._orf_table_copy_selection)
+        menu.addAction(
+            "Copy all visible rows as TSV",
+            lambda: self._orf_table_copy_rows(all_rows=True))
+        menu.addSeparator()
+        exp_sub = menu.addMenu("Export table...")
+        exp_sub.addAction(
+            "TSV — table columns only",
+            lambda: self._export_orf_table(fmt='tsv', include_seqs=False))
+        exp_sub.addAction(
+            "TSV — full (+ DNA + Protein)",
+            lambda: self._export_orf_table(fmt='tsv', include_seqs=True))
+        exp_sub.addAction(
+            "TSV — annotated only",
+            lambda: self._export_orf_table(fmt='tsv', annotated_only=True, include_seqs=True))
+        exp_sub.addSeparator()
+        exp_sub.addAction(
+            "FASTA — protein",
+            lambda: self._export_orf_fasta(aa=True))
+        exp_sub.addAction(
+            "FASTA — DNA",
+            lambda: self._export_orf_fasta(aa=False))
         menu.exec(self._orf_table.viewport().mapToGlobal(pos)
                    if QT_VERSION == 6 else
                    self._orf_table.viewport().mapToGlobal(pos))
@@ -5265,6 +7054,158 @@ DOMAINS IN NEIGHBORHOOD:
         self._af3_sel_count.setText(f"{self._af3_sel_table.rowCount()} ORFs selected")
         self._status.showMessage(f"✓ {added} HMM hits added")
 
+    def _af3_add_all_orfs(self):
+        """Add ALL predicted ORFs in the genome to the AF3 selection list.
+
+        This enables a genome-wide interactome scan: every ORF is a candidate
+        for pair-wise structural interaction prediction with AlphaFold 3.
+        A size-filter dialog is shown first so users can cap the total number
+        of jobs that would be generated downstream.
+        """
+        if not self.orfs:
+            QMessageBox.information(self, "Add All ORFs",
+                "No ORFs found. Run ORF analysis (DNA tab) first."); return
+
+        n_total = len(self.orfs)
+
+        # ── Confirmation / filter dialog ──────────────────────────────────
+        dlg = QDialog(self)
+        dlg.setWindowTitle("🧬 Add All ORFs — Genome-wide Interactome")
+        dlg.setMinimumWidth(420)
+        dl = QVBoxLayout(dlg)
+
+        info = QLabel(
+            f"<b>{n_total} ORFs</b> detected in the genome.<br>"
+            "All will be added to the AF3 selection list for genome-wide<br>"
+            "interactome scanning.<br><br>"
+            f"<i>Tip: Using mode <b>Interactoma Genômico (All vs All)</b> will<br>"
+            f"generate up to <b>{n_total*(n_total-1)//2:,}</b> pairwise AF3 jobs.<br>"
+            "Apply size filters below to keep the job count manageable.</i>")
+        info.setWordWrap(True)
+        dl.addWidget(info)
+
+        # Min / max size filters
+        fbox = QHBoxLayout()
+        fbox.addWidget(QLabel("Min size (aa):"))
+        min_spin = QSpinBox(); min_spin.setRange(1, 10000); min_spin.setValue(30)
+        fbox.addWidget(min_spin)
+        fbox.addSpacing(12)
+        fbox.addWidget(QLabel("Max size (aa):"))
+        max_spin = QSpinBox(); max_spin.setRange(1, 100000); max_spin.setValue(2000)
+        fbox.addWidget(max_spin)
+        dl.addLayout(fbox)
+
+        # HMM-only checkbox
+        hmm_only_cb = QCheckBox("Only ORFs with HMM / BLAST annotation")
+        hmm_only_cb.setToolTip(
+            "When checked, only ORFs that have at least one HMM hit or BLAST "
+            "annotation are added — dramatically reduces job count while keeping "
+            "functionally characterised proteins.")
+        dl.addWidget(hmm_only_cb)
+
+        # Live counter label
+        counter_lbl = QLabel()
+        counter_lbl.setStyleSheet("color: #1565c0; font-weight: bold;")
+        dl.addWidget(counter_lbl)
+
+        def _update_count():
+            mn = min_spin.value(); mx = max_spin.value()
+            hmm_set = set()
+            if hmm_only_cb.isChecked():
+                for h in self.hmm_hits_all:
+                    hmm_set.add(h.get('orf_index', -1))
+                for bi in range(self._blast_results_table.rowCount()
+                                if hasattr(self, '_blast_results_table') else 0):
+                    try:
+                        idx = int(self._blast_results_table.item(bi, 0).text().replace('ORF',''))-1
+                        hmm_set.add(idx)
+                    except Exception:
+                        pass
+            count = 0
+            for i, o in enumerate(self.orfs):
+                sz = len(o['protein'].rstrip('*'))
+                if sz < mn or sz > mx: continue
+                if hmm_only_cb.isChecked() and i not in hmm_set: continue
+                count += 1
+            pairs = count*(count-1)//2
+            counter_lbl.setText(
+                f"→ {count} ORFs will be added  |  "
+                f"All-vs-All would produce {pairs:,} job pairs")
+
+        min_spin.valueChanged.connect(_update_count)
+        max_spin.valueChanged.connect(_update_count)
+        hmm_only_cb.stateChanged.connect(_update_count)
+        _update_count()
+
+        btns = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+            if QT_VERSION == 6 else
+            QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        btns.accepted.connect(dlg.accept)
+        btns.rejected.connect(dlg.reject)
+        dl.addWidget(btns)
+
+        if dlg.exec() != QDialog.DialogCode.Accepted if QT_VERSION == 6 else dlg.exec() != QDialog.Accepted:
+            return
+
+        mn = min_spin.value(); mx = max_spin.value()
+        hmm_only = hmm_only_cb.isChecked()
+
+        # Build set of annotated ORF indices
+        annotated = set()
+        if hmm_only:
+            for h in self.hmm_hits_all:
+                annotated.add(h.get('orf_index', -1))
+
+        # Collect existing entries to avoid duplicates
+        existing = set()
+        for r in range(self._af3_sel_table.rowCount()):
+            if self._af3_sel_table.item(r, 0):
+                existing.add(self._af3_sel_table.item(r, 0).text())
+
+        added = 0
+        self._af3_sel_table.setUpdatesEnabled(False)
+        try:
+            for i, orf in enumerate(self.orfs):
+                sz = len(orf['protein'].rstrip('*'))
+                if sz < mn or sz > mx: continue
+                if hmm_only and i not in annotated: continue
+                name = f"ORF{i+1}"
+                if name in existing: continue
+
+                # Collect HMM annotations for display
+                hmm_names = []
+                for hit in self.hmm_hits_all:
+                    if hit.get('orf_index') == i:
+                        pn = hit.get('profile_name', hit.get('hmm_name', ''))
+                        if pn and pn not in hmm_names:
+                            hmm_names.append(pn)
+
+                row = self._af3_sel_table.rowCount()
+                self._af3_sel_table.insertRow(row)
+                for col, val in enumerate([
+                        name,
+                        f"{orf['start']:,}-{orf['end']:,}",
+                        str(sz),
+                        ', '.join(hmm_names) or '-',
+                        'genome-wide']):
+                    self._af3_sel_table.setItem(row, col, QTableWidgetItem(val))
+                existing.add(name)
+                added += 1
+        finally:
+            self._af3_sel_table.setUpdatesEnabled(True)
+
+        total_sel = self._af3_sel_table.rowCount()
+        self._af3_sel_count.setText(f"{total_sel} ORFs selected")
+        self._status.showMessage(
+            f"✓ {added} ORFs added (genome-wide) — "
+            f"{total_sel} total | Use mode 'Interactoma Genômico' to generate all pairs")
+
+        # Auto-switch mode combo to Interactoma Genômico for convenience
+        idx = self._af3_mode_combo.findText("Interactoma Genômico (All vs All)")
+        if idx >= 0:
+            self._af3_mode_combo.setCurrentIndex(idx)
+
     def _af3_remove_orf(self):
         rows = sorted(set(idx.row() for idx in self._af3_sel_table.selectedIndexes()), reverse=True)
         for r in rows: self._af3_sel_table.removeRow(r)
@@ -5284,9 +7225,56 @@ DOMAINS IN NEIGHBORHOOD:
             try:
                 idx = int(self._af3_sel_table.item(r,0).text().replace('ORF',''))-1
                 if 0 <= idx < len(self.orfs): sel_indices.append(idx)
-            except: continue
+            except (AttributeError, ValueError, TypeError): continue
         orfs_by_pos = sorted(enumerate(self.orfs), key=lambda x: x[1]['start'])
         pos_to_rank = {idx: rank for rank, (idx, _) in enumerate(orfs_by_pos)}
+
+        # ── Genome-wide Interactome: each SELECTED ORF vs ALL genome ORFs ──
+        if mode.startswith("Interactoma Genômico"):
+            n_sel_orfs = len(sel_indices)
+            n_genome   = len(self.orfs)
+            # Each selected ORF is paired against every genome ORF (excl. self).
+            # Symmetric pairs (A-B / B-A) are collapsed via a seen set.
+            estimated = n_sel_orfs * (n_genome - 1)
+            if estimated > 5000:
+                ans = QMessageBox.question(
+                    self, "Interactoma Genômico — large job set",
+                    f"This will generate up to <b>{estimated:,}</b> pairwise AF3 jobs<br>"
+                    f"(<b>{n_sel_orfs}</b> selected ORF(s) × <b>{n_genome}</b> genome ORFs).<br><br>"
+                    "Symmetric duplicates (A↔B) are automatically collapsed.<br>"
+                    "This may produce very large output files. Continue?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                    if QT_VERSION == 6 else QMessageBox.Yes | QMessageBox.No)
+                if ans != (QMessageBox.StandardButton.Yes if QT_VERSION == 6 else QMessageBox.Yes):
+                    return
+
+            seen_pairs = set()
+            for hi in sel_indices:
+                ho = self.orfs[hi]; hp = ho['protein'].rstrip('*'); hn = f"ORF{hi+1}"
+                for gj, go in enumerate(self.orfs):   # every ORF in genome
+                    if gj == hi: continue              # skip self-pair
+                    pair_key = (min(hi, gj), max(hi, gj))
+                    if pair_key in seen_pairs: continue
+                    seen_pairs.add(pair_key)
+                    gp = go['protein'].rstrip('*'); gn = f"ORF{gj+1}"
+                    tr = len(hp) + len(gp)
+                    self.af3_jobs.append({
+                        'name': f"{hn}_vs_{gn}_interactome",
+                        'hit_orf_idx': hi, 'partner_orf_idx': gj,
+                        'hit_name': hn, 'partner_name': gn,
+                        'total_residues': tr,
+                        'status': 'pending' if tr <= self.af3_max_residues else f'>{self.af3_max_residues}!',
+                        'iptm': None, 'plddt': None,
+                        'sequences': [
+                            {'proteinChain': {'sequence': hp, 'count': 1}},
+                            {'proteinChain': {'sequence': gp, 'count': 1}}]})
+            self._af3_update_jobs_table()
+            self._status.showMessage(
+                f"✓ {len(self.af3_jobs)} interactome jobs — "
+                f"{n_sel_orfs} selected ORF(s) vs {n_genome} genome ORFs "
+                f"({len(seen_pairs)} unique pairs)")
+            return
+
         for hi in sel_indices:
             ho = self.orfs[hi]; hr = pos_to_rank.get(hi,0); hp = ho['protein'].rstrip('*'); hn = f"ORF{hi+1}"
             nbs = []
@@ -5390,6 +7378,252 @@ DOMAINS IN NEIGHBORHOOD:
             with open(os.path.join(folder, f"{j['name']}.fasta"), 'w') as f: f.write(f">{j['name']}\n{joined}\n")
         with open(os.path.join(folder, f"{self.genome_name}_batch.csv"), 'w') as f: f.write('\n'.join(csv_lines))
         self._status.showMessage(f"✓ ColabFold exported: {len(self.af3_jobs)} jobs")
+
+    def _af3_export_slurm_array(self):
+        """Export AF3 jobs as numbered JSON batches + a ready-to-submit SLURM array script.
+
+        One sbatch command submits all batches automatically — no manual loop needed.
+        Each array task runs its own AF3 process, so RAM is fully released between batches
+        (prevents OUT_OF_MEMORY on large interactome scans).
+
+        Output layout:
+            <output_dir>/
+                batches/
+                    batch_001/  job_001.json  job_002.json  …  (batch_size jobs)
+                    batch_002/  …
+                    …
+                run_array.sh    ← sbatch run_array.sh  (one command!)
+                submit_all.sh   ← fallback sequential submitter
+        """
+        if not self.af3_jobs:
+            QMessageBox.warning(self, "SLURM Array Export", "Generate AF3 jobs first!"); return
+
+        # ── Config dialog ──────────────────────────────────────────────────
+        dlg = QDialog(self)
+        dlg.setWindowTitle("⚡ Export SLURM Array — anti-OOM batch splitter")
+        dlg.setMinimumWidth(480)
+        dl = QVBoxLayout(dlg)
+
+        n_jobs = len(self.af3_jobs)
+        info = QLabel(
+            f"<b>{n_jobs} AF3 jobs</b> serão divididos em lotes.<br>"
+            "Cada lote roda como um task do SLURM array — processo próprio,<br>"
+            "RAM completamente liberada entre lotes. <b>Um único sbatch.</b>")
+        info.setWordWrap(True)
+        dl.addWidget(info)
+
+        grid = QGridLayout()
+        grid.setSpacing(6)
+
+        grid.addWidget(QLabel("Jobs por lote (batch size):"), 0, 0)
+        batch_spin = QSpinBox(); batch_spin.setRange(1, 500); batch_spin.setValue(50)
+        batch_spin.setToolTip("50 é seguro para a maioria dos clusters. Reduza para proteínas grandes.")
+        grid.addWidget(batch_spin, 0, 1)
+
+        n_batches_lbl = QLabel()
+        grid.addWidget(n_batches_lbl, 0, 2)
+
+        grid.addWidget(QLabel("RAM por task (--mem):"), 1, 0)
+        mem_edit = QLineEdit("64G")
+        grid.addWidget(mem_edit, 1, 1)
+
+        grid.addWidget(QLabel("Tempo por task (--time):"), 2, 0)
+        time_edit = QLineEdit("7-00:00:00")
+        time_edit.setToolTip("Formato SLURM: D-HH:MM:SS\nDaVinci: basic=3d | max50=8d | max90=15d")
+        grid.addWidget(time_edit, 2, 1)
+
+        grid.addWidget(QLabel("Partition:"), 3, 0)
+        part_edit = QLineEdit("max50")
+        part_edit.setToolTip("DaVinci partitions:\n  basic : 72h  | 16 CPUs | 100 GB | 0 GPU\n  max50 : 8d   | 64 CPUs | 500 GB | 1 GPU  (recomendada para AF3)\n  max90 : 15d  | 110 CPUs| 1 TB   | 4 GPUs (jobs muito grandes)")
+        grid.addWidget(part_edit, 3, 1)
+
+        grid.addWidget(QLabel("GPUs por task (--gres):"), 4, 0)
+        gpu_edit = QLineEdit("gpu:1")
+        grid.addWidget(gpu_edit, 4, 1)
+
+        grid.addWidget(QLabel("CPUs por task (--cpus):"), 5, 0)
+        cpu_spin = QSpinBox(); cpu_spin.setRange(1, 64); cpu_spin.setValue(16)
+        cpu_spin.setToolTip("DaVinci max50: até 64 CPUs | max90: até 110 CPUs")
+        grid.addWidget(cpu_spin, 5, 1)
+
+        grid.addWidget(QLabel("Comando AF3 no cluster:"), 6, 0)
+        af3cmd_edit = QLineEdit()
+        try: af3cmd_edit.setText(self._dv_af3cmd.text() or "af3_run")
+        except Exception: af3cmd_edit.setText("af3_run")
+        af3cmd_edit.setToolTip("Comando ou path para o AF3 no servidor")
+        grid.addWidget(af3cmd_edit, 6, 1, 1, 2)
+
+        grid.addWidget(QLabel("Pasta base no cluster:"), 7, 0)
+        remote_edit = QLineEdit()
+        try: remote_edit.setText(self._dv_base_path.text() or "~/af3_predictions")
+        except Exception: remote_edit.setText("~/af3_predictions")
+        grid.addWidget(remote_edit, 7, 1, 1, 2)
+
+        dl.addLayout(grid)
+
+        # Live batch counter
+        def _upd():
+            bs = batch_spin.value()
+            nb = (n_jobs + bs - 1) // bs
+            n_batches_lbl.setText(f"→ {nb} arrays")
+        batch_spin.valueChanged.connect(_upd); _upd()
+
+        btns = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+            if QT_VERSION == 6 else QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        btns.accepted.connect(dlg.accept); btns.rejected.connect(dlg.reject)
+        dl.addWidget(btns)
+
+        if (dlg.exec() if QT_VERSION == 6 else dlg.exec_()) != (
+                QDialog.DialogCode.Accepted if QT_VERSION == 6 else QDialog.Accepted):
+            return
+
+        batch_size  = batch_spin.value()
+        mem         = mem_edit.text().strip() or "32G"
+        walltime    = time_edit.text().strip() or "7-00:00:00"
+        partition   = part_edit.text().strip() or "max50"
+        gres        = gpu_edit.text().strip() or "gpu:1"
+        ncpus       = cpu_spin.value()
+        af3cmd      = af3cmd_edit.text().strip() or "af3_run"
+        remote_base = remote_edit.text().strip() or "~/af3_predictions"
+
+        # ── Choose output folder ────────────────────────────────────────────
+        out_dir = QFileDialog.getExistingDirectory(self, "Select output folder for SLURM array export")
+        if not out_dir: return
+        out_path = Path(out_dir)
+        batches_dir = out_path / "batches"
+
+        # ── Split jobs into batches ─────────────────────────────────────────
+        batches = []
+        for i in range(0, len(self.af3_jobs), batch_size):
+            batches.append(self.af3_jobs[i:i + batch_size])
+        n_batches = len(batches)
+
+        prog_dlg = None
+        try:
+            from PyQt6.QtWidgets import QProgressDialog
+        except ImportError:
+            try:
+                from PyQt5.QtWidgets import QProgressDialog
+            except ImportError:
+                pass
+
+        if QProgressDialog:
+            prog_dlg = QProgressDialog(
+                f"Writing {n_jobs} JSONs into {n_batches} batches...", "Cancel", 0, n_batches, self)
+            prog_dlg.setWindowTitle("SLURM Array Export")
+            prog_dlg.setMinimumDuration(0); prog_dlg.setValue(0)
+            QApplication.processEvents()
+
+        try:
+            for bi, batch in enumerate(batches):
+                if prog_dlg and prog_dlg.wasCanceled(): return
+                bdir = batches_dir / f"batch_{bi+1:03d}"
+                bdir.mkdir(parents=True, exist_ok=True)
+                for j in batch:
+                    jdata = {"name": j['name'], "modelSeeds": [],
+                             "sequences": j.get('sequences', []),
+                             "dialect": "alphafoldserver", "version": 2}
+                    safe_name = re.sub(r'[^\w\-.]', '_', j['name'])
+                    with open(bdir / f"{safe_name}.json", 'w', encoding='utf-8') as fh:
+                        json.dump(jdata, fh, indent=2, ensure_ascii=False)
+                if prog_dlg: prog_dlg.setValue(bi + 1); QApplication.processEvents()
+        finally:
+            if prog_dlg: prog_dlg.close()
+
+        # ── Generate run_array.sh ───────────────────────────────────────────
+        genome_safe = re.sub(r'[^\w\-]', '_', self.genome_name or 'interactome')
+        array_script = f"""#!/bin/bash
+#SBATCH --job-name={genome_safe}_array
+#SBATCH --array=1-{n_batches}
+#SBATCH --mem={mem}
+#SBATCH --time={walltime}
+#SBATCH --partition={partition}
+#SBATCH --gres={gres}
+#SBATCH --cpus-per-task={ncpus}
+#SBATCH --output={remote_base}/logs/array_%A_%a.out
+#SBATCH --error={remote_base}/logs/array_%A_%a.err
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ppigFinder SLURM Array — {genome_safe}
+# {n_jobs} AF3 jobs / {batch_size} per batch = {n_batches} array tasks
+# Submit with:  sbatch run_array.sh
+# Each task runs independently → RAM fully released between batches (anti-OOM)
+# ─────────────────────────────────────────────────────────────────────────────
+
+BATCH_DIR="{remote_base}/batches/batch_$(printf '%03d' $SLURM_ARRAY_TASK_ID)"
+OUT_DIR="{remote_base}/results/batch_$(printf '%03d' $SLURM_ARRAY_TASK_ID)"
+mkdir -p "$OUT_DIR"
+mkdir -p "{remote_base}/logs"
+
+echo "[$(date)] Starting array task $SLURM_ARRAY_TASK_ID / {n_batches}"
+echo "  Batch dir : $BATCH_DIR"
+echo "  Output dir: $OUT_DIR"
+echo "  Node      : $(hostname)"
+echo "  GPU       : $CUDA_VISIBLE_DEVICES"
+
+# Run AF3 for every JSON in this batch
+for json_file in "$BATCH_DIR"/*.json; do
+    job_name=$(basename "$json_file" .json)
+    job_out="$OUT_DIR/$job_name"
+    mkdir -p "$job_out"
+    echo "  → Predicting: $job_name"
+    {af3cmd} \
+        --json_path="$json_file" \
+        --output_dir="$job_out"
+done
+
+echo "[$(date)] Task $SLURM_ARRAY_TASK_ID complete."
+"""
+
+        array_path = out_path / "run_array.sh"
+        with open(array_path, 'w', encoding='utf-8') as fh:
+            fh.write(array_script)
+
+        # ── Generate submit_all.sh (sequential fallback) ────────────────────
+        seq_script = f"""#!/bin/bash
+# Sequential fallback — submits each batch as a separate job (not an array).
+# Prefer run_array.sh when your cluster supports job arrays.
+for i in $(seq -w 1 {n_batches}); do
+    sbatch --job-name={genome_safe}_b${{i}} \
+           --mem={mem} --time={walltime} \
+           --partition={partition} --gres={gres} \
+           --cpus-per-task={ncpus} \
+           --wrap="{af3cmd} --json_path={remote_base}/batches/batch_${{i}} --output_dir={remote_base}/results/batch_${{i}}"
+done
+echo "Submitted {n_batches} jobs."
+"""
+        with open(out_path / "submit_all.sh", 'w', encoding='utf-8') as fh:
+            fh.write(seq_script)
+
+        # ── Summary ─────────────────────────────────────────────────────────
+        total_kb = sum(
+            f.stat().st_size for f in batches_dir.rglob("*.json")
+        ) // 1024
+
+        self._status.showMessage(
+            f"✓ SLURM array: {n_jobs} jobs → {n_batches} batches × {batch_size} | "
+            f"run_array.sh ready — sbatch run_array.sh to submit all at once")
+
+        _msg = "\n".join([
+            "Export completo!",
+            "",
+            f"  Pasta: {out_path}",
+            f"  batches/  ({n_batches} pastas, {total_kb:,} KB de JSONs)",
+            "  run_array.sh   <- sbatch run_array.sh",
+            "  submit_all.sh  <- fallback sequencial",
+            "",
+            f"  {n_jobs} jobs | {batch_size} por batch | {n_batches} arrays",
+            f"  RAM por task: {mem} | Tempo: {walltime}",
+            "",
+            "Como submeter (UM unico comando):",
+            "  1. Copie a pasta 'batches/' para o cluster",
+            "  2. sbatch run_array.sh",
+            "",
+            f"O SLURM dispara os {n_batches} tasks automaticamente.",
+            "RAM liberada entre cada batch — sem risco de OOM.",
+        ])
+        QMessageBox.information(self, "SLURM Array Export", _msg)
 
     def _af3_show_ranking(self):
         done = [j for j in self.af3_jobs if j.get('iptm') is not None]
@@ -5589,50 +7823,207 @@ DOMAINS IN NEIGHBORHOOD:
     # ═══════════════════════════════════════════════════════════
 
     def _show_orf_params(self):
-        """Dialog for ORF analysis parameters (min size, start codons)."""
+        """Dialog for ORF analysis parameters — 6-frame scanner and Pyrodigal."""
         dlg = QDialog(self)
-        dlg.setWindowTitle("🧬 ORF Analysis Parameters")
-        dlg.setFixedSize(380, 300)
+        dlg.setWindowTitle("ORF Analysis Parameters")
+        dlg.setMinimumWidth(460)
         layout = QVBoxLayout(dlg)
+        layout.setSpacing(8)
 
-        # Min length
-        gf = QGroupBox("ORF Detection")
+        # ── Section 1: 6-frame scanner ──────────────────────────
+        gf = QGroupBox("6-frame ORF scanner (Translate genome → Automatic)")
         gf_l = QGridLayout(gf)
+        gf_l.setSpacing(6)
+
         gf_l.addWidget(QLabel("Min ORF size (aa):"), 0, 0)
         min_spin = QSpinBox(); min_spin.setRange(10, 500)
         min_spin.setValue(self._min_length_spin.value())
+        min_spin.setToolTip("Minimum protein length for 6-frame scanner.")
         gf_l.addWidget(min_spin, 0, 1)
 
         gf_l.addWidget(QLabel("Start codons:"), 1, 0)
         cb_atg = QCheckBox("ATG"); cb_atg.setChecked(self._cb_atg.isChecked())
         cb_gtg = QCheckBox("GTG"); cb_gtg.setChecked(self._cb_gtg.isChecked())
         cb_ttg = QCheckBox("TTG"); cb_ttg.setChecked(self._cb_ttg.isChecked())
+        for cb in (cb_atg, cb_gtg, cb_ttg):
+            cb.setToolTip("Start codons recognised by the 6-frame scanner.")
         codon_lay = QHBoxLayout()
         codon_lay.addWidget(cb_atg); codon_lay.addWidget(cb_gtg); codon_lay.addWidget(cb_ttg)
+        codon_lay.addStretch()
         gf_l.addLayout(codon_lay, 1, 1)
         layout.addWidget(gf)
 
-        # Pyrodigal options
-        pf = QGroupBox("Pyrodigal")
+        # ── Section 2: Pyrodigal ────────────────────────────────
+        pyro_ok = PYRODIGAL_AVAILABLE
+        pyro_ver = pyrodigal.__version__ if pyro_ok else "not installed"
+        pf = QGroupBox(f"Pyrodigal {pyro_ver} (Translate genome → Pyrodigal)")
         pf_l = QGridLayout(pf)
-        pf_l.addWidget(QLabel("Mode:"), 0, 0)
-        pyro_mode = QComboBox()
-        pyro_mode.addItems(["Metagenomic (default)", "Single genome (train)"])
-        pf_l.addWidget(pyro_mode, 0, 1)
-        pyro_ok = "✅ Installed" if PYRODIGAL_AVAILABLE else "❌ Not installed"
-        pf_l.addWidget(QLabel(f"Status: {pyro_ok}"), 1, 0, 1, 2)
+        pf_l.setSpacing(6)
+
+        status_lbl = QLabel(
+            "Status: " + ("Installed" if pyro_ok else "NOT installed — pip install pyrodigal"))
+        status_lbl.setStyleSheet(
+            "color: #2e7d32; font-weight:bold;" if pyro_ok else "color: #c62828; font-weight:bold;")
+        pf_l.addWidget(status_lbl, 0, 0, 1, 4)
+
+        # Mode
+        pf_l.addWidget(QLabel("Mode:"), 1, 0)
+        mode_combo = QComboBox()
+        mode_combo.addItems([
+            "Metagenomic (meta=True)  — recommended",
+            "Single genome (meta=False)  — trains on sequence",
+        ])
+        mode_combo.setCurrentIndex(0 if self._pyro_params.get('meta', True) else 1)
+        mode_combo.setToolTip(
+            "Metagenomic: pre-trained models, any contig length.\n"
+            "Single genome: trains Prodigal on the sequence (needs >= 100 kb).")
+        mode_combo.setEnabled(pyro_ok)
+        pf_l.addWidget(mode_combo, 1, 1, 1, 3)
+
+        # Translation table
+        pf_l.addWidget(QLabel("Translation table:"), 2, 0)
+        tt_combo = QComboBox()
+        tt_items = [
+            ("11 — Bacteria / Archaea (standard)", 11),
+            ("4  — Mycoplasma / Spiroplasma  (UGA→Trp)", 4),
+            ("25 — SR1 / Gracilibacteria  (UGA→Gly)", 25),
+            ("15 — Yeast mitochondria", 15),
+        ]
+        for lbl, val in tt_items:
+            tt_combo.addItem(lbl, val)
+        cur_tt = self._pyro_params.get('translation_table', 11)
+        for i, (_, v) in enumerate(tt_items):
+            if v == cur_tt:
+                tt_combo.setCurrentIndex(i); break
+        tt_combo.setToolTip(
+            "Genetic code for translation.\n"
+            "Table 11 is correct for most bacteria.\n"
+            "Table 4: Mycoplasma, Spiroplasma, Phytoplasma.\n"
+            "Table 25: SR1/Gracilibacteria.")
+        tt_combo.setEnabled(pyro_ok)
+        pf_l.addWidget(tt_combo, 2, 1, 1, 3)
+
+        # Min gene size (shared with 6-frame but independent)
+        pf_l.addWidget(QLabel("Min gene size (aa):"), 3, 0)
+        pyro_min = QSpinBox(); pyro_min.setRange(10, 500)
+        pyro_min.setValue(self._pyro_params.get('min_aa', 30))
+        pyro_min.setSuffix(" aa")
+        pyro_min.setToolTip("Minimum protein length for Pyrodigal predictions.")
+        pyro_min.setEnabled(pyro_ok)
+        pf_l.addWidget(pyro_min, 3, 1)
+
+        # Closed ends
+        closed_cb = QCheckBox("Closed ends")
+        closed_cb.setChecked(self._pyro_params.get('closed', False))
+        closed_cb.setToolTip(
+            "Checked: genes must start AND end within the sequence.\n"
+            "Unchecked: allows partial genes at contig edges (recommended for drafts).")
+        closed_cb.setEnabled(pyro_ok)
+        pf_l.addWidget(closed_cb, 3, 2)
+
+        # Mask N runs
+        mask_cb = QCheckBox("Mask N runs")
+        mask_cb.setChecked(self._pyro_params.get('mask', False))
+        mask_cb.setToolTip("Mask regions with runs of N before prediction (draft genomes).")
+        mask_cb.setEnabled(pyro_ok)
+        pf_l.addWidget(mask_cb, 3, 3)
+
+        # Start codons note for Pyrodigal
+        note = QLabel(
+            "Start codons: Pyrodigal selects ATG / GTG / TTG automatically\n"
+            "based on the genetic code and training data — no manual override.\n"
+            "Post-filter: check below to keep only specific starts after prediction.")
+        note.setStyleSheet("color: #555; font-size: 11px;")
+        note.setWordWrap(True)
+        pf_l.addWidget(note, 4, 0, 1, 4)
+
+        # Post-prediction start codon filter
+        pf_l.addWidget(QLabel("Post-filter starts:"), 5, 0)
+        pyro_cb_atg = QCheckBox("ATG")
+        pyro_cb_gtg = QCheckBox("GTG")
+        pyro_cb_ttg = QCheckBox("TTG")
+        pyro_cb_all = QCheckBox("All (no filter)")
+        # Load from params
+        pf_opts = self._pyro_params.get('start_filter', {'ATG':True,'GTG':True,'TTG':True,'all':True})
+        pyro_cb_atg.setChecked(pf_opts.get('ATG', True))
+        pyro_cb_gtg.setChecked(pf_opts.get('GTG', True))
+        pyro_cb_ttg.setChecked(pf_opts.get('TTG', True))
+        pyro_cb_all.setChecked(pf_opts.get('all', True))
+        for cb in (pyro_cb_atg, pyro_cb_gtg, pyro_cb_ttg, pyro_cb_all):
+            cb.setEnabled(pyro_ok)
+        # "All" disables/enables individual checkboxes
+        def _toggle_filter(state):
+            all_checked = pyro_cb_all.isChecked()
+            for c in (pyro_cb_atg, pyro_cb_gtg, pyro_cb_ttg):
+                c.setEnabled(pyro_ok and not all_checked)
+        pyro_cb_all.stateChanged.connect(_toggle_filter)
+        _toggle_filter(None)
+        starts_lay = QHBoxLayout()
+        starts_lay.addWidget(pyro_cb_atg); starts_lay.addWidget(pyro_cb_gtg)
+        starts_lay.addWidget(pyro_cb_ttg); starts_lay.addWidget(pyro_cb_all)
+        starts_lay.addStretch()
+        pf_l.addLayout(starts_lay, 5, 1, 1, 3)
+
         layout.addWidget(pf)
 
-        btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
-                                 if QT_VERSION == 6 else QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        # ── Info box ────────────────────────────────────────────
+        info_box = QLabel()
+        info_box.setWordWrap(True)
+        info_box.setStyleSheet(
+            "background:#f3f8ff;border:1px solid #bbdefb;"
+            "border-radius:4px;padding:5px;color:#0d47a1;font-size:11px;")
+        layout.addWidget(info_box)
+
+        def _upd_info():
+            is_meta = mode_combo.currentIndex() == 0
+            tt = tt_combo.currentData() if pyro_ok else 11
+            seq_kb = len(self.dna_sequence) / 1000 if self.dna_sequence else 0
+            if not pyro_ok:
+                info_box.setText("Pyrodigal not installed. Install: pip install pyrodigal")
+                return
+            warn = ""
+            if not is_meta and seq_kb < 100:
+                warn = f"Warning: sequence is {seq_kb:.0f} kb — single-genome needs >= 100 kb. "
+            info_box.setText(
+                f"{warn}Table {tt} | Mode: {'meta' if is_meta else 'single'} | "
+                f"Seq: {seq_kb:.0f} kb")
+        if pyro_ok:
+            mode_combo.currentIndexChanged.connect(_upd_info)
+            tt_combo.currentIndexChanged.connect(_upd_info)
+        _upd_info()
+
+        # ── Buttons ─────────────────────────────────────────────
+        btns = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+            if QT_VERSION == 6 else QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
         btns.accepted.connect(dlg.accept); btns.rejected.connect(dlg.reject)
         layout.addWidget(btns)
 
         if dlg.exec() if QT_VERSION == 6 else dlg.exec_():
+            # Save 6-frame params
             self._min_length_spin.setValue(min_spin.value())
             self._cb_atg.setChecked(cb_atg.isChecked())
             self._cb_gtg.setChecked(cb_gtg.isChecked())
             self._cb_ttg.setChecked(cb_ttg.isChecked())
+            # Save Pyrodigal params
+            self._pyro_params.update({
+                'meta':              mode_combo.currentIndex() == 0,
+                'translation_table': tt_combo.currentData() if pyro_ok else 11,
+                'min_aa':            pyro_min.value(),
+                'closed':            closed_cb.isChecked(),
+                'mask':              mask_cb.isChecked(),
+                'start_filter': {
+                    'ATG': pyro_cb_atg.isChecked(),
+                    'GTG': pyro_cb_gtg.isChecked(),
+                    'TTG': pyro_cb_ttg.isChecked(),
+                    'all': pyro_cb_all.isChecked(),
+                },
+            })
+            self._status.showMessage(
+                f"Parameters saved — 6-frame: min={min_spin.value()}aa | "
+                f"Pyrodigal: mode={'meta' if self._pyro_params['meta'] else 'single'}, "
+                f"table={self._pyro_params['translation_table']}, "
+                f"min={self._pyro_params['min_aa']}aa")
 
     def _show_blast_params(self):
         dlg = QDialog(self)
@@ -5746,13 +8137,16 @@ DOMAINS IN NEIGHBORHOOD:
     def _show_tutorial(self):
         self._show_help_dlg('tutorial', 'tutorial')
 
-    def _show_help_dlg(self, title_key, content_key):
+    def _show_install(self):
+        self._show_help_dlg('install', 'install', width=800, height=640)
+
+    def _show_help_dlg(self, title_key, content_key, width=720, height=560):
         lang = _CURRENT_LANG[0]
         content = HELP_CONTENT.get(content_key, {}).get(lang) or \
                   HELP_CONTENT.get(content_key, {}).get('en', '(no content)')
         dlg = QDialog(self)
         dlg.setWindowTitle(t(title_key))
-        dlg.resize(720, 560)
+        dlg.resize(width, height)
         layout = QVBoxLayout(dlg)
         txt = QTextEdit()
         txt.setFont(QFont('Courier', 9))
@@ -5772,11 +8166,17 @@ DOMAINS IN NEIGHBORHOOD:
         mat_ok   = "✅" if MATPLOTLIB_AVAILABLE else "❌"
         QMessageBox.about(self, t('about'),
             f"🧬 ppigFinder — Protein-Protein Interaction Genomic Finder\n"
-            f"Version 1.01  |  MIT License\n\n"
-            f"Discovery of novel bacterial PPIs via ORF prediction,\n"
-            f"HMM/BLAST annotation, genomic neighbourhood analysis\n"
-            f"and AlphaFold 3 structural interaction prediction.\n\n"
-            f"https://github.com/<your-org>/ppigfinder\n\n"
+            f"Version 1.12  |  MIT License\n\n"
+            f"Discovery of novel bacterial PPIs via ORF prediction\n"
+            f"(Pyrodigal / 6-frame scan), HMM/BLAST annotation,\n"
+            f"genomic neighbourhood analysis, and AlphaFold 3\n"
+            f"structural interaction prediction.\n\n"
+            f"What's new in v1.12:\n"
+            f"  • File menu: removed Multi-FASTA, SnapGene and GenBank\n"
+            f"    import/export — FASTA is the sole supported input format\n"
+            f"  • Genome map zoom extended to 1,000,000× for large\n"
+            f"    bacterial chromosomes and metagenome-assembled genomes\n\n"
+            f"https://github.com/goka-lab/ppigfinder\n\n"
             f"Backends:\n"
             f"  BLAST+     {blast_ok}\n"
             f"  HMMER3     {hmmer_ok}\n"
@@ -6763,7 +9163,14 @@ DOMAINS IN NEIGHBORHOOD:
         self._dv_run_btn = QPushButton("🚀 Upload + Submit all")
         self._dv_run_btn.setStyleSheet("font-weight:bold;")
         self._dv_run_btn.clicked.connect(self._dv_upload_and_submit)
-        for b in (self._dv_clear_btn, self._dv_upload_btn, self._dv_run_btn):
+        self._dv_dl_jsons_btn = QPushButton("📥 Download JSONs")
+        self._dv_dl_jsons_btn.setToolTip(
+            "Save all staged partition JSON files to a local folder.\n"
+            "Useful to inspect, archive, or manually transfer the files\n"
+            "before submitting to the cluster.")
+        self._dv_dl_jsons_btn.clicked.connect(self._dv_download_staged_jsons)
+        for b in (self._dv_clear_btn, self._dv_upload_btn,
+                  self._dv_run_btn, self._dv_dl_jsons_btn):
             b.setEnabled(False)
             act_row.addWidget(b)
         lay.addLayout(act_row)
@@ -7460,27 +9867,39 @@ DOMAINS IN NEIGHBORHOOD:
         self._dv_submit_summary.setText(
             f"{len(self.af3_jobs)} jobs from session  (one JSON per job)")
         self._dv_pending_jobs = list(self.af3_jobs)
-        for b in (self._dv_upload_btn, self._dv_run_btn, self._dv_clear_btn):
+        for b in (self._dv_upload_btn, self._dv_run_btn,
+                  self._dv_clear_btn, self._dv_dl_jsons_btn):
             b.setEnabled(True)
         self._dv_refresh_cmd_preview()
 
+    # ── Anti-OOM partition size ────────────────────────────────────
+    _AF3_PARTITION_SIZE = 50   # max jobs per batch JSON sent to the server
+
     def _dv_load_from_session_batch(self):
-        """Build a single batch JSON from all session AF3 jobs and stage it
-        for upload as one file — exactly like AlphaFold → Export Batch JSON
-        but wired into the HPC submit workflow."""
+        """Build batch JSON(s) from all session AF3 jobs and stage them for
+        sequential upload/submission.
+
+        Anti-OOM rule: if the session has more than _AF3_PARTITION_SIZE jobs,
+        the list is automatically split into chunks of that size.  Each chunk
+        becomes an independent JSON file submitted as a separate SLURM job so
+        the server's RAM is fully released between runs.
+        """
         if not self.af3_jobs:
             QMessageBox.information(self, "Server",
                 "No AF3 jobs in session.\n"
                 "Generate jobs in the AlphaFold tab first.")
             return
 
-        prefix = self._dv_job_prefix.text().strip() or "af3_batch"
-        batch_name = f"{prefix}_all_jobs"
+        import tempfile as _tmp
 
-        # Build combined list in AF3 batch format
-        batch_list = []
+        prefix     = self._dv_job_prefix.text().strip() or "af3_batch"
+        n_total    = len(self.af3_jobs)
+        chunk_size = self._AF3_PARTITION_SIZE
+
+        # ── Build AF3-format entry list ────────────────────────────
+        all_entries = []
         for j in self.af3_jobs:
-            batch_list.append({
+            all_entries.append({
                 "name":       j['name'],
                 "modelSeeds": [],
                 "sequences":  j.get('sequences', []),
@@ -7488,42 +9907,79 @@ DOMAINS IN NEIGHBORHOOD:
                 "version":    1,
             })
 
-        # Write to a temp file (will be uploaded as one JSON)
-        import tempfile as _tmp
-        fd, tmp_path = _tmp.mkstemp(suffix='.json', prefix=batch_name + '_')
-        os.close(fd)
-        with open(tmp_path, 'w', encoding='utf-8') as f:
-            json.dump(batch_list, f, indent=2, ensure_ascii=False)
-        file_kb = os.path.getsize(tmp_path) / 1024
+        # ── Split into partitions ──────────────────────────────────
+        partitions = [all_entries[i:i + chunk_size]
+                      for i in range(0, n_total, chunk_size)]
+        n_parts = len(partitions)
 
-        # Stage as a single "virtual" job whose local_path points to the temp file
+        # ── Write each partition to a temp file ────────────────────
         self._dv_submit_table.setRowCount(0)
-        n_jobs  = len(batch_list)
-        res_tot = sum(j.get('total_residues', 0) for j in self.af3_jobs)
-        row = self._dv_submit_table.rowCount()
-        self._dv_submit_table.insertRow(row)
-        for col, val in enumerate([
-                batch_name, str(n_jobs), str(res_tot),
-                f"{file_kb:.0f}", "Pending (batch)"]):
-            self._dv_submit_table.setItem(row, col, QTableWidgetItem(val))
+        self._dv_pending_jobs = []
+        total_kb = 0.0
 
-        self._dv_pending_jobs = [{
-            'name':          batch_name,
-            'local_path':    tmp_path,
-            'sequences':     [],          # not needed — file already written
-            'total_residues': res_tot,
-            'status':        'pending',
-            '_is_batch':     True,
-            '_n_jobs':       n_jobs,
-        }]
+        for idx, part in enumerate(partitions):
+            part_label = (f"{prefix}_part{idx+1:03d}_of_{n_parts:03d}"
+                          if n_parts > 1 else f"{prefix}_all_jobs")
+            fd, tmp_path = _tmp.mkstemp(
+                suffix='.json',
+                prefix=re.sub(r'[^\w\-]', '_', part_label) + '_')
+            os.close(fd)
+            with open(tmp_path, 'w', encoding='utf-8') as f:
+                json.dump(part, f, indent=2, ensure_ascii=False)
+            file_kb  = os.path.getsize(tmp_path) / 1024
+            total_kb += file_kb
+            res_part = sum(
+                self.af3_jobs[i].get('total_residues', 0)
+                for i in range(
+                    idx * chunk_size,
+                    min(idx * chunk_size + chunk_size, n_total)))
 
-        self._dv_submit_summary.setText(
-            f"1 batch file  ({n_jobs} jobs combined, {file_kb:.0f} KB)")
-        for b in (self._dv_upload_btn, self._dv_run_btn, self._dv_clear_btn):
+            # One table row per partition
+            row = self._dv_submit_table.rowCount()
+            self._dv_submit_table.insertRow(row)
+            status_lbl = (f"Pending (batch {idx+1}/{n_parts})"
+                          if n_parts > 1 else "Pending (batch)")
+            for col, val in enumerate([
+                    part_label, str(len(part)), str(res_part),
+                    f"{file_kb:.0f}", status_lbl]):
+                self._dv_submit_table.setItem(
+                    row, col, QTableWidgetItem(val))
+
+            self._dv_pending_jobs.append({
+                'name':           part_label,
+                'local_path':     tmp_path,
+                'sequences':      [],       # file already written
+                'total_residues': res_part,
+                'status':         'pending',
+                '_is_batch':      True,
+                '_n_jobs':        len(part),
+                '_part_index':    idx,      # 0-based
+                '_n_parts':       n_parts,
+            })
+
+        # ── Summary & UI state ─────────────────────────────────────
+        if n_parts > 1:
+            summary = (f"{n_parts} partition files  "
+                       f"({n_total} jobs total, {chunk_size}/partition, "
+                       f"{total_kb:.0f} KB) — submitted sequentially")
+        else:
+            summary = (f"1 batch file  "
+                       f"({n_total} jobs, {total_kb:.0f} KB)")
+
+        self._dv_submit_summary.setText(summary)
+        for b in (self._dv_upload_btn, self._dv_run_btn,
+                  self._dv_clear_btn, self._dv_dl_jsons_btn):
             b.setEnabled(True)
-        self._dv_log(
-            f"Batch JSON ready: {batch_name}.json  "
-            f"({n_jobs} jobs, {file_kb:.0f} KB)", 'submit')
+
+        if n_parts > 1:
+            self._dv_log(
+                f"Auto-partitioned {n_total} jobs → {n_parts} × "
+                f"{chunk_size} batch JSONs (anti-OOM).  "
+                f"Will be submitted one at a time.", 'submit')
+        else:
+            self._dv_log(
+                f"Batch JSON ready: {self._dv_pending_jobs[0]['name']}.json  "
+                f"({n_total} jobs, {total_kb:.0f} KB)", 'submit')
         self._dv_refresh_cmd_preview()
 
     def _dv_load_from_files(self):
@@ -7567,7 +10023,7 @@ DOMAINS IN NEIGHBORHOOD:
         n = len(self._dv_pending_jobs)
         self._dv_submit_summary.setText(f"{n} job(s) loaded from disk")
         for b in (self._dv_upload_btn, self._dv_run_btn,
-                  self._dv_clear_btn):
+                  self._dv_clear_btn, self._dv_dl_jsons_btn):
             b.setEnabled(n > 0)
         self._dv_refresh_cmd_preview()
 
@@ -7575,8 +10031,62 @@ DOMAINS IN NEIGHBORHOOD:
         self._dv_submit_table.setRowCount(0)
         self._dv_pending_jobs = []
         self._dv_submit_summary.setText("0 jobs loaded")
-        for b in (self._dv_upload_btn, self._dv_run_btn):
+        for b in (self._dv_upload_btn, self._dv_run_btn,
+                  self._dv_dl_jsons_btn):
             b.setEnabled(False)
+
+    def _dv_download_staged_jsons(self):
+        """Save all staged partition JSON files to a local folder.
+
+        For single-batch sessions the one JSON is saved; for auto-partitioned
+        sessions all N partition files are written to the chosen folder so the
+        user can inspect, archive, or manually scp them to the cluster.
+        """
+        jobs = getattr(self, '_dv_pending_jobs', [])
+        batch_jobs = [j for j in jobs if j.get('local_path')]
+        if not batch_jobs:
+            batch_jobs = jobs  # fall back to individual jobs from session
+
+        if not batch_jobs:
+            QMessageBox.information(
+                self, "Download JSONs", "No staged jobs to download.")
+            return
+
+        dest_dir = QFileDialog.getExistingDirectory(
+            self, "Choose folder to save JSON files", "")
+        if not dest_dir:
+            return
+
+        import shutil as _shutil
+        saved  = []
+        errors = []
+        for job in batch_jobs:
+            fname = re.sub(r'[^\w\-]', '_', job['name']) + '.json'
+            dst   = os.path.join(dest_dir, fname)
+            try:
+                if job.get('local_path') and os.path.exists(job['local_path']):
+                    _shutil.copy2(job['local_path'], dst)
+                else:
+                    entry = {
+                        "name":       job['name'],
+                        "modelSeeds": [],
+                        "sequences":  job.get('sequences', []),
+                        "dialect":    "alphafoldserver",
+                        "version":    1,
+                    }
+                    with open(dst, 'w', encoding='utf-8') as f:
+                        json.dump(entry, f, indent=2, ensure_ascii=False)
+                saved.append(fname)
+            except Exception as e:
+                errors.append(f"{fname}: {e}")
+
+        msg_parts = [f"✓ {len(saved)} JSON(s) saved to:\n{dest_dir}"]
+        if errors:
+            msg_parts.append(f"\n⚠ {len(errors)} error(s):\n" +
+                             "\n".join(errors))
+        QMessageBox.information(self, "Download JSONs", "\n".join(msg_parts))
+        self._dv_log(
+            f"JSONs downloaded: {len(saved)} file(s) → {dest_dir}", 'submit')
 
     # ── AF3 preset helper ──────────────────────────────────────
     def _dv_af3_apply_preset(self, idx: int):
@@ -7608,6 +10118,9 @@ DOMAINS IN NEIGHBORHOOD:
     def _dv_refresh_cmd_preview(self):
         """Rebuild the command preview including AF3 advanced flags.
 
+        When multiple partitions are staged (anti-OOM split), every
+        partition's af3_run call is shown so the user can see all job codes.
+
         Correct af3_run usage:
           cd <parent_dir>
           af3_run --json_path <fname>.json --job-name <prefix>
@@ -7627,33 +10140,22 @@ DOMAINS IN NEIGHBORHOOD:
                    self._dv_ts_check.isChecked()
 
         ts          = datetime.now().strftime('%Y%m%d_%H%M%S') if use_ts else ''
-        job_name    = f"{prefix}_{ts}" if ts else prefix
-        # Auto-sanitize: bash special chars in job name break bash -lc '...'
-        job_name    = re.sub(r'[()\[\]{}|;&!\s]+', '_', job_name).strip('_')
         parent_dir  = f"{base}/{rdir}"
-        json_fname  = f"{prefix}_all_jobs.json"
 
         # ── Collect AF3 advanced flags ────────────────────────
         af3_flags = []
-        # Seeds (n) and num_models affect the JSON (modelSeeds array),
-        # not the af3_run command line — shown as comments in preview only.
         if hasattr(self, '_dv_af3_seeds'):
             n_seeds = self._dv_af3_seeds.value()
             if n_seeds > 1:
                 af3_flags.append(f"# {n_seeds} seeds injected into JSON modelSeeds")
-
         if hasattr(self, '_dv_af3_num_models'):
             n_models = self._dv_af3_num_models.value()
             if n_models > 1:
                 af3_flags.append(f"# {n_models} models via JSON numDiffusionSamples")
-
-        # Note: --notemplate / --max_template_date / --num_seeds are NOT
-        # valid af3_run flags — template/seed control is via JSON modelSeeds.
         if hasattr(self, '_dv_af3_partition'):
             part = self._dv_af3_partition.text().strip()
             if part:
                 af3_flags.append(f"--slurm-partition {part}")
-
         if hasattr(self, '_dv_af3_extra_flags'):
             extra = self._dv_af3_extra_flags.text().strip()
             if extra:
@@ -7664,19 +10166,59 @@ DOMAINS IN NEIGHBORHOOD:
         if mod_name:
             lines.append(f"# module loaded: {mod_name}")
         lines.append(f"cd {parent_dir}")
+        lines.append("")
 
-        base_cmd = f"{cmd} --json_path {json_fname} --job-name {job_name}"
-        if af3_flags:
-            lines.append(base_cmd + " \\")
-            for i, flag in enumerate(af3_flags):
-                suffix = " \\" if i < len(af3_flags) - 1 else ""
-                lines.append(f"    {flag}{suffix}")
+        # Detect multi-partition scenario
+        is_partitioned = (n_jobs > 1 and jobs
+                          and jobs[0].get('_is_batch')
+                          and jobs[0].get('_n_parts', 1) > 1)
+
+        if is_partitioned:
+            n_parts   = jobs[0]['_n_parts']
+            total_afjobs = sum(j.get('_n_jobs', 0) for j in jobs)
+            lines.append(
+                f"# {total_afjobs} AF3 jobs → {n_parts} partitions "
+                f"(≤{self._AF3_PARTITION_SIZE}/batch, anti-OOM)")
+            lines.append(
+                "# Submitted sequentially — one SLURM job at a time")
+            lines.append("")
+            for idx, j in enumerate(jobs):
+                p_name      = j['name']
+                json_fname  = f"{p_name}.json"
+                job_name    = f"{p_name}_{ts}" if ts else p_name
+                job_name    = re.sub(r'[()\[\]{}|;&!\s]+', '_', job_name).strip('_')
+                base_cmd    = (f"{cmd} --json_path {json_fname} "
+                               f"--job-name {job_name}")
+                lines.append(f"# ── Partition {idx+1}/{n_parts} "
+                              f"({j.get('_n_jobs', '?')} jobs) ──")
+                if af3_flags:
+                    lines.append(base_cmd + " \\")
+                    for fi, flag in enumerate(af3_flags):
+                        suffix = " \\" if fi < len(af3_flags) - 1 else ""
+                        lines.append(f"    {flag}{suffix}")
+                else:
+                    lines.append(base_cmd)
+                lines.append(
+                    f"# Output → {parent_dir}/{job_name}/output/")
+                lines.append("")
         else:
-            lines.append(base_cmd)
+            # Single batch or individual jobs
+            json_fname  = f"{prefix}_all_jobs.json"
+            job_name    = f"{prefix}_{ts}" if ts else prefix
+            job_name    = re.sub(r'[()\[\]{}|;&!\s]+', '_', job_name).strip('_')
+            base_cmd    = (f"{cmd} --json_path {json_fname} "
+                           f"--job-name {job_name}")
+            if af3_flags:
+                lines.append(base_cmd + " \\")
+                for i, flag in enumerate(af3_flags):
+                    suffix = " \\" if i < len(af3_flags) - 1 else ""
+                    lines.append(f"    {flag}{suffix}")
+            else:
+                lines.append(base_cmd)
+            lines.append(f"# Output → {parent_dir}/{job_name}/output/")
+            if n_jobs:
+                lines.append(f"# {n_jobs} job(s) bundled in batch JSON")
 
-        lines.append(f"# Output → {parent_dir}/{job_name}/output/")
-        if n_jobs:
-            lines.append(f"# {n_jobs} job(s) bundled in batch JSON")
         if af3_flags:
             preset_names = ["Balanced", "Fast", "Accurate", "Custom"]
             pidx = getattr(self, '_dv_af3_preset', None)
@@ -7693,15 +10235,17 @@ DOMAINS IN NEIGHBORHOOD:
         self._dv_do_upload(submit=True)
 
     def _dv_do_upload(self, submit: bool):
-        """SFTP upload + optional af3_run.
+        """SFTP upload + optional af3_run — sequential multi-partition support.
 
-        Always bundles all pending jobs into ONE batch JSON file and
-        runs a SINGLE af3_run call, matching the server's expected usage:
+        For sessions with ≤50 jobs (or loaded as a single batch), behaviour is
+        unchanged: one JSON file is built, uploaded, and optionally submitted.
 
-            af3_run --json_path <prefix>_all_jobs.json --job-name <prefix>
+        For sessions that were auto-partitioned into N×50 chunks, the worker
+        thread loops through every partition and submits them one at a time so
+        that the server's RAM is fully released between runs (anti-OOM fix).
 
-        The results directory on the server will be:
-            ~/af3_predictions/<rdir>/<prefix>/output/
+        Each partition is uploaded and submitted before the next one starts.
+        All results are returned as a list and handled by _dv_on_upload_done.
         """
         if not self._ssh_client:
             QMessageBox.warning(self, "Server",
@@ -7718,69 +10262,59 @@ DOMAINS IN NEIGHBORHOOD:
                   or datetime.now().strftime('%Y-%m-%d'))
         cmd    = self._dv_af3cmd.text().strip() or "af3_run"
 
-        # Timestamp suffix — generated once at submit time so preview matches
         use_ts   = getattr(self, '_dv_ts_check', None) and \
                    self._dv_ts_check.isChecked()
         ts       = datetime.now().strftime('%Y%m%d_%H%M%S') if use_ts else ''
-        job_name = f"{prefix}_{ts}" if ts else prefix
-        # Auto-sanitize: replace shell-unsafe chars so bash -lc never breaks
-        job_name = re.sub(r'[()\[\]{}|;&!\s]+', '_', job_name).strip('_')
 
-        # Parent dir = base/rdir  (we cd here before running af3_run)
-        # JSON is uploaded into parent_dir/ directly — filename only for --json_path
-        parent_dir      = f"{base}/{rdir}"
-        batch_json_name = f"{prefix}_all_jobs.json"   # filename only
-        # remote_job_dir removed — unused variable (parent_dir used directly)
-        # af3_run creates job_name/output/ inside parent_dir
-        output_dir      = f"{parent_dir}/{job_name}"
-
+        parent_dir = f"{base}/{rdir}"
         ssh = self._ssh_client
 
-        def _do_upload_submit():
-            # ── 1. Collect AF3 advanced settings ──────────────
-            # Seeds: generate reproducible integer seeds based on count
-            n_seeds = 1
-            use_templates = True
-            if hasattr(self, '_dv_af3_seeds'):
-                n_seeds = self._dv_af3_seeds.value()
-            if hasattr(self, '_dv_af3_use_templates'):
-                use_templates = self._dv_af3_use_templates.isChecked()
+        # ── Collect AF3 advanced settings (read once, applied to all parts) ─
+        n_seeds       = 1
+        use_templates = True
+        if hasattr(self, '_dv_af3_seeds'):
+            n_seeds = self._dv_af3_seeds.value()
+        if hasattr(self, '_dv_af3_use_templates'):
+            use_templates = self._dv_af3_use_templates.isChecked()
+        import random as _random
+        _random.seed(42)
+        model_seeds = ([_random.randint(1, 2**31 - 1) for _ in range(n_seeds)]
+                       if n_seeds > 1 else [])
 
-            import random as _random
-            _random.seed(42)
-            model_seeds = [_random.randint(1, 2**31 - 1)
-                           for _ in range(n_seeds)] if n_seeds > 1 else []
+        _af3_flags = []
+        if hasattr(self, '_dv_af3_partition'):
+            _pt = self._dv_af3_partition.text().strip()
+            if _pt:
+                _af3_flags.append(f"--slurm-partition {_pt}")
+        if hasattr(self, '_dv_af3_extra_flags'):
+            _ex = self._dv_af3_extra_flags.text().strip()
+            if _ex:
+                _af3_flags.append(_ex)
+        _flags_str = (" " + " ".join(_af3_flags)) if _af3_flags else ""
 
-            # ── 2. Build batch JSON in memory ─────────────────
+        mod_prefix_str = self._dv_build_activation_prefix()
+
+        def _build_batch_list_for_job(job):
+            """Return AF3 batch list for one pending job entry."""
             batch_list = []
-            for job in jobs:
-                if job.get('local_path'):
-                    try:
-                        with open(job['local_path'], 'r', encoding='utf-8') as f:
-                            raw = json.load(f)
-                        if isinstance(raw, list):
-                            for entry in raw:
-                                if isinstance(entry, dict):
-                                    entry['modelSeeds'] = model_seeds
-                                    if not use_templates:
-                                        # Mark sequences to skip templates
-                                        for seq in entry.get('sequences', []):
-                                            for chain in seq.get(
-                                                    'proteinChain', []) or []:
-                                                chain['templates'] = []
-                            batch_list.extend(raw)
-                        else:
-                            raw['modelSeeds'] = model_seeds
-                            batch_list.append(raw)
-                    except Exception:
-                        batch_list.append({
-                            "name":        job['name'],
-                            "modelSeeds":  model_seeds,
-                            "sequences":   job.get('sequences', []),
-                            "dialect":     "alphafoldserver",
-                            "version":     1,
-                        })
-                else:
+            if job.get('local_path'):
+                try:
+                    with open(job['local_path'], 'r', encoding='utf-8') as f:
+                        raw = json.load(f)
+                    if isinstance(raw, list):
+                        for entry in raw:
+                            if isinstance(entry, dict):
+                                entry['modelSeeds'] = model_seeds
+                                if not use_templates:
+                                    for seq in entry.get('sequences', []):
+                                        for chain in (seq.get(
+                                                'proteinChain', []) or []):
+                                            chain['templates'] = []
+                        batch_list.extend(raw)
+                    else:
+                        raw['modelSeeds'] = model_seeds
+                        batch_list.append(raw)
+                except Exception:
                     batch_list.append({
                         "name":       job['name'],
                         "modelSeeds": model_seeds,
@@ -7788,135 +10322,149 @@ DOMAINS IN NEIGHBORHOOD:
                         "dialect":    "alphafoldserver",
                         "version":    1,
                     })
+            else:
+                batch_list.append({
+                    "name":       job['name'],
+                    "modelSeeds": model_seeds,
+                    "sequences":  job.get('sequences', []),
+                    "dialect":    "alphafoldserver",
+                    "version":    1,
+                })
+            return batch_list
 
-            if not batch_list:
-                raise RuntimeError("No valid jobs to submit.")
+        def _upload_one_partition(job, resolved_parent):
+            """Upload batch JSON for a single partition.  Returns remote path."""
+            import tempfile as _tmp2
+            safe_name    = re.sub(r'[^\w\-]', '_', job['name'])
+            batch_list   = _build_batch_list_for_job(job)
+            batch_fname  = f"{job['name']}.json"
 
-            # ── 2. Write batch JSON to temp file ───────────────
-            import tempfile as _tmp
-            fd, tmp_path = _tmp.mkstemp(
-                suffix='.json',
-                prefix=re.sub(r'[^\w\-]', '_', prefix) + '_')
+            fd, tmp_path = _tmp2.mkstemp(
+                suffix='.json', prefix=safe_name + '_')
             os.close(fd)
             try:
                 with open(tmp_path, 'w', encoding='utf-8') as f:
                     json.dump(batch_list, f, indent=2, ensure_ascii=False)
                 file_kb = os.path.getsize(tmp_path) / 1024
 
-                # ── 3. Resolve ~ for SFTP ──────────────────────
-                # SFTP doesn't expand tilde — resolve to absolute path
-                resolved_parent = parent_dir
-                if parent_dir.startswith('~'):
-                    home_out, _, _ = self._dv_ssh_exec("echo $HOME", timeout=5)
-                    home = home_out.strip()
-                    if home:
-                        resolved_parent = home + parent_dir[1:]
-
-                # JSON uploaded directly into parent_dir (not a sub-dir)
-                # so --json_path can be filename-only after cd
-                remote_json_sftp  = f"{resolved_parent}/{batch_json_name}"
-                remote_json_shell = batch_json_name   # filename only — used after cd
-
-                # ── 4. Open fresh SFTP channel ─────────────────
                 sftp = ssh.open_sftp()
                 try:
-                    # Create parent directory if needed
-                    try:
-                        sftp.stat(resolved_parent)
-                    except FileNotFoundError:
-                        self._dv_ssh_exec(f"mkdir -p {parent_dir}")
-                        try:
-                            sftp.stat(resolved_parent)
-                        except FileNotFoundError:
-                            raise RuntimeError(
-                                f"Could not create remote directory:\n"
-                                f"{resolved_parent}")
-
-                    # ── 5. Upload batch JSON ───────────────────
+                    remote_json_sftp = f"{resolved_parent}/{batch_fname}"
                     sftp.put(tmp_path, remote_json_sftp)
                 finally:
                     try:
                         sftp.close()
                     except Exception:
                         pass
-
             finally:
                 if os.path.exists(tmp_path):
                     os.unlink(tmp_path)
 
-            # ── 6. Run af3_run ─────────────────────────────────
-            # cd to parent_dir so --json_path is filename-only and
-            # --job-name creates output inside parent_dir/job_name/output/
-            status   = 'uploaded'
-            slurm_id = None
-            dir_exists_error = False
-            if submit:
-                mod_prefix = self._dv_build_activation_prefix()
+            return batch_fname, batch_list, file_kb
 
-                # Collect AF3 advanced flags — only real af3_run flags:
-                #   --slurm-partition  --slurm-nodes  --slurm-ntasks
-                #   --slurm-mem  --slurm-gres  --slurm-time
-                #   --workdir  --image  --model_dir  --db_dir  --force  --dry-run
-                # Seeds & template control are injected into the JSON (see above).
-                _af3_flags = []
-                if hasattr(self, '_dv_af3_partition'):
-                    _pt = self._dv_af3_partition.text().strip()
-                    if _pt:
-                        _af3_flags.append(f"--slurm-partition {_pt}")
-                if hasattr(self, '_dv_af3_extra_flags'):
-                    _ex = self._dv_af3_extra_flags.text().strip()
-                    if _ex:
-                        _af3_flags.append(_ex)
+        def _submit_one(batch_fname, job_name_full):
+            """Run af3_run for a single partition JSON on the server."""
+            _inner_cmd = (
+                f"{mod_prefix_str}"
+                f"cd {parent_dir} && "
+                f"{cmd} "
+                f"--json_path {batch_fname} "
+                f'--job-name "{job_name_full}"'
+                f"{_flags_str}"
+            )
+            run_cmd = f'bash -lc "{_inner_cmd}"'
+            out, err, rc = self._dv_ssh_exec(run_cmd, timeout=60)
+            m = re.search(r'batch job\s+(\d+)', out + err, re.IGNORECASE)
+            if m:
+                return m.group(1), 'submitted', False
+            combined = (out + err).lower()
+            if 'already exists' in combined or 'directory already' in combined:
+                return None, 'dir_exists', True
+            lines_o = (out + err).strip().splitlines()
+            detail  = lines_o[0] if lines_o else f'rc={rc}'
+            return None, f'submit_error: {detail}', False
 
-                _flags_str = (" " + " ".join(_af3_flags)) if _af3_flags else ""
-                # Use double-quoted bash -lc to safely handle any remaining
-                # special characters; job_name is already sanitized above
-                _inner_cmd = (
-                    f"{mod_prefix}"
-                    f"cd {parent_dir} && "
-                    f"{cmd} "
-                    f"--json_path {remote_json_shell} "
-                    f'--job-name "{job_name}"'
-                    f"{_flags_str}"
-                )
-                run_cmd = f'bash -lc "{_inner_cmd}"'
-                out, err, rc = self._dv_ssh_exec(run_cmd, timeout=60)
-                import re as _re
-                m = _re.search(r'batch job\s+(\d+)', out + err, _re.IGNORECASE)
-                if m:
-                    slurm_id = m.group(1)
-                    status   = 'submitted'
-                else:
-                    server_msg = (out + err).strip().splitlines()
-                    detail = server_msg[0] if server_msg else f'rc={rc}'
-                    combined = (out + err).lower()
-                    if 'already exists' in combined or 'directory already' in combined:
-                        dir_exists_error = True
-                        status = 'dir_exists'
-                    else:
-                        status = f'submit_error: {detail}'
+        def _do_upload_submit():
+            # ── Resolve ~ for SFTP once ────────────────────────
+            resolved_parent = parent_dir
+            if parent_dir.startswith('~'):
+                home_out, _, _ = self._dv_ssh_exec("echo $HOME", timeout=5)
+                home = home_out.strip()
+                if home:
+                    resolved_parent = home + parent_dir[1:]
 
-            return [{
-                'name':            job_name,
-                'prefix':          prefix,
-                'batch_file':      batch_json_name,
-                'n_jobs':          len(batch_list),
-                'file_kb':         round(file_kb, 1),
-                'remote_json':     f"{parent_dir}/{batch_json_name}",
-                'remote_dir':      output_dir,   # where output/ will appear
-                'slurm_id':        slurm_id,
-                'status':          status,
-                'dir_exists_error': dir_exists_error,
-                'parent_dir':      parent_dir,
-                'rel_json':        remote_json_shell,  # filename only
-                'mod_name':        self._dv_module_cmd.text().strip(),
-                'cmd':             cmd,
-            }]
+            # Create parent directory if needed
+            sftp_chk = ssh.open_sftp()
+            try:
+                try:
+                    sftp_chk.stat(resolved_parent)
+                except FileNotFoundError:
+                    self._dv_ssh_exec(f"mkdir -p {parent_dir}")
+                    try:
+                        sftp_chk.stat(resolved_parent)
+                    except FileNotFoundError:
+                        raise RuntimeError(
+                            f"Could not create remote directory:\n"
+                            f"{resolved_parent}")
+            finally:
+                try:
+                    sftp_chk.close()
+                except Exception:
+                    pass
+
+            all_results = []
+            for job in jobs:
+                # Build a per-partition job name
+                j_name_clean = re.sub(r'[()\[\]{}|;&!\s]+', '_',
+                                      job['name']).strip('_')
+                job_name_full = (f"{j_name_clean}_{ts}"
+                                 if ts else j_name_clean)
+
+                # Upload
+                batch_fname, batch_list, file_kb = _upload_one_partition(
+                    job, resolved_parent)
+
+                output_dir = f"{parent_dir}/{job_name_full}"
+
+                status          = 'uploaded'
+                slurm_id        = None
+                dir_exists_error = False
+
+                if submit:
+                    slurm_id, status, dir_exists_error = _submit_one(
+                        batch_fname, job_name_full)
+
+                all_results.append({
+                    'name':             job_name_full,
+                    'prefix':           prefix,
+                    'batch_file':       batch_fname,
+                    'n_jobs':           len(batch_list),
+                    'file_kb':          round(file_kb, 1),
+                    'remote_json':      f"{parent_dir}/{batch_fname}",
+                    'remote_dir':       output_dir,
+                    'slurm_id':         slurm_id,
+                    'status':           status,
+                    'dir_exists_error': dir_exists_error,
+                    'parent_dir':       parent_dir,
+                    'rel_json':         batch_fname,
+                    'mod_name':         self._dv_module_cmd.text().strip(),
+                    'cmd':              cmd,
+                    '_part_index':      job.get('_part_index', 0),
+                    '_n_parts':         job.get('_n_parts', 1),
+                })
+
+            if not all_results:
+                raise RuntimeError("No valid jobs to submit.")
+            return all_results
 
         self._dv_run_btn.setEnabled(False)
         self._dv_upload_btn.setEnabled(False)
-        self._dv_log(f"Starting {'upload+submit' if submit else 'upload only'} "
-                     f"({len(jobs)} jobs)...", 'submit')
+        n_parts = sum(1 for j in jobs if j.get('_is_batch'))
+        n_label = (f"{n_parts} partition(s)" if n_parts > 1
+                   else f"{len(jobs)} job(s)")
+        self._dv_log(
+            f"Starting {'upload+submit' if submit else 'upload only'} "
+            f"({n_label})...", 'submit')
 
         w = AnalysisWorker(_do_upload_submit)
         w.finished.connect(self._dv_on_upload_done)
@@ -7930,7 +10478,9 @@ DOMAINS IN NEIGHBORHOOD:
 
     def _dv_on_upload_done(self, results):
         """Callback when upload/submit worker finishes.
-        results is always a list with ONE dict (the batch result)."""
+        results is a list — one dict per partition (usually 1, but N for
+        auto-partitioned sessions > _AF3_PARTITION_SIZE jobs).
+        """
         self._dv_run_btn.setEnabled(True)
         self._dv_upload_btn.setEnabled(True)
 
@@ -7938,6 +10488,47 @@ DOMAINS IN NEIGHBORHOOD:
             self._dv_log("Upload returned no results.", 'submit')
             return
 
+        n_parts = len(results)
+        total_jobs = sum(r.get('n_jobs', 1) for r in results)
+
+        if n_parts > 1:
+            submitted = sum(1 for r in results if r.get('slurm_id'))
+            slurm_ids = [r['slurm_id'] for r in results if r.get('slurm_id')]
+            self._dv_log(
+                f"  {n_parts} partitions submitted — "
+                f"{submitted}/{n_parts} queued", 'submit')
+            for i, r in enumerate(results):
+                sid = r.get('slurm_id', '')
+                st  = r.get('status', '?')
+                self._dv_log(
+                    f"  Part {i+1:03d}: {r.get('batch_file','?')}  "
+                    f"{r.get('n_jobs','?')} jobs  {r.get('file_kb',0)} KB  "
+                    f"{st}" + (f"  [SLURM {sid}]" if sid else ''),
+                    'submit')
+                # Update the matching row in the submit table
+                if i < self._dv_submit_table.rowCount():
+                    self._dv_submit_table.setItem(
+                        i, 4, QTableWidgetItem(
+                            st + (f" [SLURM {sid}]" if sid else '')))
+                # Register each in the monitor list
+                self._hpc_jobs.append({
+                    'name':        r.get('name', ''),
+                    'slurm_id':    sid or '',
+                    'remote_dir':  r.get('remote_dir', ''),
+                    'remote_json': r.get('remote_json', ''),
+                    'status':      st,
+                    'local_output': '',
+                })
+            self._dv_refresh_monitor_table()
+            id_summary = (", ".join(slurm_ids[:5])
+                          + ("…" if len(slurm_ids) > 5 else ''))
+            self._status.showMessage(
+                f"✓ Server: {total_jobs} jobs in {n_parts} partitions — "
+                f"SLURM [{id_summary}]" if slurm_ids else
+                f"✓ Server: {total_jobs} jobs in {n_parts} partitions uploaded")
+            return
+
+        # ── Single partition / legacy path ────────────────────────
         r = results[0]
         n_jobs   = r.get('n_jobs', 1)
         file_kb  = r.get('file_kb', 0)
@@ -8632,7 +11223,7 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     app.setApplicationName('ppigFinder')
     app.setApplicationDisplayName('ppigFinder — Protein-Protein Interaction Genomic Finder')
-    app.setApplicationVersion('1.01')
+    app.setApplicationVersion('1.12')
     app.setStyle('Fusion')
     _setup_emoji_font(app)
     window = ppigFinderApp()
