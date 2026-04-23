@@ -2,7 +2,7 @@
 """
 ppigFinder — Protein-Protein Interaction Genomic Finder
 ========================================================
-Version  : 1.12
+Version  : 2.00 — v1.14
 Released : 2026
 License  : MIT (see LICENSE section below)
 
@@ -252,6 +252,9 @@ import re
 import csv
 import json
 import math
+import stat
+import random
+import base64
 import subprocess
 import shutil
 import tempfile
@@ -656,7 +659,7 @@ def parse_genbank(filepath: str) -> dict:
         'primer_bind':  '#ff66cc',
     }
 
-    with open(filepath, 'r', errors='replace') as fh:
+    with open(filepath, 'r', encoding='utf-8', errors='replace') as fh:
         content = fh.read()
 
     # ── Split into records (multi-record support) ───────────────
@@ -850,13 +853,17 @@ def write_genbank(filepath: str, sequence: str, orfs: list,
         lines.append(f"{pos+1:>9} {groups}")
     lines.append("//")
 
-    with open(filepath, 'w') as fh:
+    with open(filepath, 'w', encoding='utf-8') as fh:
         fh.write('\n'.join(lines) + '\n')
 
 
 
 
 class AdvancedORFAnalyzer:
+
+    # Class-level error state — always present, no AttributeError on first read
+    _last_blast_error: str = ''
+    _last_hmm_error:   str = ''
 
     CODON_TABLE = {
         'TTT':'F','TTC':'F','TTA':'L','TTG':'L','CTT':'L','CTC':'L','CTA':'L','CTG':'L',
@@ -1397,14 +1404,14 @@ class AdvancedORFAnalyzer:
         try:
             # Write query FASTA
             qfile = os.path.join(tmpdir, 'query.fasta')
-            with open(qfile, 'w') as f:
+            with open(qfile, 'w', encoding='utf-8') as f:
                 f.write(">query\n")
                 for i in range(0, len(query_protein), 80):
                     f.write(query_protein[i:i+80] + "\n")
 
             # Write subject FASTA (ORF proteins)
             sfile = os.path.join(tmpdir, 'subjects.fasta')
-            with open(sfile, 'w') as f:
+            with open(sfile, 'w', encoding='utf-8') as f:
                 for i, orf in enumerate(orfs):
                     prot = orf['protein'].rstrip('*')
                     if prot:
@@ -1428,12 +1435,14 @@ class AdvancedORFAnalyzer:
                 '-seg', 'yes' if low_complexity else 'no',
                 '-out', outfile,
             ]
-            subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+            r1 = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+            if r1.returncode != 0:
+                self._last_blast_error = (r1.stderr or r1.stdout or 'blastp failed').strip()
 
             # Parse tabular output
             hits = []
             if os.path.exists(outfile):
-                with open(outfile) as f:
+                with open(outfile, encoding='utf-8') as f:
                     for line in f:
                         parts = line.strip().split('\t')
                         if len(parts) >= 11:
@@ -1468,17 +1477,25 @@ class AdvancedORFAnalyzer:
                     '-max_target_seqs', str(min(10, max_targets)),
                     '-out', aln_file,
                 ]
-                subprocess.run(cmd2, capture_output=True, text=True, timeout=120)
+                r2 = subprocess.run(cmd2, capture_output=True, text=True, timeout=120)
+                if r2.returncode != 0 and not self._last_blast_error:
+                    self._last_blast_error = (r2.stderr or r2.stdout or 'blastp (aln) failed').strip()
                 if os.path.exists(aln_file):
                     self._parse_blast_alignments(aln_file, hits)
 
             return sorted(hits, key=lambda x: x['score'], reverse=True)
 
-        except Exception:
+        except subprocess.TimeoutExpired:
+            self._last_blast_error = 'BLAST timed out after 120 s.'
+            return None
+        except FileNotFoundError:
+            self._last_blast_error = 'blastp executable not found. Install NCBI BLAST+ or check PATH.'
+            return None
+        except Exception as e:
+            self._last_blast_error = f'{type(e).__name__}: {e}'
             return None
         finally:
-            import shutil as sh
-            sh.rmtree(tmpdir, ignore_errors=True)
+            shutil.rmtree(tmpdir, ignore_errors=True)
 
     def _parse_blast_alignments(self, aln_file, hits):
         """Parse alignments from BLAST output format 0."""
@@ -1648,9 +1665,8 @@ class AdvancedORFAnalyzer:
             aln_file    = os.path.join(tmpdir, 'results.sto')
 
             if use_wsl:
-                import shutil as sh_copy
                 hmm_copy = os.path.join(tmpdir, 'profile.hmm')
-                sh_copy.copy2(hmm_file, hmm_copy)
+                shutil.copy2(hmm_file, hmm_copy)
 
                 def to_wsl_path(p):
                     p = os.path.abspath(p).replace('\\', '/')
@@ -1680,11 +1696,13 @@ class AdvancedORFAnalyzer:
                 cmd.extend([hmm_file, sfile])
 
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=180)
+            if result.returncode != 0:
+                self._last_hmm_error = (result.stderr or result.stdout or 'hmmsearch failed').strip()
 
             # ── Parse --domtblout (coordenadas precisas) ──────────────
             hits = []
             if os.path.exists(domtbl_file):
-                with open(domtbl_file) as f:
+                with open(domtbl_file, encoding='utf-8') as f:
                     for line in f:
                         if line.startswith('#'): continue
                         parts = line.split()
@@ -1774,12 +1792,16 @@ class AdvancedORFAnalyzer:
             return sorted(hits, key=lambda x: x['score'], reverse=True)
 
         except subprocess.TimeoutExpired:
+            self._last_hmm_error = 'hmmsearch timed out after 180 s.'
             return [{'error': 'Timeout (180s).'}]
+        except FileNotFoundError:
+            self._last_hmm_error = 'hmmsearch executable not found. Install HMMER3 or check PATH.'
+            return [{'error': self._last_hmm_error}]
         except Exception as e:
+            self._last_hmm_error = f'{type(e).__name__}: {e}'
             return [{'error': str(e)}]
         finally:
-            import shutil as sh
-            sh.rmtree(tmpdir, ignore_errors=True)
+            shutil.rmtree(tmpdir, ignore_errors=True)
 
     def _parse_stockholm_aln(self, sto_file: str) -> dict:
         """
@@ -1787,7 +1809,7 @@ class AdvancedORFAnalyzer:
         Returns dict: orf_name → {'hmm': str, 'target': str, 'match': str}
         """
         result = {}
-        with open(sto_file) as f:
+        with open(sto_file, encoding='utf-8') as f:
             content = f.read()
 
         # Each alignment block starts with '# STOCKHOLM 1.0' and ends with '//'
@@ -1893,7 +1915,7 @@ class AdvancedORFAnalyzer:
     def _parse_hmm_to_pssm(self, hmm_file):
         """Extract PSSM from HMMER3 Match states. Reads AA order from the file header."""
         try:
-            with open(hmm_file) as f:
+            with open(hmm_file, encoding='utf-8') as f:
                 content = f.read()
             if 'HMMER3' not in content: return None, None
             lines = content.split('\n')
@@ -1954,13 +1976,13 @@ class AdvancedORFAnalyzer:
 
 
 # ═══════════════════════════════════════════════════════════════
-# MODULE I: INTERNATIONALISATION (i18n) — v1.12 — English only
+# MODULE I: INTERNATIONALISATION (i18n) — v2.00 — English only
 # ═══════════════════════════════════════════════════════════════
 
 TRANSLATIONS = {
     # ── English ─────────────────────────────────────────────────
     'en': {
-        'app_title':        '🧬 ppigFinder v1.12 — PPI Genomic Finder',
+        'app_title':        '🧬 ppigFinder v2.00 — PPI Genomic Finder',
         'menu_file':        '📁 File',
         'menu_params':      '⚙️ Parameters',
         'menu_language':    '🌐 Language',
@@ -2062,6 +2084,7 @@ TRANSLATIONS = {
         'tip_af3_add_sel':  'Add currently selected ORF to AF3 prediction list',
         'tip_af3_add_hmm':  'Add all ORFs with HMM hits to AF3 prediction list',
         'tip_af3_add_all':  'Add ALL ORFs in the genome to AF3 prediction list (genome-wide interactome scan)',
+        'tip_chain_copies': 'Number of copies of chain {letter} in the complex',
         'tip_af3_remove':   'Remove selected ORFs from AF3 prediction list',  
         'tip_af3_clear_all': 'Clear all ORFs from AF3 prediction list',
         'tip_af3_generate': 'Generate AF3 jobs based on selected prediction mode',
@@ -2183,7 +2206,7 @@ def t(key: str) -> str:
 HELP_CONTENT = {
     'manual': {
         'en': """\
-ppigFinder v1.12
+ppigFinder v2.00
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 User Manual
 
@@ -2613,7 +2636,7 @@ and in the toolbar badge (✅ / ❌ per backend).
 
     'tutorial': {
         'en': """\
-ppigFinder v1.12 — Step-by-Step Tutorial
+ppigFinder v2.00 — Step-by-Step Tutorial
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 A practical guide for novel bacterial PPI discovery using the full
 ppigFinder pipeline: gene prediction → HMM / BLAST annotation →
@@ -3033,7 +3056,7 @@ Reports:
 
     'install': {
         'en': """\
-ppigFinder v1.12 — Installation Guide
+ppigFinder v2.00 — Installation Guide
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 How to install ppigFinder and all its dependencies on a regular
 personal computer — Windows, macOS, and Linux.
@@ -3752,7 +3775,7 @@ class ppigFinderApp(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle('🧬 ppigFinder v1.12 — Protein-Protein Interaction Genomic Finder')
+        self.setWindowTitle('🧬 ppigFinder v2.00 — Protein-Protein Interaction Genomic Finder')
         self.resize(1550, 980)
 
         self.analyzer = AdvancedORFAnalyzer()
@@ -3847,17 +3870,22 @@ class ppigFinderApp(QMainWindow):
 
         # File
         fm = mb.addMenu(t('menu_file'))
-        fm.addAction(t('open_fasta'), self.load_fasta)
+        act = fm.addAction(t('open_fasta'), self.load_fasta)
+        act.setShortcut('Ctrl+O')
         fm.addAction(t('load_hmm'), self.load_hmm)
         fm.addSeparator()
-        fm.addAction(t('save_project'), self.save_project)
-        fm.addAction('💾 Save Project As (full copy)...', self.save_project_as)
-        fm.addAction(t('open_project'), self.load_project)
+        act = fm.addAction(t('save_project'), self.save_project)
+        act.setShortcut('Ctrl+S')
+        act = fm.addAction('💾 Save Project As (full copy)...', self.save_project_as)
+        act.setShortcut('Ctrl+Shift+S')
+        act = fm.addAction(t('open_project'), self.load_project)
+        act.setShortcut('Ctrl+Shift+O')
         fm.addSeparator()
         fm.addAction(t('save_orfs_fasta'), self.save_fasta)
         fm.addAction(t('save_report_tsv'), self.save_report_tsv)
         fm.addSeparator()
-        fm.addAction(t('quit'), self.close)
+        act = fm.addAction(t('quit'), self.close)
+        act.setShortcut('Ctrl+Q')
 
         # Parameters
         pm = mb.addMenu(t('menu_params'))
@@ -4621,18 +4649,90 @@ class ppigFinderApp(QMainWindow):
         jb.addWidget(self._af3_nb_spin)
         jb.addWidget(QLabel("Mode:"))
         self._af3_mode_combo = QComboBox()
-        self._af3_mode_combo.addItems(["Pares (hit vs vizinho)","Pares + Homodímeros",
-            "Trímeros (hit + 2 vizinhos)","All vs All (neighborhood)",
-            "Hits HMM entre si","Hit vs all selected","Homodímero (hit vs si mesmo)",
-            "Interactoma Genômico (All vs All)"])
-        self._af3_mode_combo.setMinimumWidth(220)
-        # Style the new Interactome mode distinctively
-        self._af3_mode_combo.setToolTip(
-            "Interactoma Genômico: predicts each SELECTED ORF against ALL ORFs in the genome.\n"
-            "Add the query ORF(s) via 'Add Selected ORF' or 'Add HMM Hits', then click Generate.\n"
-            "Symmetric pairs (A\u2194B) are collapsed automatically.\n"
-            "Jobs > 5 000 require confirmation. Use size/HMM filters to manage scale.")
+        # ── Mode list — English names ────────────────────────────────────────
+        _AF3_MODES = [
+            "Pairs (Hit vs Neighbor)",
+            "Pairs + Homodimers",
+            "Trimers (Hit + 2 Neighbors)",
+            "Neighbors Interactome",
+            "HMM Hits vs Each Other",
+            "Hit vs All Selected ORFs",
+            "Homodimer (Hit vs Itself)",
+            "Genomic Interactome (Selected ORFs vs All ORFs)",
+        ]
+        self._af3_mode_combo.addItems(_AF3_MODES)
+        self._af3_mode_combo.setMinimumWidth(260)
+
+        # ── Per-mode descriptions shown in the yellow info label ────────────
+        self._AF3_MODE_DESCS = {
+            "Pairs (Hit vs Neighbor)":
+                "🔵  <b>Pairs (Hit vs Neighbor)</b><br>"
+                "Each selected Hit ORF is paired with each of its <i>N</i> nearest genomic neighbors.<br>"
+                "Classic co-localization screen — best for operon-like gene clusters where physically<br>"
+                "adjacent proteins are likely to interact.",
+
+            "Pairs + Homodimers":
+                "🟣  <b>Pairs + Homodimers</b><br>"
+                "Same as <i>Pairs (Hit vs Neighbor)</i> but also adds a self-vs-self job for each Hit ORF.<br>"
+                "Use when you suspect the protein both interacts with neighbors <i>and</i> forms a homodimer.",
+
+            "Trimers (Hit + 2 Neighbors)":
+                "🟠  <b>Trimers (Hit + 2 Neighbors)</b><br>"
+                "Builds 3-chain AF3 jobs: Hit ORF + Neighbor 1 + Neighbor 2.<br>"
+                "Tests putative trimeric complexes within the genomic neighborhood window.<br>"
+                "Higher residue count — check the 5 000 aa limit before submitting.",
+
+            "Neighbors Interactome":
+                "🟢  <b>Neighbors Interactome</b><br>"
+                "All neighbor ORFs within the genomic window are tested against <i>each other</i> (all-vs-all<br>"
+                "within the neighborhood). Maps the complete local interaction network around the Hit.<br>"
+                "More jobs than Pairs mode — broader coverage of the local genomic context.",
+
+            "HMM Hits vs Each Other":
+                "🔷  <b>HMM Hits vs Each Other</b><br>"
+                "Only ORFs that matched an HMM profile (Pfam / TIGRFAM / custom) are used.<br>"
+                "Each HMM-annotated ORF is paired with every other HMM-annotated ORF.<br>"
+                "Focused screen — ideal when you want to limit predictions to functionally annotated proteins.",
+
+            "Hit vs All Selected ORFs":
+                "🔶  <b>Hit vs All Selected ORFs</b><br>"
+                "One specific Hit ORF is tested against <i>every</i> ORF currently selected in the table.<br>"
+                "Use for deep screening of a single protein of interest against a custom set.<br>"
+                "Build your target list with 'Add Selected ORF' or 'Add HMM Hits' before generating.",
+
+            "Homodimer (Hit vs Itself)":
+                "⚪  <b>Homodimer (Hit vs Itself)</b><br>"
+                "Each Hit ORF is paired with itself (count=2 in the AF3 JSON).<br>"
+                "Predicts whether the protein can form a stable homodimeric complex.<br>"
+                "Quick structural self-interaction test — one job per Hit ORF.",
+
+            "Genomic Interactome (Selected ORFs vs All ORFs)":
+                "🔴  <b>Genomic Interactome (Selected ORFs vs All ORFs)</b><br>"
+                "Every <i>selected</i> ORF is tested against <b>every ORF in the full genome table</b>.<br>"
+                "Symmetric duplicates (A↔B) are collapsed automatically.<br>"
+                "Maximum coverage — high job count. Use size / HMM filters to manage scale.<br>"
+                "Jobs &gt; 5 000 will prompt for confirmation before generating.",
+        }
+
         jb.addWidget(self._af3_mode_combo)
+
+        # ── Yellow description label (updates on mode change) ────────────────
+        self._af3_mode_desc_label = QLabel()
+        self._af3_mode_desc_label.setWordWrap(True)
+        self._af3_mode_desc_label.setTextFormat(
+            Qt.TextFormat.RichText if QT_VERSION == 6 else Qt.RichText)
+        self._af3_mode_desc_label.setStyleSheet(
+            "background:#fffde7; color:#333; border:1px solid #f9a825;"
+            "border-radius:4px; padding:5px 8px; font-size:11px;")
+        self._af3_mode_desc_label.setMinimumHeight(62)
+
+        def _update_mode_desc(idx):
+            txt = self._AF3_MODE_DESCS.get(
+                self._af3_mode_combo.currentText(), "")
+            self._af3_mode_desc_label.setText(txt)
+
+        self._af3_mode_combo.currentIndexChanged.connect(_update_mode_desc)
+        _update_mode_desc(0)   # initialise with first item
         for text, slot in [(t('af3_generate'), self._af3_generate_jobs),
                            (t('af3_export_cf'), self._af3_export_colabfold),
                            ("Ranking", self._af3_show_ranking),
@@ -4661,6 +4761,7 @@ class ppigFinderApp(QMainWindow):
         jb.addWidget(export_btn)
         jb.addStretch()
         jl.addLayout(jb)
+        jl.addWidget(self._af3_mode_desc_label)
 
         self._af3_jobs_table = QTableWidget()
         self._af3_jobs_table.setColumnCount(7)
@@ -4972,18 +5073,21 @@ class ppigFinderApp(QMainWindow):
                   'matrix': self.blast_matrix, 'low_complexity': self.blast_low_complexity}
 
         def work():
-            hits = None; algo_used = algo
+            hits = None; algo_used = algo; ncbi_error = ''
+            self.analyzer._last_blast_error = ''
             if algo.startswith("Auto"):
                 if BACKENDS.get('blast+',{}).get('available'):
                     hits = self.analyzer.run_ncbi_blast(qp, self.orfs, params)
                     algo_used = "NCBI BLAST+"
                 if hits is None:
+                    ncbi_error = self.analyzer._last_blast_error
                     hits = self.analyzer.kmer_blast(qp, [o['protein'] for o in self.orfs], params)
                     algo_used = "K-mer Filter"
             elif algo.startswith("NCBI"):
                 hits = self.analyzer.run_ncbi_blast(qp, self.orfs, params)
                 algo_used = "NCBI BLAST+"
                 if hits is None:
+                    ncbi_error = self.analyzer._last_blast_error
                     hits = self.analyzer.kmer_blast(qp, [o['protein'] for o in self.orfs], params)
                     algo_used = "K-mer (fallback)"
             elif algo.startswith("K-mer"):
@@ -4992,12 +5096,17 @@ class ppigFinderApp(QMainWindow):
             else:
                 hits = self.analyzer.sw_blast(qp, [o['protein'] for o in self.orfs], params)
                 algo_used = "Smith-Waterman"
-            return (hits or [], algo_used, qp)
+            return (hits or [], algo_used, qp, ncbi_error)
 
         def done(result):
-            hits, algo_used, query = result
+            hits, algo_used, query, ncbi_error = result
             self._show_blast_results(hits, query, algo_used)
-            self._status.showMessage(f"✓ {algo_used}: {len(hits)} hits")
+            if ncbi_error:
+                self._status.showMessage(
+                    f"⚠ {algo_used}: {len(hits)} hits "
+                    f"(BLAST+ fell back — {ncbi_error[:80]})")
+            else:
+                self._status.showMessage(f"✓ {algo_used}: {len(hits)} hits")
 
         self._run_worker(work, done)
 
@@ -5148,7 +5257,7 @@ class ppigFinderApp(QMainWindow):
         f, _ = QFileDialog.getOpenFileName(self, "Open FASTA",
             "", "FASTA (*.fasta *.fa *.fna *.faa);;All (*)")
         if not f: return
-        with open(f, 'r') as fh:
+        with open(f, 'r', encoding='utf-8') as fh:
             content = fh.read()
         # Parse FASTA — get first/longest sequence
         seqs = {}; current = None
@@ -5214,17 +5323,24 @@ class ppigFinderApp(QMainWindow):
         self._update_hmm_profile_table()
 
     def save_fasta(self):
-        if not self.orfs: return
+        if not self.orfs:
+            QMessageBox.information(self, "Save FASTA",
+                "No ORFs to export. Run ORF analysis first.")
+            return
         f, _ = QFileDialog.getSaveFileName(self, "Save FASTA", "", "FASTA (*.fasta)")
         if not f: return
-        with open(f, 'w') as fh:
-            for i, orf in enumerate(self.orfs):
-                ds = '|'.join(d['domain'] for d in orf.get('domains', []))
-                h = f">ORF{i+1}|F{orf['frame']}{orf['strand']}|{orf['start']}-{orf['end']}"
-                if ds: h += f"|{ds}"
-                fh.write(h + "\n")
-                p = orf['protein'].rstrip('*')
-                for j in range(0, len(p), 80): fh.write(p[j:j+80] + "\n")
+        try:
+            with open(f, 'w', encoding='utf-8') as fh:
+                for i, orf in enumerate(self.orfs):
+                    ds = '|'.join(d['domain'] for d in orf.get('domains', []))
+                    h = f">ORF{i+1}|F{orf['frame']}{orf['strand']}|{orf['start']}-{orf['end']}"
+                    if ds: h += f"|{ds}"
+                    fh.write(h + "\n")
+                    p = orf['protein'].rstrip('*')
+                    for j in range(0, len(p), 80): fh.write(p[j:j+80] + "\n")
+        except OSError as e:
+            QMessageBox.critical(self, "Save FASTA", f"Could not write file:\n{e}")
+            return
         self._status.showMessage(f"✓ Saved {len(self.orfs)} ORFs")
 
 
@@ -5286,7 +5402,7 @@ class ppigFinderApp(QMainWindow):
             QMessageBox.warning(self, "Export", "No ORFs to export."); return
 
         suffix = '.tsv' if fmt == 'tsv' else '.txt'
-        filter_str = f"TSV (*.tsv);;All (*)" if fmt == 'tsv' else "TXT (*.txt);;All (*)"
+        filter_str = "TSV (*.tsv);;All (*)" if fmt == 'tsv' else "TXT (*.txt);;All (*)"
         genome_safe = re.sub(r'[^\w\-]', '_', self.genome_name or 'orfs')
         seq_tag = '_full' if include_seqs else ''
         ann_tag = '_annotated' if annotated_only else ''
@@ -5435,28 +5551,35 @@ class ppigFinderApp(QMainWindow):
 
 
     def save_report_tsv(self):
-        if not self.orfs: return
+        if not self.orfs:
+            QMessageBox.information(self, "Save Report",
+                "No ORFs to export. Run ORF analysis first.")
+            return
         f, _ = QFileDialog.getSaveFileName(self, "Save Report", "", "TSV (*.tsv)")
         if not f: return
-        with open(f, 'w', newline='') as fh:
-            w = csv.writer(fh, delimiter='\t')
-            w.writerow(['Rank','ORF','Start','End','Frame','Strand','Len_aa','GC',
-                        'Score','Source','Domains','RBS','Protein50'])
-            for r, orf in enumerate(sorted(self.orfs,
-                    key=lambda x: x.get('candidate_score',0), reverse=True), 1):
-                idx = self.orfs.index(orf)+1
-                ds = ';'.join(d['domain'] for d in orf.get('domains',[]))
-                w.writerow([r, f'ORF{idx}', orf['start'], orf['end'], orf['frame'],
-                    orf['strand'], len(orf['protein'].rstrip('*')), f"{orf['gc']:.1f}",
-                    f"{orf.get('candidate_score',0):.3f}", orf.get('source','6frame'),
-                    ds or '-', orf.get('rbs_motif','') or '-', orf['protein'][:50]])
+        try:
+            with open(f, 'w', newline='', encoding='utf-8') as fh:
+                w = csv.writer(fh, delimiter='\t')
+                w.writerow(['Rank','ORF','Start','End','Frame','Strand','Len_aa','GC',
+                            'Score','Source','Domains','RBS','Protein50'])
+                for r, orf in enumerate(sorted(self.orfs,
+                        key=lambda x: x.get('candidate_score',0), reverse=True), 1):
+                    idx = self.orfs.index(orf)+1
+                    ds = ';'.join(d['domain'] for d in orf.get('domains',[]))
+                    w.writerow([r, f'ORF{idx}', orf['start'], orf['end'], orf['frame'],
+                        orf['strand'], len(orf['protein'].rstrip('*')), f"{orf['gc']:.1f}",
+                        f"{orf.get('candidate_score',0):.3f}", orf.get('source','6frame'),
+                        ds or '-', orf.get('rbs_motif','') or '-', orf['protein'][:50]])
+        except OSError as e:
+            QMessageBox.critical(self, "Save Report", f"Could not write file:\n{e}")
+            return
         self._status.showMessage(f"✓ Report saved: {Path(f).name}")
 
     # ───────────────────────────────────────────────────────────
     # PROJECT SAVE / LOAD  (directory-based, v34)
     # ───────────────────────────────────────────────────────────
     PROJECT_MANIFEST = "project.json"
-    PROJECT_VERSION  = "v1.12"
+    PROJECT_VERSION  = "v2.00"
 
     # ─────────────────────────────────────────────────────────
     # PROJECT SAVE / LOAD
@@ -5468,7 +5591,6 @@ class ppigFinderApp(QMainWindow):
         full_af3_analysis: when False, AF3 analysis entries are saved in a
         lightweight form without embedded PAE/pLDDT arrays.
         """
-        import base64
 
         # HMM manifest
         hmm_manifest = []
@@ -5689,7 +5811,6 @@ class ppigFinderApp(QMainWindow):
                     orf1303_vs_orf1299_up4/
                         …
         """
-        import shutil
 
         base_dir = QFileDialog.getExistingDirectory(
             self, "Choose folder to save project into")
@@ -5733,7 +5854,7 @@ class ppigFinderApp(QMainWindow):
                     shutil.copy2(self.current_fasta_path,
                                  proj_dir / "genome" / genome_fname)
                 else:
-                    with open(proj_dir / "genome" / genome_fname, 'w') as fh:
+                    with open(proj_dir / "genome" / genome_fname, 'w', encoding='utf-8') as fh:
                         fh.write(f">{self.genome_name}\n")
                         for i in range(0, len(self.dna_sequence), 60):
                             fh.write(self.dna_sequence[i:i+60] + "\n")
@@ -5756,7 +5877,7 @@ class ppigFinderApp(QMainWindow):
             if job.get('iptm') is not None:
                 jfn = re.sub(r'[^\w\.\-]', '_', job['name']) + '.json'
                 try:
-                    with open(proj_dir / "results" / jfn, 'w') as fh:
+                    with open(proj_dir / "results" / jfn, 'w', encoding='utf-8') as fh:
                         json.dump({
                             "name":       job['name'],
                             "modelSeeds": [],
@@ -5773,7 +5894,7 @@ class ppigFinderApp(QMainWindow):
         try:
             bq = self._blast_query_text.toPlainText().strip()
             if bq:
-                with open(proj_dir / "blast" / "query.fasta", 'w') as fh:
+                with open(proj_dir / "blast" / "query.fasta", 'w', encoding='utf-8') as fh:
                     if not bq.startswith('>'):
                         fh.write(">blast_query\n")
                     fh.write(bq + "\n")
@@ -5846,7 +5967,6 @@ class ppigFinderApp(QMainWindow):
 
     def load_project(self):
         """Open a project saved by save_project (JSON) or save_project_as (folder)."""
-        import base64
 
         dlg = QDialog(self)
         dlg.setWindowTitle("Open Project")
@@ -6028,8 +6148,8 @@ class ppigFinderApp(QMainWindow):
             if bq: self._blast_query_text.setPlainText(bq)
             bh = data.get('blast_results_html', '')
             if bh: self._blast_results_text.setHtml(bh)
-        except Exception:
-            pass
+        except (AttributeError, TypeError) as e:
+            print(f"[load_project] BLAST state restore: {e}")
 
         # ── AF3 Analysis results (v2) ─────────────────────────
         af3_results_raw = data.get('af3_analysis_results', [])
@@ -6060,10 +6180,12 @@ class ppigFinderApp(QMainWindow):
                     self._af3a_scan_folder(af3_dir)
                 except Exception:
                     try: self._af3a_populate_table()
-                    except Exception: pass
+                    except AttributeError as e:
+                        print(f"[load_project] AF3 table populate: {e}")
             else:
                 try: self._af3a_populate_table()
-                except Exception: pass
+                except AttributeError as e:
+                    print(f"[load_project] AF3 table populate: {e}")
                 if af3_dir:
                     self._status.showMessage(
                         f'\u26a0 AF3 analysis dir not found: {af3_dir} '
@@ -6072,8 +6194,8 @@ class ppigFinderApp(QMainWindow):
             # Repopulate the AF3 Analysis table
             try:
                 self._af3a_populate_table()
-            except Exception:
-                pass
+            except AttributeError as e:
+                print(f"[load_project] AF3 table populate: {e}")
 
         # ── UI state ──────────────────────────────────────────
         ui = data.get('ui_state', {})
@@ -6111,17 +6233,19 @@ class ppigFinderApp(QMainWindow):
                 if k in ui: setattr(self, k, ui[k])
             if 'blast_program' in ui:
                 try: self._blast_prog_combo.setCurrentText(ui['blast_program'])
-                except Exception: pass
+                except AttributeError as e:
+                    print(f"[load_project] blast_program widget: {e}")
             if 'af3_n_neighbors' in ui:
                 try: self._af3_nb_spin.setValue(ui['af3_n_neighbors'])
-                except Exception: pass
+                except AttributeError as e:
+                    print(f"[load_project] af3_n_neighbors widget: {e}")
             if 'pyrodigal_params' in ui and ui['pyrodigal_params']:
                 self._pyro_params.update(ui['pyrodigal_params'])
             if 'zoom_level' in ui:
                 self.zoom_level = ui['zoom_level']
                 self._zoom_label.setText(f"{int(self.zoom_level * 100)}%")
-        except Exception:
-            pass
+        except (AttributeError, TypeError, ValueError) as e:
+            print(f"[load_project] UI state restore: {e}")
 
         # ── HPC server ───────────────────────────────────────────
         dv = data.get('hpc_server', {})
@@ -6130,19 +6254,22 @@ class ppigFinderApp(QMainWindow):
             if dv.get('user'):       self._dv_user.setText(dv['user'])
             if dv.get('port'):       self._dv_port.setValue(int(dv['port']))
             if dv.get('password'):
-                self._dv_pwd.setText(
-                    base64.b64decode(dv['password'].encode()).decode('utf-8'))
+                try:
+                    self._dv_pwd.setText(
+                        base64.b64decode(dv['password'].encode()).decode('utf-8'))
+                except (ValueError, UnicodeDecodeError) as e:
+                    print(f"[load_project] password decode: {e}")
             if dv.get('base_path'): self._dv_base_path.setText(dv['base_path'])
             if dv.get('af3cmd'):    self._dv_af3cmd.setText(dv['af3cmd'])
             if dv.get('module_cmd') is not None:
                 self._dv_module_cmd.setText(dv['module_cmd'])
-        except Exception:
-            pass
+        except AttributeError as e:
+            print(f"[load_project] HPC server state: {e}")
         try:
             self._hpc_jobs = data.get('hpc_jobs', [])
             self._dv_refresh_monitor_table()
-        except Exception:
-            pass
+        except AttributeError as e:
+            print(f"[load_project] HPC jobs restore: {e}")
 
         # ── Refresh all UI ────────────────────────────────────
         self._update_orfs_list()
@@ -6172,8 +6299,8 @@ class ppigFinderApp(QMainWindow):
 
         saved_at = data.get('saved_at', '')
         lines = [
-            f'Projeto carregado com sucesso!',
-            f'',
+            'Projeto carregado com sucesso!',
+            '',
             f'  Genoma:          {self.genome_name}',
             f'  ORFs:            {len(self.orfs)} ({n_annot} anotadas manualmente)',
             f'  HMM profiles:    {len(self.hmm_profiles)} ({n_hmm_hits} hits)',
@@ -6736,7 +6863,7 @@ class ppigFinderApp(QMainWindow):
         f, _ = QFileDialog.getOpenFileName(self, "Load Query FASTA",
             "", "FASTA (*.fasta *.fa *.faa);;All (*)")
         if f:
-            with open(f) as fh: self._blast_query_text.setPlainText(fh.read())
+            with open(f, encoding='utf-8') as fh: self._blast_query_text.setPlainText(fh.read())
 
     def _copy_blast_hit(self):
         if self.selected_orf:
@@ -6748,7 +6875,7 @@ class ppigFinderApp(QMainWindow):
     def _save_blast_results(self):
         f, _ = QFileDialog.getSaveFileName(self, "Save BLAST Results", "", "Text (*.txt)")
         if f:
-            with open(f, 'w') as fh: fh.write(self._blast_results_text.toPlainText())
+            with open(f, 'w', encoding='utf-8') as fh: fh.write(self._blast_results_text.toPlainText())
 
     def _analyze_neighborhood(self):
         if self.selected_orf_idx < 0:
@@ -7078,7 +7205,7 @@ DOMAINS IN NEIGHBORHOOD:
             f"<b>{n_total} ORFs</b> detected in the genome.<br>"
             "All will be added to the AF3 selection list for genome-wide<br>"
             "interactome scanning.<br><br>"
-            f"<i>Tip: Using mode <b>Interactoma Genômico (All vs All)</b> will<br>"
+            f"<i>Tip: Using mode <b>Genomic Interactome (Selected ORFs vs All ORFs)</b> will<br>"
             f"generate up to <b>{n_total*(n_total-1)//2:,}</b> pairwise AF3 jobs.<br>"
             "Apply size filters below to keep the job count manageable.</i>")
         info.setWordWrap(True)
@@ -7199,10 +7326,10 @@ DOMAINS IN NEIGHBORHOOD:
         self._af3_sel_count.setText(f"{total_sel} ORFs selected")
         self._status.showMessage(
             f"✓ {added} ORFs added (genome-wide) — "
-            f"{total_sel} total | Use mode 'Interactoma Genômico' to generate all pairs")
+            f"{total_sel} total | Use mode 'Genomic Interactome' to generate all pairs")
 
         # Auto-switch mode combo to Interactoma Genômico for convenience
-        idx = self._af3_mode_combo.findText("Interactoma Genômico (All vs All)")
+        idx = self._af3_mode_combo.findText("Genomic Interactome (Selected ORFs vs All ORFs)")
         if idx >= 0:
             self._af3_mode_combo.setCurrentIndex(idx)
 
@@ -7230,7 +7357,7 @@ DOMAINS IN NEIGHBORHOOD:
         pos_to_rank = {idx: rank for rank, (idx, _) in enumerate(orfs_by_pos)}
 
         # ── Genome-wide Interactome: each SELECTED ORF vs ALL genome ORFs ──
-        if mode.startswith("Interactoma Genômico"):
+        if mode.startswith("Genomic Interactome"):
             n_sel_orfs = len(sel_indices)
             n_genome   = len(self.orfs)
             # Each selected ORF is paired against every genome ORF (excl. self).
@@ -7238,7 +7365,7 @@ DOMAINS IN NEIGHBORHOOD:
             estimated = n_sel_orfs * (n_genome - 1)
             if estimated > 5000:
                 ans = QMessageBox.question(
-                    self, "Interactoma Genômico — large job set",
+                    self, "Genomic Interactome — large job set",
                     f"This will generate up to <b>{estimated:,}</b> pairwise AF3 jobs<br>"
                     f"(<b>{n_sel_orfs}</b> selected ORF(s) × <b>{n_genome}</b> genome ORFs).<br><br>"
                     "Symmetric duplicates (A↔B) are automatically collapsed.<br>"
@@ -7283,7 +7410,7 @@ DOMAINS IN NEIGHBORHOOD:
                 nr = hr + d
                 if 0 <= nr < len(orfs_by_pos):
                     ni, no = orfs_by_pos[nr]; nbs.append((ni, no, d))
-            if mode.startswith("Pares") and "Homodímero" not in mode:
+            if mode.startswith("Pairs (Hit vs Neighbor)"):
                 for ni, no, d in nbs:
                     np_s = no['protein'].rstrip('*'); tr = len(hp)+len(np_s)
                     self.af3_jobs.append({'name': f"{hn}_vs_ORF{ni+1}_{'up' if d<0 else 'down'}{abs(d)}",
@@ -7291,13 +7418,13 @@ DOMAINS IN NEIGHBORHOOD:
                         'total_residues': tr, 'status': 'pending' if tr<=self.af3_max_residues else f'>{self.af3_max_residues}!',
                         'iptm': None, 'plddt': None,
                         'sequences': [{'proteinChain':{'sequence':hp,'count':1}},{'proteinChain':{'sequence':np_s,'count':1}}]})
-            elif mode.startswith("Homodímero"):
+            elif mode.startswith("Homodimer (Hit vs Itself)"):
                 tr = len(hp)*2
                 self.af3_jobs.append({'name': f"{hn}_homodimer", 'hit_orf_idx': hi, 'partner_orf_idx': hi,
                     'hit_name': hn, 'partner_name': hn, 'total_residues': tr,
                     'status': 'pending' if tr<=self.af3_max_residues else f'>{self.af3_max_residues}!',
                     'iptm': None, 'plddt': None, 'sequences': [{'proteinChain':{'sequence':hp,'count':2}}]})
-            elif mode.startswith("Pares + Homodímero"):
+            elif mode.startswith("Pairs + Homodimers"):
                 for ni, no, d in nbs:
                     np_s = no['protein'].rstrip('*'); tr = len(hp)+len(np_s)
                     self.af3_jobs.append({'name': f"{hn}_vs_ORF{ni+1}_{'up' if d<0 else 'down'}{abs(d)}",
@@ -7326,10 +7453,22 @@ DOMAINS IN NEIGHBORHOOD:
         if not self.af3_jobs: QMessageBox.warning(self,"AF3","Generate jobs first!"); return
         folder = QFileDialog.getExistingDirectory(self, "Select output folder")
         if not folder: return
+        errors = []
         for j in self.af3_jobs:
-            data = {"name":j['name'],"modelSeeds":[],"sequences":j['sequences'],"dialect":"alphafoldserver","version":2}
-            with open(os.path.join(folder, f"{j['name']}.json"), 'w') as f: json.dump(data, f, indent=2)
-        self._status.showMessage(f"✓ {len(self.af3_jobs)} AF3 JSONs exported")
+            safe_name = re.sub(r'[^\w.\-]', '_', j['name'])
+            data = {"name": j['name'], "modelSeeds": [], "sequences": j['sequences'],
+                    "dialect": "alphafoldserver", "version": 2}
+            try:
+                with open(os.path.join(folder, f"{safe_name}.json"), 'w',
+                          encoding='utf-8') as f:
+                    json.dump(data, f, indent=2, ensure_ascii=False)
+            except OSError as e:
+                errors.append(f"{safe_name}.json: {e}")
+        if errors:
+            QMessageBox.warning(self, "AF3 Export",
+                f"{len(errors)} file(s) could not be written:\n" + "\n".join(errors))
+        self._status.showMessage(
+            f"✓ {len(self.af3_jobs) - len(errors)} AF3 JSONs exported")
 
     def _af3_export_json_batch(self):
         """Export all AF3 jobs as a single batch JSON file for AlphaFold3."""
@@ -7372,11 +7511,28 @@ DOMAINS IN NEIGHBORHOOD:
         folder = QFileDialog.getExistingDirectory(self, "Select output folder")
         if not folder: return
         csv_lines = ["name,sequence"]
+        errors = []
         for j in self.af3_jobs:
+            safe_name = re.sub(r'[^\w.\-]', '_', j['name'])
             chains = [s['proteinChain']['sequence'] for s in j['sequences']]
-            joined = ':'.join(chains); csv_lines.append(f"{j['name']},{joined}")
-            with open(os.path.join(folder, f"{j['name']}.fasta"), 'w') as f: f.write(f">{j['name']}\n{joined}\n")
-        with open(os.path.join(folder, f"{self.genome_name}_batch.csv"), 'w') as f: f.write('\n'.join(csv_lines))
+            joined = ':'.join(chains)
+            csv_lines.append(f"{safe_name},{joined}")
+            try:
+                with open(os.path.join(folder, f"{safe_name}.fasta"), 'w',
+                          encoding='utf-8') as f:
+                    f.write(f">{j['name']}\n{joined}\n")
+            except OSError as e:
+                errors.append(f"{safe_name}.fasta: {e}")
+        safe_genome = re.sub(r'[^\w.\-]', '_', self.genome_name or 'batch')
+        try:
+            with open(os.path.join(folder, f"{safe_genome}_batch.csv"), 'w',
+                      encoding='utf-8') as f:
+                f.write('\n'.join(csv_lines))
+        except OSError as e:
+            errors.append(f"{safe_genome}_batch.csv: {e}")
+        if errors:
+            QMessageBox.warning(self, "ColabFold Export",
+                f"{len(errors)} file(s) could not be written:\n" + "\n".join(errors))
         self._status.showMessage(f"✓ ColabFold exported: {len(self.af3_jobs)} jobs")
 
     def _af3_export_slurm_array(self):
@@ -7406,30 +7562,30 @@ DOMAINS IN NEIGHBORHOOD:
 
         n_jobs = len(self.af3_jobs)
         info = QLabel(
-            f"<b>{n_jobs} AF3 jobs</b> serão divididos em lotes.<br>"
-            "Cada lote roda como um task do SLURM array — processo próprio,<br>"
-            "RAM completamente liberada entre lotes. <b>Um único sbatch.</b>")
+            f"<b>{n_jobs} AF3 jobs</b> will be split into batches.<br>"
+            "Each batch runs as a SLURM array task — its own process,<br>"
+            "RAM fully released between batches. <b>One sbatch command.</b>")
         info.setWordWrap(True)
         dl.addWidget(info)
 
         grid = QGridLayout()
         grid.setSpacing(6)
 
-        grid.addWidget(QLabel("Jobs por lote (batch size):"), 0, 0)
+        grid.addWidget(QLabel("Jobs per batch (batch size):"), 0, 0)
         batch_spin = QSpinBox(); batch_spin.setRange(1, 500); batch_spin.setValue(50)
-        batch_spin.setToolTip("50 é seguro para a maioria dos clusters. Reduza para proteínas grandes.")
+        batch_spin.setToolTip("50 is safe for most clusters. Reduce for large proteins.")
         grid.addWidget(batch_spin, 0, 1)
 
         n_batches_lbl = QLabel()
         grid.addWidget(n_batches_lbl, 0, 2)
 
-        grid.addWidget(QLabel("RAM por task (--mem):"), 1, 0)
+        grid.addWidget(QLabel("RAM per task (--mem):"), 1, 0)
         mem_edit = QLineEdit("64G")
         grid.addWidget(mem_edit, 1, 1)
 
-        grid.addWidget(QLabel("Tempo por task (--time):"), 2, 0)
+        grid.addWidget(QLabel("Time per task (--time):"), 2, 0)
         time_edit = QLineEdit("7-00:00:00")
-        time_edit.setToolTip("Formato SLURM: D-HH:MM:SS\nDaVinci: basic=3d | max50=8d | max90=15d")
+        time_edit.setToolTip("SLURM format: D-HH:MM:SS\nDaVinci: basic=3d | max50=8d | max90=15d")
         grid.addWidget(time_edit, 2, 1)
 
         grid.addWidget(QLabel("Partition:"), 3, 0)
@@ -7437,23 +7593,23 @@ DOMAINS IN NEIGHBORHOOD:
         part_edit.setToolTip("DaVinci partitions:\n  basic : 72h  | 16 CPUs | 100 GB | 0 GPU\n  max50 : 8d   | 64 CPUs | 500 GB | 1 GPU  (recomendada para AF3)\n  max90 : 15d  | 110 CPUs| 1 TB   | 4 GPUs (jobs muito grandes)")
         grid.addWidget(part_edit, 3, 1)
 
-        grid.addWidget(QLabel("GPUs por task (--gres):"), 4, 0)
+        grid.addWidget(QLabel("GPUs per task (--gres):"), 4, 0)
         gpu_edit = QLineEdit("gpu:1")
         grid.addWidget(gpu_edit, 4, 1)
 
-        grid.addWidget(QLabel("CPUs por task (--cpus):"), 5, 0)
+        grid.addWidget(QLabel("CPUs per task (--cpus):"), 5, 0)
         cpu_spin = QSpinBox(); cpu_spin.setRange(1, 64); cpu_spin.setValue(16)
         cpu_spin.setToolTip("DaVinci max50: até 64 CPUs | max90: até 110 CPUs")
         grid.addWidget(cpu_spin, 5, 1)
 
-        grid.addWidget(QLabel("Comando AF3 no cluster:"), 6, 0)
+        grid.addWidget(QLabel("AF3 command on cluster:"), 6, 0)
         af3cmd_edit = QLineEdit()
         try: af3cmd_edit.setText(self._dv_af3cmd.text() or "af3_run")
         except Exception: af3cmd_edit.setText("af3_run")
-        af3cmd_edit.setToolTip("Comando ou path para o AF3 no servidor")
+        af3cmd_edit.setToolTip("AF3 command or path on the server")
         grid.addWidget(af3cmd_edit, 6, 1, 1, 2)
 
-        grid.addWidget(QLabel("Pasta base no cluster:"), 7, 0)
+        grid.addWidget(QLabel("Base folder on cluster:"), 7, 0)
         remote_edit = QLineEdit()
         try: remote_edit.setText(self._dv_base_path.text() or "~/af3_predictions")
         except Exception: remote_edit.setText("~/af3_predictions")
@@ -7614,14 +7770,14 @@ echo "Submitted {n_batches} jobs."
             "  submit_all.sh  <- fallback sequencial",
             "",
             f"  {n_jobs} jobs | {batch_size} por batch | {n_batches} arrays",
-            f"  RAM por task: {mem} | Tempo: {walltime}",
+            f"  RAM per task: {mem} | Time: {walltime}",
             "",
             "Como submeter (UM unico comando):",
             "  1. Copie a pasta 'batches/' para o cluster",
             "  2. sbatch run_array.sh",
             "",
             f"O SLURM dispara os {n_batches} tasks automaticamente.",
-            "RAM liberada entre cada batch — sem risco de OOM.",
+            "RAM released between each batch — no OOM risk.",
         ])
         QMessageBox.information(self, "SLURM Array Export", _msg)
 
@@ -7691,7 +7847,7 @@ echo "Submitted {n_batches} jobs."
             n_spin.setRange(1, 20)
             n_spin.setValue(prev_vals[i][1] if i < len(prev_vals) else 1)
             n_spin.setMaximumWidth(50)
-            n_spin.setToolTip(f"Número de cópias da cadeia {letter} no complexo")
+            n_spin.setToolTip(t("tip_chain_copies").format(letter=letter))
             row_layout.addWidget(n_spin)
 
             row_layout.addStretch()
@@ -8166,7 +8322,7 @@ echo "Submitted {n_batches} jobs."
         mat_ok   = "✅" if MATPLOTLIB_AVAILABLE else "❌"
         QMessageBox.about(self, t('about'),
             f"🧬 ppigFinder — Protein-Protein Interaction Genomic Finder\n"
-            f"Version 1.12  |  MIT License\n\n"
+            f"Version 2.00  |  MIT License\n\n"
             f"Discovery of novel bacterial PPIs via ORF prediction\n"
             f"(Pyrodigal / 6-frame scan), HMM/BLAST annotation,\n"
             f"genomic neighbourhood analysis, and AlphaFold 3\n"
@@ -8344,7 +8500,6 @@ echo "Submitted {n_batches} jobs."
     def _af3a_parse_job(self, job_dir: Path, sum_path: Path,
                          conf_path) -> dict:
         """Parse one AF3 job. Handles any number of chains."""
-        import re as _re
 
         # ── Summary scores ─────────────────────────────────────
         with open(sum_path, encoding='utf-8') as f:
@@ -8385,7 +8540,6 @@ echo "Submitted {n_batches} jobs."
         # If mean_plddt missing from summary, compute from plddt array
         if mean_plddt is None and plddt_arr:
             try:
-                import numpy as np
                 mean_plddt = float(np.mean(plddt_arr))
             except Exception:
                 pass
@@ -8408,8 +8562,8 @@ echo "Submitted {n_batches} jobs."
 
         # ── ORF names from directory name ────────────────────────
         orf_names = [f"ORF{m.group(1)}"
-                     for m in _re.finditer(r'orf(\d+)',
-                                           job_dir.name, _re.IGNORECASE)]
+                     for m in re.finditer(r'orf(\d+)',
+                                           job_dir.name, re.IGNORECASE)]
 
         # Map chain letters → ORF names (A→orf_names[0], B→orf_names[1] …)
         chain_to_orf = {}
@@ -8425,7 +8579,6 @@ echo "Submitted {n_batches} jobs."
 
         if pae_matrix and n_chains >= 2:
             try:
-                import numpy as np
                 pae_np = np.array(pae_matrix, dtype=float)
                 for i_c, ca in enumerate(chain_order):
                     for j_c, cb in enumerate(chain_order):
@@ -8487,7 +8640,6 @@ echo "Submitted {n_batches} jobs."
     @staticmethod
     def _af3a_contact_str(mean_A, mean_B, name_A, name_B, thresh):
         """Build a human-readable contact region string."""
-        import numpy as np
         def _ranges(indices, prefix):
             if not len(indices):
                 return ''
@@ -8582,7 +8734,6 @@ echo "Submitted {n_batches} jobs."
                 # Recompute pair metrics with new threshold
                 res = self._af3_analysis_results[row]
                 try:
-                    import numpy as np
                     thresh = self._af3a_thresh_spin.value()
                     if res.get('pae_matrix') and res.get('n_chains', 1) >= 2:
                         pae_np = np.array(res['pae_matrix'], dtype=float)
@@ -8619,7 +8770,6 @@ echo "Submitted {n_batches} jobs."
             return
 
         self._af3a_clear_plots()
-        import numpy as np
         from matplotlib.colors import LinearSegmentedColormap
 
         # ── ChimeraX PAE colormap ──────────────────────────────
@@ -9095,17 +9245,43 @@ echo "Submitted {n_batches} jobs."
         src_l = QVBoxLayout(src_g)
         self._dv_src_session = QPushButton("📋 Load jobs from current session  (one JSON per job)")
         self._dv_src_session.clicked.connect(self._dv_load_from_session)
-        self._dv_src_batch = QPushButton("📦 Load session as single batch JSON  (recommended for 10+ jobs)")
+        # ── Grouped-batch row: [Load Grouped JSON | ⚙ AF3 JSON Group Config] ──
+        batch_row_w  = QWidget()
+        batch_row_l  = QHBoxLayout(batch_row_w)
+        batch_row_l.setContentsMargins(0, 0, 0, 0)
+        batch_row_l.setSpacing(2)
+
+        self._dv_src_batch = QPushButton("📦 Load Grouped JSON")
         self._dv_src_batch.clicked.connect(self._dv_load_from_session_batch)
         self._dv_src_batch.setToolTip(
-            "Combines all AF3 jobs from the current session into a single\n"
-            "batch JSON file. Uploads one file and runs af3_run once.\n"
-            "Equivalent to AlphaFold → Export AF3 JSON → Batch JSON.")
+            "Groups all AF3 jobs from the current session into partitioned\n"
+            "batch JSON files (size configurable via ⚙ AF3 JSON Group Config).\n"
+            "Each partition is submitted as an independent SLURM job to\n"
+            "prevent GPU out-of-memory errors (anti-OOM).\n\n"
+            "Current group size: configurable — click ⚙ AF3 JSON Group Config.")
+        self._dv_src_batch.setFixedHeight(28)
+
+        self._dv_batch_cfg_btn = QPushButton("⚙ AF3 JSON Group Config")
+        self._dv_batch_cfg_btn.setToolTip(
+            "Configure the number of AF3 jobs per partition batch.\n"
+            "Default: 50 jobs / batch (anti-OOM safe).\n"
+            "Increase for fast servers with ample RAM;\n"
+            "decrease for large proteins or limited GPU memory.")
+        self._dv_batch_cfg_btn.clicked.connect(self._dv_show_batch_group_config)
+        self._dv_batch_cfg_btn.setFixedHeight(28)
+        self._dv_batch_cfg_btn.setStyleSheet(
+            "QPushButton { color: #0066cc; font-weight: bold; }"
+            "QPushButton:hover { background: #e8f0ff; }")
+
+        batch_row_l.addWidget(self._dv_src_batch,      stretch=1)
+        batch_row_l.addWidget(self._dv_batch_cfg_btn,  stretch=1)
+
         self._dv_src_file = QPushButton("📂 Load JSON file(s) from disk")
         self._dv_src_file.clicked.connect(self._dv_load_from_files)
-        for b in (self._dv_src_session, self._dv_src_batch, self._dv_src_file):
+        for b in (self._dv_src_session, self._dv_src_file):
             b.setFixedHeight(28)
             src_l.addWidget(b)
+        src_l.insertWidget(1, batch_row_w)   # insert after session button
         lay.addWidget(src_g)
 
         # Job name + remote dir
@@ -9751,8 +9927,7 @@ echo "Submitted {n_batches} jobs."
         combined = out + err
 
         # Extract module load return code embedded in output
-        import re as _re
-        m_rc = _re.search(r'__ACT_RC__(\d+)', combined)
+        m_rc = re.search(r'__ACT_RC__(\d+)', combined)
         module_rc = int(m_rc.group(1)) if m_rc else 1
 
         af3_found    = '__AF3_FOUND__' in combined
@@ -9873,16 +10048,98 @@ echo "Submitted {n_batches} jobs."
         self._dv_refresh_cmd_preview()
 
     # ── Anti-OOM partition size ────────────────────────────────────
-    _AF3_PARTITION_SIZE = 50   # max jobs per batch JSON sent to the server
+    _AF3_PARTITION_SIZE = 50   # class-level default; overridden by instance var
+
+    def _dv_show_batch_group_config(self):
+        """Show a compact dialog to configure the AF3 batch group (partition) size."""
+        current = getattr(self, '_dv_partition_size', self._AF3_PARTITION_SIZE)
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle("AF3 JSON Group Config")
+        dlg.setFixedSize(400, 230)
+        lay = QVBoxLayout(dlg)
+        lay.setSpacing(10)
+
+        hdr = QLabel("<b>Configure AF3 batch partition size</b>")
+        hdr.setAlignment(Qt.AlignmentFlag.AlignCenter
+                         if QT_VERSION == 6 else Qt.AlignCenter)
+        lay.addWidget(hdr)
+
+        desc = QLabel(
+            "Sets how many AF3 jobs are packed into each partition JSON.\n"
+            "Each partition becomes one independent SLURM job on the server.\n"
+            "Smaller values = safer for limited GPU RAM (anti-OOM).\n"
+            "Larger values = fewer queue submissions, faster throughput.")
+        desc.setWordWrap(True)
+        desc.setStyleSheet("color:#555; font-size:11px;")
+        lay.addWidget(desc)
+
+        spin_row = QHBoxLayout()
+        spin_row.addWidget(QLabel("Jobs per partition batch:"))
+        spin = QSpinBox()
+        spin.setRange(1, 9999)
+        spin.setValue(current)
+        spin.setFixedWidth(80)
+        spin.setToolTip(
+            "Recommended values:\n"
+            "  10-20  -> very large proteins / low GPU RAM\n"
+            "  50     -> default (safe for most clusters)\n"
+            "  100+   -> fast clusters with ample RAM")
+        spin_row.addWidget(spin)
+        spin_row.addStretch()
+        lay.addLayout(spin_row)
+
+        preset_row = QHBoxLayout()
+        preset_row.addWidget(QLabel("Quick presets:"))
+        for label, val in [("10", 10), ("25", 25), ("50", 50),
+                            ("100", 100), ("200", 200)]:
+            pb = QPushButton(label)
+            pb.setFixedWidth(52)
+            pb.setFixedHeight(22)
+            pb.clicked.connect(lambda _, v=val: spin.setValue(v))
+            preset_row.addWidget(pb)
+        preset_row.addStretch()
+        lay.addLayout(preset_row)
+
+        bb_row = QHBoxLayout()
+        ok_btn  = QPushButton("Apply")
+        ok_btn.setStyleSheet("font-weight:bold;")
+        ok_btn.clicked.connect(dlg.accept)
+        can_btn = QPushButton("Cancel")
+        can_btn.clicked.connect(dlg.reject)
+        bb_row.addStretch()
+        bb_row.addWidget(ok_btn)
+        bb_row.addWidget(can_btn)
+        lay.addLayout(bb_row)
+
+        accepted = ((dlg.exec() if QT_VERSION == 6 else dlg.exec_()) ==
+                    (QDialog.DialogCode.Accepted if QT_VERSION == 6
+                     else QDialog.Accepted))
+        if accepted:
+            new_size = spin.value()
+            self._dv_partition_size = new_size
+            self._dv_src_batch.setToolTip(
+                "Groups all AF3 jobs from the current session into partitioned\n"
+                "batch JSON files (size configurable via AF3 JSON Group Config).\n"
+                "Each partition is submitted as an independent SLURM job to\n"
+                "prevent GPU out-of-memory errors (anti-OOM).\n\n"
+                f"Current group size: {new_size} jobs / partition")
+            self._dv_batch_cfg_btn.setToolTip(
+                f"Configure the number of AF3 jobs per partition batch.\n"
+                f"Current setting: {new_size} jobs / partition\n"
+                f"(Default: 50 — anti-OOM safe)")
+            self._dv_log(
+                f"Batch group size set to {new_size} jobs/partition.", 'submit')
 
     def _dv_load_from_session_batch(self):
         """Build batch JSON(s) from all session AF3 jobs and stage them for
         sequential upload/submission.
 
-        Anti-OOM rule: if the session has more than _AF3_PARTITION_SIZE jobs,
-        the list is automatically split into chunks of that size.  Each chunk
-        becomes an independent JSON file submitted as a separate SLURM job so
-        the server's RAM is fully released between runs.
+        Anti-OOM rule: if the session has more than the configured partition
+        size, the list is automatically split into chunks of that size.  Each
+        chunk becomes an independent JSON file submitted as a separate SLURM
+        job so the server's RAM is fully released between runs.
+        Configure the group size via the AF3 JSON Group Config button.
         """
         if not self.af3_jobs:
             QMessageBox.information(self, "Server",
@@ -9890,11 +10147,9 @@ echo "Submitted {n_batches} jobs."
                 "Generate jobs in the AlphaFold tab first.")
             return
 
-        import tempfile as _tmp
-
         prefix     = self._dv_job_prefix.text().strip() or "af3_batch"
         n_total    = len(self.af3_jobs)
-        chunk_size = self._AF3_PARTITION_SIZE
+        chunk_size = getattr(self, '_dv_partition_size', self._AF3_PARTITION_SIZE)
 
         # ── Build AF3-format entry list ────────────────────────────
         all_entries = []
@@ -9920,7 +10175,7 @@ echo "Submitted {n_batches} jobs."
         for idx, part in enumerate(partitions):
             part_label = (f"{prefix}_part{idx+1:03d}_of_{n_parts:03d}"
                           if n_parts > 1 else f"{prefix}_all_jobs")
-            fd, tmp_path = _tmp.mkstemp(
+            fd, tmp_path = tempfile.mkstemp(
                 suffix='.json',
                 prefix=re.sub(r'[^\w\-]', '_', part_label) + '_')
             os.close(fd)
@@ -10057,7 +10312,6 @@ echo "Submitted {n_batches} jobs."
         if not dest_dir:
             return
 
-        import shutil as _shutil
         saved  = []
         errors = []
         for job in batch_jobs:
@@ -10065,7 +10319,7 @@ echo "Submitted {n_batches} jobs."
             dst   = os.path.join(dest_dir, fname)
             try:
                 if job.get('local_path') and os.path.exists(job['local_path']):
-                    _shutil.copy2(job['local_path'], dst)
+                    shutil.copy2(job['local_path'], dst)
                 else:
                     entry = {
                         "name":       job['name'],
@@ -10178,7 +10432,7 @@ echo "Submitted {n_batches} jobs."
             total_afjobs = sum(j.get('_n_jobs', 0) for j in jobs)
             lines.append(
                 f"# {total_afjobs} AF3 jobs → {n_parts} partitions "
-                f"(≤{self._AF3_PARTITION_SIZE}/batch, anti-OOM)")
+                f"(≤{getattr(self, '_dv_partition_size', self._AF3_PARTITION_SIZE)}/batch, anti-OOM)")
             lines.append(
                 "# Submitted sequentially — one SLURM job at a time")
             lines.append("")
@@ -10276,9 +10530,8 @@ echo "Submitted {n_batches} jobs."
             n_seeds = self._dv_af3_seeds.value()
         if hasattr(self, '_dv_af3_use_templates'):
             use_templates = self._dv_af3_use_templates.isChecked()
-        import random as _random
-        _random.seed(42)
-        model_seeds = ([_random.randint(1, 2**31 - 1) for _ in range(n_seeds)]
+        random.seed(42)
+        model_seeds = ([random.randint(1, 2**31 - 1) for _ in range(n_seeds)]
                        if n_seeds > 1 else [])
 
         _af3_flags = []
@@ -10334,12 +10587,11 @@ echo "Submitted {n_batches} jobs."
 
         def _upload_one_partition(job, resolved_parent):
             """Upload batch JSON for a single partition.  Returns remote path."""
-            import tempfile as _tmp2
             safe_name    = re.sub(r'[^\w\-]', '_', job['name'])
             batch_list   = _build_batch_list_for_job(job)
             batch_fname  = f"{job['name']}.json"
 
-            fd, tmp_path = _tmp2.mkstemp(
+            fd, tmp_path = tempfile.mkstemp(
                 suffix='.json', prefix=safe_name + '_')
             os.close(fd)
             try:
@@ -10623,9 +10875,8 @@ echo "Submitted {n_batches} jobs."
                         f"'"
                     )
                     out, err, rc = self._dv_ssh_exec(run_cmd, timeout=60)
-                    import re as _re
-                    m = _re.search(
-                        r'batch job\s+(\d+)', out + err, _re.IGNORECASE)
+                    m = re.search(
+                        r'batch job\s+(\d+)', out + err, re.IGNORECASE)
                     if m:
                         return {'slurm_id': m.group(1), 'status': 'submitted',
                                 'output': out + err}
@@ -10948,8 +11199,7 @@ echo "Submitted {n_batches} jobs."
                 items = []
                 try:
                     for attr in sftp.listdir_attr(rpath):
-                        import stat as _stat
-                        is_dir = _stat.S_ISDIR(attr.st_mode)
+                        is_dir = stat.S_ISDIR(attr.st_mode)
                         size = attr.st_size or 0
                         mtime = datetime.fromtimestamp(
                             attr.st_mtime).strftime('%Y-%m-%d %H:%M') \
@@ -11038,9 +11288,8 @@ echo "Submitted {n_batches} jobs."
                     src = f"{rpath}/{name}"
                     dst = os.path.join(local_dest, name)
                     try:
-                        import stat as _stat
                         attr = sftp.stat(src)
-                        if _stat.S_ISDIR(attr.st_mode):
+                        if stat.S_ISDIR(attr.st_mode):
                             os.makedirs(dst, exist_ok=True)
                             self._dv_sftp_get_dir(sftp, src, dst)
                         else:
@@ -11070,11 +11319,10 @@ echo "Submitted {n_batches} jobs."
 
     def _dv_sftp_get_dir(self, sftp, remote_dir: str, local_dir: str):
         """Recursively download a remote directory via SFTP."""
-        import stat as _stat
         for attr in sftp.listdir_attr(remote_dir):
             rsrc = f"{remote_dir}/{attr.filename}"
             ldst = os.path.join(local_dir, attr.filename)
-            if _stat.S_ISDIR(attr.st_mode):
+            if stat.S_ISDIR(attr.st_mode):
                 os.makedirs(ldst, exist_ok=True)
                 self._dv_sftp_get_dir(sftp, rsrc, ldst)
             else:
@@ -11223,7 +11471,7 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     app.setApplicationName('ppigFinder')
     app.setApplicationDisplayName('ppigFinder — Protein-Protein Interaction Genomic Finder')
-    app.setApplicationVersion('1.12')
+    app.setApplicationVersion('2.00')
     app.setStyle('Fusion')
     _setup_emoji_font(app)
     window = ppigFinderApp()
