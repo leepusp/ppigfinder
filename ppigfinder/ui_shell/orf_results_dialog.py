@@ -491,6 +491,40 @@ class LengthHistogramWidget(QWidget):
         painter.end()
 
 
+
+class FigureViewerDialog(QDialog):
+    """
+    Generic full-screen figure viewer for guided visual panels.
+
+    The goal is to let users inspect ORF maps, histograms and future
+    neighbourhood diagrams in a larger window without cluttering the main flow.
+    """
+
+    def __init__(self, title: str, content_widget: QWidget, parent=None):
+        super().__init__(parent)
+
+        self.setWindowTitle(title)
+        self.setWindowFlags(_window_flags())
+        self.resize(1280, 850)
+        self.setMinimumSize(980, 680)
+        self.setSizeGripEnabled(True)
+        apply_ppigfinder_branding(self)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(10)
+
+        title_label = QLabel(title)
+        title_label.setObjectName("SectionTitle")
+        layout.addWidget(title_label)
+
+        layout.addWidget(content_widget, 1)
+
+        close_button = QPushButton("Close")
+        close_button.clicked.connect(self.close)
+        layout.addWidget(close_button)
+
+
 class GuidedORFResultsDialog(QDialog):
     """
     Interactive ORF browser.
@@ -662,6 +696,10 @@ class GuidedORFResultsDialog(QDialog):
         btn_right.clicked.connect(lambda: self.map_widget.pan(0.35))
         map_controls.addWidget(btn_right)
 
+        btn_map_full = QPushButton("Open map full screen")
+        btn_map_full.clicked.connect(self._open_map_fullscreen)
+        map_controls.addWidget(btn_map_full)
+
         right_layout.addLayout(map_controls)
 
         hist_title = QLabel("ORF length distribution")
@@ -670,6 +708,15 @@ class GuidedORFResultsDialog(QDialog):
 
         self.histogram = LengthHistogramWidget(self.orfs)
         right_layout.addWidget(self.histogram, 1)
+
+        hist_controls = QHBoxLayout()
+        hist_controls.addStretch(1)
+
+        btn_hist_full = QPushButton("Open histogram full screen")
+        btn_hist_full.clicked.connect(self._open_histogram_fullscreen)
+        hist_controls.addWidget(btn_hist_full)
+
+        right_layout.addLayout(hist_controls)
 
         self.details_tabs = QTabWidget()
         self.details_meta = QPlainTextEdit()
@@ -719,6 +766,39 @@ class GuidedORFResultsDialog(QDialog):
         self._apply_filters()
         if self.orfs:
             self._select_first_row()
+
+    def _open_map_fullscreen(self):
+        """
+        Open the current ORF map view in a maximized figure window.
+        """
+        clone = ORFMapWidget(self.orfs)
+        clone.view_start = self.map_widget.view_start
+        clone.view_end = self.map_widget.view_end
+        clone.selected_orf_id = self.map_widget.selected_orf_id
+        clone.setMinimumHeight(650)
+
+        dialog = FigureViewerDialog(
+            "Interactive ORF map — full screen",
+            clone,
+            parent=self,
+        )
+        dialog.showMaximized()
+        dialog.exec() if hasattr(dialog, "exec") else dialog.exec_()
+
+    def _open_histogram_fullscreen(self):
+        """
+        Open ORF length distribution in a maximized figure window.
+        """
+        clone = LengthHistogramWidget(self.orfs)
+        clone.setMinimumHeight(650)
+
+        dialog = FigureViewerDialog(
+            "ORF length distribution — full screen",
+            clone,
+            parent=self,
+        )
+        dialog.showMaximized()
+        dialog.exec() if hasattr(dialog, "exec") else dialog.exec_()
 
     # --------------------------------------------------------
     # Filtering/table
