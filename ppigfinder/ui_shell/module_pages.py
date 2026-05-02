@@ -15,6 +15,7 @@ from ppigfinder.ui_shell.qt import (
     QGridLayout,
     QLabel,
     QFrame,
+    QPushButton,
 )
 
 
