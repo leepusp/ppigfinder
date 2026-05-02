@@ -8,6 +8,7 @@ from __future__ import annotations
 from ppigfinder.ui_shell.components import InfoCard, ActionCard, FlowStrip
 from ppigfinder.ui_shell.docs_content import docs_for
 from ppigfinder.ui_shell.docs_dialog import show_module_documentation
+from ppigfinder.ui_shell.module_visuals import ModuleVisualizationPanel
 from ppigfinder.ui_shell.qt import (
     QWidget,
     QVBoxLayout,
@@ -140,10 +141,11 @@ class ModulePage(QWidget):
                 label = action.get("label", "Action")
                 description = action.get("description", "")
                 callback = action.get("callback")
+                button_text = action.get("button_text", "Run")
                 card = ActionCard(
                     label,
                     description,
-                    "Run",
+                    button_text,
                     callback,
                 )
                 actions_layout.addWidget(card)
@@ -153,29 +155,18 @@ class ModulePage(QWidget):
         actions_layout.addStretch(1)
         body.addWidget(actions_box, 1)
 
-        visualization = QFrame()
-        visualization.setObjectName("VisualizationPlaceholder")
-        visualization_layout = QVBoxLayout(visualization)
-        visualization_layout.setContentsMargins(18, 18, 18, 18)
-        visualization_layout.setSpacing(10)
-
-        visualization_title = QLabel("Visualization area")
-        visualization_title.setObjectName("SectionTitle")
-        visualization_layout.addWidget(visualization_title)
-
-        visualization_text = QLabel(
-            self._visualization_hint(route.id)
-        )
-        visualization_text.setWordWrap(True)
-        visualization_layout.addWidget(visualization_text)
-
-        visualization_layout.addStretch(1)
-        body.addWidget(visualization, 1)
+        self.visualization_panel = ModuleVisualizationPanel(route.id)
+        body.addWidget(self.visualization_panel, 1)
 
     def _visualization_hint(self, module_id: str) -> str:
         hints = {
             "overview": (
-                "Future dashboard with project status, workflow progress and next-step suggestions."
+                "Future dashboard with project status, workflow progress, recently opened projects, "
+                "loaded genome summary and next-step suggestions."
+            ),
+            "data": (
+                "Future data-entry panel showing supported input formats, current loaded file, "
+                "project restoration status and validation messages before moving to ORF prediction."
             ),
             "genome": (
                 "Future interactive genome map inspired by tools such as lovis4u, "
