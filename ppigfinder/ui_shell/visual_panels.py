@@ -205,14 +205,14 @@ class ModuleVisualizationPanel(QScrollArea):
                 "ORFs currently generated in guided flow",
             )
             self.card2.set_content(
-                "Longest ORF (aa)",
-                str(state.get("guided_longest_orf_aa", "N/A")),
-                "Maximum amino acid length",
+                "Mean / longest",
+                f"{state.get('guided_orf_mean_aa', 'N/A')} / {state.get('guided_longest_orf_aa', 'N/A')} aa",
+                "Average and maximum protein length",
             )
             self.card3.set_content(
-                "Shortest ORF (aa)",
-                str(state.get("guided_shortest_orf_aa", "N/A")),
-                "Minimum amino acid length",
+                "Strands",
+                f"+ {state.get('guided_orf_plus_count', 0)} / - {state.get('guided_orf_minus_count', 0)}",
+                "Predicted ORF orientation",
             )
             self.card4.set_content(
                 "Next step",
@@ -220,8 +220,8 @@ class ModuleVisualizationPanel(QScrollArea):
                 "Run BLAST/HMM and contextual filtering",
             )
             self.footer.setText(
-                "Future visual direction: ORF length histogram, strand/frame summaries and a compact "
-                "genome map showing predicted ORF positions."
+                "ORF Discovery generates the protein set used by BLAST, HMM/domain annotation, "
+                "neighbourhood analysis and AlphaFold/PPI candidate construction."
             )
             return
 

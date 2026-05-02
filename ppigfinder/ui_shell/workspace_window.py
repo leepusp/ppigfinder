@@ -399,6 +399,14 @@ class WorkspaceWindow(QMainWindow):
             self.workflow_state.set_metric("guided_longest_orf_aa", getattr(summary, "longest_orf_aa", None))
             self.workflow_state.set_metric("guided_shortest_orf_aa", getattr(summary, "shortest_orf_aa", None))
             self.workflow_state.set_metric("guided_orf_min_aa", getattr(summary, "min_aa", 30))
+
+            lengths = [len(getattr(orf, "protein_sequence", "") or "") for orf in self.guided_orfs]
+            plus_count = sum(1 for orf in self.guided_orfs if getattr(orf, "strand", "") == "+")
+            minus_count = sum(1 for orf in self.guided_orfs if getattr(orf, "strand", "") == "-")
+
+            self.workflow_state.set_metric("guided_orf_mean_aa", round(sum(lengths) / len(lengths), 2) if lengths else 0)
+            self.workflow_state.set_metric("guided_orf_plus_count", plus_count)
+            self.workflow_state.set_metric("guided_orf_minus_count", minus_count)
             self.workflow_state.add_event("orfs", "predict_orfs", f"{len(self.guided_orfs)} ORFs")
 
             try:
