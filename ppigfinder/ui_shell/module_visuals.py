@@ -5,8 +5,6 @@ Module-specific visualization/status panels for the guided UI shell.
 
 from __future__ import annotations
 
-from pathlib import Path
-
 from ppigfinder.ui_shell.qt import (
     QFrame,
     QLabel,
@@ -24,6 +22,10 @@ def _short_path(path: str, max_len: int = 62) -> str:
         return p
 
     return "..." + p[-max_len:]
+
+
+def _yes_no(value: object) -> str:
+    return "Yes" if bool(value) else "No"
 
 
 class SmallInfoBox(QFrame):
@@ -60,9 +62,6 @@ class SmallInfoBox(QFrame):
 class ModuleVisualizationPanel(QFrame):
     """
     Context-aware visualization/status panel for each guided module.
-
-    These panels are designed as stepping stones toward future dynamic
-    visualizations based on genome maps, charts and AF3 dashboards.
     """
 
     def __init__(self, module_id: str, parent=None):
@@ -105,26 +104,28 @@ class ModuleVisualizationPanel(QFrame):
                 "Entrada e validação inicial do projeto. Selecione dados antes de avançar para ORFs, anotação e AF3."
             )
             self._add_box("genome_file", "Genome file", "Not selected", "FASTA, multi-FASTA, GenBank or SnapGene.", 0, 0)
-            self._add_box("project_file", "Project file", "Not selected", "Saved ppigFinder project.", 0, 1)
-            self._add_box("snapshot_file", "Snapshot", "Not selected", "Project Snapshot v3 JSON.", 1, 0)
-            self._add_box("next", "Next step", "Protein / ORFs", "Proceed after loading or restoring data.", 1, 1)
+            self._add_box("genome_valid", "Validation", "Waiting", "Lightweight validation in guided shell.", 0, 1)
+            self._add_box("genome_length", "Length", "N/A", "Total nucleotide length detected.", 1, 0)
+            self._add_box("genome_gc", "GC%", "N/A", "GC content from parsed sequence.", 1, 1)
+            self._add_box("project_file", "Project file", "Not selected", "Saved ppigFinder project.", 2, 0)
+            self._add_box("snapshot_file", "Snapshot", "Not selected", "Project Snapshot v3 JSON.", 2, 1)
 
         elif module_id == "genome":
             self.summary.setText(
-                "Resumo futuro do genoma: tamanho, GC, contigs, coordenadas, tradução e preparo para mapa genômico."
+                "Resumo do genoma selecionado para inspeção, tradução e visualização."
             )
-            self._add_box("input", "Input state", "Waiting for genome", "Depends on Data / Project.", 0, 0)
-            self._add_box("summary", "Genome summary", "Pending", "Length, GC content and metadata.", 0, 1)
-            self._add_box("map", "Genome map", "Pending", "Future interactive genome visualization.", 1, 0)
-            self._add_box("next", "Next step", "Protein / ORFs", "Predict protein-coding regions.", 1, 1)
+            self._add_box("genome_name", "Genome name", "Waiting for genome", "File name or GenBank locus.", 0, 0)
+            self._add_box("genome_type", "Input type", "N/A", "FASTA, GenBank or SnapGene.", 0, 1)
+            self._add_box("genome_length", "Length", "N/A", "Total nucleotide length.", 1, 0)
+            self._add_box("map", "Genome map", "Pending", "Future interactive genome visualization.", 1, 1)
 
         elif module_id == "orfs":
             self.summary.setText(
                 "Predição e revisão de ORFs que alimentarão BLAST, HMM, neighbourhood e AF3."
             )
-            self._add_box("mode", "Prediction mode", "Pyrodigal / six-frame / hybrid", "Configurable ORF prediction logic.", 0, 0)
-            self._add_box("table", "ORF table", "Pending", "Coordinates, strand, frame, size and sequence.", 0, 1)
-            self._add_box("export", "Export", "Protein FASTA", "Downstream sequence export.", 1, 0)
+            self._add_box("input", "Input state", "Waiting for genome", "Requires loaded genome/project.", 0, 0)
+            self._add_box("mode", "Prediction mode", "Pyrodigal / six-frame / hybrid", "Configurable ORF prediction logic.", 0, 1)
+            self._add_box("table", "ORF table", "Pending", "Coordinates, strand, frame, size and sequence.", 1, 0)
             self._add_box("next", "Next step", "Annotation", "BLAST, HMM/domain and neighbourhood.", 1, 1)
 
         elif module_id == "annotation":
@@ -155,9 +156,7 @@ class ModuleVisualizationPanel(QFrame):
             self._add_box("advanced", "Advanced", "Full interface available", "Access legacy tools if needed.", 1, 1)
 
         else:
-            self.summary.setText(
-                "Visão geral do fluxo guiado do ppigFinder."
-            )
+            self.summary.setText("Visão geral do fluxo guiado do ppigFinder.")
             self._add_box("flow", "Workflow", "Data → Genome → ORFs → Annotation → AlphaFold → Reports", "Recommended path.", 0, 0)
             self._add_box("status", "Project status", "Ready", "Start by adding data.", 0, 1)
 
@@ -166,24 +165,37 @@ class ModuleVisualizationPanel(QFrame):
         Update panel from the guided workspace state.
         """
         if self.module_id == "data":
-            for key in ("genome_file", "project_file", "snapshot_file"):
-                if key in self.boxes:
-                    self.boxes[key].set_value(_short_path(state.get(key, "")))
+            if "genome_file" in self.boxes:
+                self.boxes["genome_file"].set_value(_short_path(state.get("genome_file", "")))
+            if "project_file" in self.boxes:
+                self.boxes["project_file"].set_value(_short_path(state.get("project_file", "")))
+            if "snapshot_file" in self.boxes:
+                self.boxes["snapshot_file"].set_value(_short_path(state.get("snapshot_file", "")))
+            if "genome_valid" in self.boxes:
+                if state.get("genome_file"):
+                    self.boxes["genome_valid"].set_value("OK" if state.get("genome_valid") else "Problem")
+                else:
+                    self.boxes["genome_valid"].set_value("Waiting")
+            if "genome_length" in self.boxes:
+                self.boxes["genome_length"].set_value(str(state.get("genome_total_length") or "N/A"))
+            if "genome_gc" in self.boxes:
+                gc = state.get("genome_gc_percent")
+                self.boxes["genome_gc"].set_value("N/A" if gc is None else f"{gc}%")
 
         elif self.module_id == "genome":
-            if "input" in self.boxes:
-                if state.get("genome_file"):
-                    self.boxes["input"].set_value("Genome selected")
-                elif state.get("project_file") or state.get("snapshot_file"):
-                    self.boxes["input"].set_value("Project restored")
-                else:
-                    self.boxes["input"].set_value("Waiting for genome")
+            if "genome_name" in self.boxes:
+                self.boxes["genome_name"].set_value(state.get("genome_name") or "Waiting for genome")
+            if "genome_type" in self.boxes:
+                self.boxes["genome_type"].set_value(state.get("genome_file_type") or "N/A")
+            if "genome_length" in self.boxes:
+                self.boxes["genome_length"].set_value(str(state.get("genome_total_length") or "N/A"))
 
         elif self.module_id == "orfs":
-            if "table" in self.boxes:
-                self.boxes["table"].set_value(
-                    "Ready to run" if state.get("genome_file") or state.get("project_file") or state.get("snapshot_file") else "Waiting for genome"
-                )
+            if "input" in self.boxes:
+                if state.get("genome_file") or state.get("project_file") or state.get("snapshot_file"):
+                    self.boxes["input"].set_value("Input available")
+                else:
+                    self.boxes["input"].set_value("Waiting for genome")
 
         elif self.module_id == "annotation":
             if "blast" in self.boxes:

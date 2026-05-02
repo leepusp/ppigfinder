@@ -21,6 +21,7 @@ from ppigfinder.ui_shell.qt import (
 )
 from ppigfinder.ui_shell.theme import APP_TITLE, shell_stylesheet
 from ppigfinder.ui_shell.branding import apply_ppigfinder_branding
+from ppigfinder.ui_shell.input_validation import validate_genome_input, summary_to_state
 
 
 DEFAULT_ROUTES = [
@@ -156,12 +157,31 @@ class WorkspaceWindow(QMainWindow):
 
         self.selected_inputs[key] = path
 
-        message = (
-            "Selected file:\n\n"
-            + path
-            + "\n\nThis file is now registered in the guided shell. "
-            + "Full backend parsing will be connected progressively."
-        )
+        if key == "genome_file":
+            summary = validate_genome_input(path)
+            self.selected_inputs.update(summary_to_state(summary))
+
+            message = (
+                "Selected genome file:\n\n"
+                + path
+                + "\n\nValidation: "
+                + ("OK" if summary.valid else "Problem detected")
+                + "\nType: "
+                + summary.file_type
+                + "\nLength: "
+                + str(summary.total_length or "N/A")
+                + "\nGC%: "
+                + str(summary.gc_percent if summary.gc_percent is not None else "N/A")
+                + "\n\n"
+                + summary.message
+            )
+        else:
+            message = (
+                "Selected file:\n\n"
+                + path
+                + "\n\nThis file is now registered in the guided shell. "
+                + "Full backend parsing will be connected progressively."
+            )
 
         self._show_message("Input selected", message)
         self._refresh_visualization_panels()

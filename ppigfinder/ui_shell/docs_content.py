@@ -14,10 +14,10 @@ MODULE_DOCS = {
         "next": "Start with Data / Project, then proceed through Genome, ORFs, Annotation, AlphaFold/PPI and Reports.",
     },
     "data": {
-        "purpose": "Create a new analysis session or restore an existing project. This is the entry point for inserting genome data, opening saved projects, or importing a reproducible project snapshot.",
+        "purpose": "Create a new analysis session, validate input data, or restore an existing project. This is the entry point for inserting genome data, opening saved projects, or importing a reproducible project snapshot.",
         "input": "FASTA, multi-FASTA, GenBank, SnapGene, ppigFinder project files, or Project Snapshot v3 JSON files",
         "output": "Loaded genome/project state ready for ORF prediction, annotation, AlphaFold/PPI analysis, and reporting",
-        "next": "After loading data, continue to DNA / Genome for inspection or Protein / ORFs for ORF prediction.",
+        "next": "After selecting and validating data, continue to DNA / Genome for inspection or Protein / ORFs for ORF prediction.",
     },
     "genome": {
         "purpose": "Load and inspect genomic DNA sequence data.",
