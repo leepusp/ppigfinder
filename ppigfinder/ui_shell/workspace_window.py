@@ -14,6 +14,7 @@ try:
         QStackedWidget,
         QFileDialog,
         QMessageBox,
+        QPushButton,
     )
 except Exception:
     from PyQt5.QtCore import QTimer
@@ -28,6 +29,7 @@ except Exception:
         QStackedWidget,
         QFileDialog,
         QMessageBox,
+        QPushButton,
     )
 
 from ppigfinder.ui_shell.module_pages import ModulePage
@@ -92,9 +94,18 @@ class WorkspaceWindow(QMainWindow):
         main_area = QVBoxLayout()
         root.addLayout(main_area, 1)
 
+        header_row = QHBoxLayout()
+
         self.breadcrumb = QLabel("Workspace > Data / Project")
         self.breadcrumb.setObjectName("SectionTitle")
-        main_area.addWidget(self.breadcrumb)
+        header_row.addWidget(self.breadcrumb, 1)
+
+        self.hpc_button = QPushButton("DaVinci / HPC")
+        self.hpc_button.setToolTip("Configure optional server/HPC execution and scheduler templates.")
+        self.hpc_button.clicked.connect(self._open_hpc_dialog)
+        header_row.addWidget(self.hpc_button)
+
+        main_area.addLayout(header_row)
 
         self.pages = QStackedWidget()
         main_area.addWidget(self.pages, 1)
