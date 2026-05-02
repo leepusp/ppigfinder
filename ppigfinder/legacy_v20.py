@@ -1594,6 +1594,8 @@ TRANSLATIONS = {
         'load_hmm':         '📎 Load HMM',
         'save_project':     '📦 Save Project',
         'open_project':     '📦 Open Project',
+        'export_project_snapshot': 'Export Project Snapshot (v3)',
+        'import_project_snapshot': 'Import Project Snapshot (v3)',
         'save_orfs_fasta':  '💾 Save ORFs (FASTA)',
         'save_cand_json':   '💾 Candidates (JSON)',
         'save_af3':         '💾 AlphaFold3',
@@ -5057,6 +5059,18 @@ try:
 except ImportError:
     from ppigfinder.ui.af3_export import export_selected_orfs_as_server_json as _ui_export_selected_orfs_as_server_json
 
+
+try:
+    from .ui.project_bridge import (
+        export_project_snapshot_from_window as _ui_export_project_snapshot_from_window,
+        import_project_snapshot_into_window as _ui_import_project_snapshot_into_window,
+    )
+except ImportError:
+    from ppigfinder.ui.project_bridge import (
+        export_project_snapshot_from_window as _ui_export_project_snapshot_from_window,
+        import_project_snapshot_into_window as _ui_import_project_snapshot_into_window,
+    )
+
 class ppigFinderApp(QMainWindow):
 
     def __init__(self):
@@ -5184,6 +5198,9 @@ class ppigFinderApp(QMainWindow):
         act = fm.addAction('💾 Save Project As (full copy)...', self.save_project_as)
         act.setShortcut('Ctrl+Shift+S')
         act = fm.addAction(t('open_project'), self.load_project)
+        fm.addSeparator()
+        fm.addAction(t('export_project_snapshot'), self.export_project_snapshot)
+        fm.addAction(t('import_project_snapshot'), self.import_project_snapshot)
         act.setShortcut('Ctrl+Shift+O')
         fm.addSeparator()
         fm.addAction(t('save_orfs_fasta'), self.save_fasta)
@@ -8072,6 +8089,12 @@ class ppigFinderApp(QMainWindow):
         ]
         if saved_at: lines.append(f'  Salvo em:        {saved_at}')
         QMessageBox.information(self, 'Projeto Carregado', '\n'.join(lines))
+
+    def export_project_snapshot(self):
+        _ui_export_project_snapshot_from_window(self)
+
+    def import_project_snapshot(self):
+        _ui_import_project_snapshot_into_window(self)
 
     def export_map_pdf(self):
         """Export genome map as PDF or PNG."""
