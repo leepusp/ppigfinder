@@ -4944,6 +4944,20 @@ class FlexibleAF3SubmitWidget(QGroupBox):
 # ═══════════════════════════════════════════════════════════════
 
 
+
+try:
+    from .io.fasta import (
+        choose_longest_record as _io_choose_longest_record,
+        read_fasta as _io_read_fasta,
+        write_orf_protein_fasta as _io_write_orf_protein_fasta,
+    )
+except ImportError:
+    from ppigfinder.io.fasta import (
+        choose_longest_record as _io_choose_longest_record,
+        read_fasta as _io_read_fasta,
+        write_orf_protein_fasta as _io_write_orf_protein_fasta,
+    )
+
 class ppigFinderApp(QMainWindow):
 
     def __init__(self):
@@ -6680,32 +6694,27 @@ class ppigFinderApp(QMainWindow):
     # ═══════════════════════════════════════════════════════════
 
     def load_fasta(self):
-        f, _ = QFileDialog.getOpenFileName(self, "Open FASTA",
-            "", "FASTA (*.fasta *.fa *.fna *.faa);;All (*)")
-        if not f: return
-        with open(f, 'r', encoding='utf-8') as fh:
-            content = fh.read()
-        # Parse FASTA — get first/longest sequence
-        seqs = {}; current = None
-        for line in content.split('\n'):
-            line = line.strip()
-            if line.startswith('>'):
-                current = line[1:].split()[0]
-                seqs[current] = []
-            elif current:
-                seqs[current].append(re.sub(r'[^A-Za-z]', '', line))
-        if not seqs:
-            # Plain sequence
-            self.dna_sequence = re.sub(r'[^A-Za-z]', '', content).upper()
-            self.genome_name = Path(f).stem
-        else:
-            longest_name = max(seqs, key=lambda k: len(''.join(seqs[k])))
-            self.dna_sequence = ''.join(seqs[longest_name]).upper()
-            self.genome_name = longest_name
+        f, _ = QFileDialog.getOpenFileName(
+            self,
+            "Open FASTA",
+            "",
+            "FASTA (*.fasta *.fa *.fna *.faa);;All (*)",
+        )
+        if not f:
+            return
+
+        try:
+            record = _io_choose_longest_record(_io_read_fasta(f))
+        except Exception as exc:
+            QMessageBox.critical(self, "Open FASTA", f"Could not read FASTA file:\n{exc}")
+            return
+
+        self.dna_sequence = record.sequence.upper()
+        self.genome_name = record.name or Path(f).stem
         self._on_sequence_loaded(f)
 
     def load_multi_fasta(self):
-        self.load_fasta()  # Same logic — picks longest
+        self.load_fasta()
 
     def load_snapgene(self):
         f, _ = QFileDialog.getOpenFileName(self, "Open SnapGene",
@@ -6750,23 +6759,28 @@ class ppigFinderApp(QMainWindow):
 
     def save_fasta(self):
         if not self.orfs:
-            QMessageBox.information(self, "Save FASTA",
-                "No ORFs to export. Run ORF analysis first.")
+            QMessageBox.information(
+                self,
+                "Save FASTA",
+                "No ORFs to export. Run ORF analysis first.",
+            )
             return
-        f, _ = QFileDialog.getSaveFileName(self, "Save FASTA", "", "FASTA (*.fasta)")
-        if not f: return
+
+        f, _ = QFileDialog.getSaveFileName(
+            self,
+            "Save FASTA",
+            "",
+            "FASTA (*.fasta)",
+        )
+        if not f:
+            return
+
         try:
-            with open(f, 'w', encoding='utf-8') as fh:
-                for i, orf in enumerate(self.orfs):
-                    ds = '|'.join(d['domain'] for d in orf.get('domains', []))
-                    h = f">ORF{i+1}|F{orf['frame']}{orf['strand']}|{orf['start']}-{orf['end']}"
-                    if ds: h += f"|{ds}"
-                    fh.write(h + "\n")
-                    p = orf['protein'].rstrip('*')
-                    for j in range(0, len(p), 80): fh.write(p[j:j+80] + "\n")
-        except OSError as e:
-            QMessageBox.critical(self, "Save FASTA", f"Could not write file:\n{e}")
+            _io_write_orf_protein_fasta(f, self.orfs)
+        except OSError as exc:
+            QMessageBox.critical(self, "Save FASTA", f"Could not write file:\n{exc}")
             return
+
         self._status.showMessage(f"✓ Saved {len(self.orfs)} ORFs")
 
 
