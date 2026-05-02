@@ -190,8 +190,8 @@ class ModulePage(QWidget):
             "data": (
                 "Purpose: Start from input data. Load a genome, project or snapshot and ppigFinder will enable the next analysis steps according to the data type.",
                 "Next: A valid genome automatically enables ORF prediction. A project or snapshot restores workflow state for review/export.",
-                "FASTA, multi-FASTA, GenBank, SnapGene, ppigFinder project files, or Project Snapshot v3 JSON files",
-                "Loaded genome/project state ready for ORF prediction, annotation, AlphaFold/PPI analysis, and reporting",
+                "Genome, protein query, HMM profile, project/snapshot JSON, or AF3 result folder",
+                "Recognized input routed to the appropriate workflow step",
             ),
             "genome": (
                 "Purpose: Inspect the loaded genome and validate sequence-scale information before prediction.",

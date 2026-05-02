@@ -188,56 +188,59 @@ class WorkspaceWindow(QMainWindow):
         self._auto_data_prompt_done = True
         self._open_initial_data_dialog()
 
-    def _open_initial_data_dialog(self) -> None:
-        choice = choose_initial_data(parent=self)
+    def _detect_input_key_from_path(self, path: str) -> str:
+        """
+        Detect input role from file extension/name.
+        """
+        lower = path.lower()
 
-        if choice == "genome":
-            self._select_file(
-                "genome_file",
-                "Open genome file",
-                "Genome files (*.fasta *.fa *.fna *.gb *.gbk *.dna);;All files (*)",
-            )
-        elif choice == "protein":
-            self._select_file(
-                "protein_query_file",
-                "Open protein query FASTA",
-                "Protein FASTA (*.faa *.fa *.fasta *.txt);;All files (*)",
-            )
-        elif choice == "hmm":
-            self._select_file(
-                "hmm_profile_file",
-                "Open HMM profile file",
-                "HMM profiles (*.hmm);;All files (*)",
-            )
-        elif choice == "project":
-            self._select_file(
-                "project_file",
-                "Open project",
-                "Project (*.json *.ppigfinder.json);;All files (*)",
-            )
-        elif choice == "snapshot":
-            self._select_file(
-                "snapshot_file",
-                "Import Project Snapshot",
-                "Snapshot (*.json *.ppigfinder.json);;All files (*)",
-            )
-        elif choice == "af3_results":
-            self._select_folder(
-                "af3_results_folder",
-                "Import AF3 results folder",
-            )
+        if lower.endswith((".gb", ".gbk", ".genbank", ".dna", ".fna", ".ffn")):
+            return "genome_file"
 
-    # --------------------------------------------------------
-    # File/folder loading
-    # --------------------------------------------------------
+        if lower.endswith((".hmm",)):
+            return "hmm_profile_file"
 
-    def _select_file(self, key: str, title: str, file_filter: str) -> bool:
-        path, _ = QFileDialog.getOpenFileName(self, title, "", file_filter)
+        if lower.endswith((".ppigfinder.json",)):
+            return "project_file"
+
+        if lower.endswith((".json",)):
+            # JSON can be project/snapshot/AF3, but at this stage a file JSON is
+            # treated as a project/snapshot input. AF3 results are normally folders.
+            return "snapshot_file"
+
+        if lower.endswith((".faa", ".pep", ".protein", ".prot")):
+            return "protein_query_file"
+
+        if lower.endswith((".fa", ".fasta")):
+            # Ambiguous. Prefer genome for complete workflow; protein FASTA can
+            # also be loaded through the same selector if named .faa/.pep.
+            return "genome_file"
+
+        return "generic_input_file"
+
+    def _select_any_input_file(self) -> bool:
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Add input data",
+            "",
+            (
+                "Supported inputs (*.fa *.fasta *.fna *.ffn *.gb *.gbk *.genbank *.dna "
+                "*.faa *.pep *.protein *.prot *.hmm *.json *.ppigfinder.json);;"
+                "Genome files (*.fa *.fasta *.fna *.ffn *.gb *.gbk *.genbank *.dna);;"
+                "Protein FASTA (*.faa *.pep *.protein *.prot *.fa *.fasta);;"
+                "HMM profiles (*.hmm);;"
+                "Project/Snapshot JSON (*.json *.ppigfinder.json);;"
+                "All files (*)"
+            ),
+        )
 
         if not path:
-            self._refresh_pages()
             return False
 
+        key = self._detect_input_key_from_path(path)
+        return self._register_selected_file(key, path)
+
+    def _register_selected_file(self, key: str, path: str) -> bool:
         self.workflow_state.set_input(key, path)
         self.workflow_state.add_event(self.workflow_state.current_route, "select_file", path)
 
@@ -256,7 +259,7 @@ class WorkspaceWindow(QMainWindow):
         if key == "snapshot_file":
             self.workflow_state.set_flag("snapshot_loaded", True)
             self.workflow_state.add_event("data", "import_snapshot", path)
-            self.statusBar().showMessage("Snapshot selected. Snapshot import service will be connected progressively.", 10000)
+            self.statusBar().showMessage("Snapshot/JSON input selected. Snapshot import service will be connected progressively.", 10000)
             self._refresh_pages()
             self.show_route("reports")
             return True
@@ -277,8 +280,39 @@ class WorkspaceWindow(QMainWindow):
             self.show_route("annotation")
             return True
 
+        self.workflow_state.set_flag("generic_input_loaded", True)
+        self.statusBar().showMessage("Input file selected, but no specialized handler was detected yet.", 10000)
         self._refresh_pages()
         return True
+
+    def _open_initial_data_dialog(self) -> None:
+        choice = choose_initial_data(parent=self)
+
+        if choice == "file":
+            self._select_any_input_file()
+        elif choice == "af3_results":
+            self._select_folder(
+                "af3_results_folder",
+                "Import AF3 results folder",
+            )
+
+    # --------------------------------------------------------
+    # File/folder loading
+    # --------------------------------------------------------
+
+    def _select_file(self, key: str, title: str, file_filter: str) -> bool:
+        path, _ = QFileDialog.getOpenFileName(self, title, "", file_filter)
+
+        if not path:
+            self._refresh_pages()
+            return False
+
+        # If caller passes a generic key, auto-detect. Otherwise preserve the
+        # explicit key.
+        if key in {"generic_input_file", "auto"}:
+            key = self._detect_input_key_from_path(path)
+
+        return self._register_selected_file(key, path)
 
     def _load_genome_file(self, path: str) -> None:
         try:
@@ -593,16 +627,14 @@ class WorkspaceWindow(QMainWindow):
     def _actions_for_route(self, route_id: str) -> list[dict]:
         if route_id == "overview":
             return [
+                self._action("Add input data", "Choose an input file or AF3 results folder and let ppigFinder route it into the workflow.", self._open_initial_data_dialog),
                 self._action("Show workflow map", "Review the complete guided workflow and step dependencies.", self._open_workflow_map),
-                self._action("Start with Data / Project", "Begin by adding genome data.", lambda: self.show_route("data")),
+                self._action("Start with Data / Project", "Go to the input/status page.", lambda: self.show_route("data")),
             ]
 
         if route_id == "data":
             return [
-                self._action("Add input data", "Choose Genome, Project or Snapshot as the workflow starting point.", self._open_initial_data_dialog),
-                self._action("Open genome file", "Load and validate a genome FASTA, GenBank or SnapGene file. The workflow will automatically advance if valid.", lambda: self._select_file("genome_file", "Open genome file", "Genome files (*.fasta *.fa *.fna *.gb *.gbk *.dna);;All files (*)")),
-                self._action("Open project", "Resume a previously saved ppigFinder project.", lambda: self._select_file("project_file", "Open project", "Project (*.json *.ppigfinder.json);;All files (*)")),
-                self._action("Import Project Snapshot v3", "Import a portable guided/project snapshot.", lambda: self._select_file("snapshot_file", "Import snapshot", "Snapshot (*.json *.ppigfinder.json);;All files (*)")),
+                self._action("Add input data", "Choose an input file or AF3 results folder. ppigFinder will detect the data type and update the workflow.", self._open_initial_data_dialog),
             ]
 
         if route_id == "genome":
