@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from ppigfinder.ui_shell.components import InfoCard, ActionCard, FlowStrip
 from ppigfinder.ui_shell.docs_content import docs_for
+from ppigfinder.ui_shell.docs_dialog import show_module_documentation
 from ppigfinder.ui_shell.qt import (
     QWidget,
     QVBoxLayout,
@@ -108,6 +109,16 @@ class ModulePage(QWidget):
         )
         purpose.setWordWrap(True)
         layout.addWidget(purpose)
+
+        docs_button = QPushButton("Read module guide")
+        docs_button.clicked.connect(
+            lambda checked=False: show_module_documentation(
+                self.route.id,
+                self.route.title,
+                self,
+            )
+        )
+        layout.addWidget(docs_button)
 
         body = QHBoxLayout()
         body.setSpacing(14)
