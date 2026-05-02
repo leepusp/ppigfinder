@@ -100,6 +100,12 @@ def install_backend_status_action(window) -> None:
     if system_menu is None:
         system_menu = menu_bar.addMenu("System")
 
+    # Expose as a dynamic method for the workflow navigator.
+    try:
+        window.show_backend_status = lambda: show_backend_status_dialog(window)
+    except Exception:
+        pass
+
     action = QAction("Backend Status", window)
     action.triggered.connect(lambda checked=False: show_backend_status_dialog(window))
     system_menu.addAction(action)

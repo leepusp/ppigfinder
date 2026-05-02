@@ -69,6 +69,14 @@ def install_modular_gui_actions(window) -> None:
     # Imports are intentionally local to keep startup light and avoid breaking
     # the GUI if one optional extension has a problem.
 
+
+    try:
+        from ppigfinder.ui.workflow_navigator import install_workflow_navigator
+
+        install_workflow_navigator(window)
+    except Exception:
+        pass
+
     try:
         from ppigfinder.ui.backend_status import install_backend_status_action
 
