@@ -33,3 +33,14 @@ __all__ += ["render_basic_report", "write_basic_report"]
 from .project_json import read_project_json, write_project_json, validate_project_json
 
 __all__ += ["read_project_json", "write_project_json", "validate_project_json"]
+
+from .html_report import (
+    render_project_report,
+    write_project_report,
+    write_report_from_project_json,
+)
+__all__ += [
+    "render_project_report",
+    "write_project_report",
+    "write_report_from_project_json",
+]

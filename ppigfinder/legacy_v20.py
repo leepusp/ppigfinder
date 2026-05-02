@@ -5071,6 +5071,14 @@ except ImportError:
         import_project_snapshot_into_window as _ui_import_project_snapshot_into_window,
     )
 
+
+try:
+    from .services.project_service import ProjectService as _ProjectServiceForHtml
+    from .io.html_report import write_project_report as _io_write_project_report
+except ImportError:
+    from ppigfinder.services.project_service import ProjectService as _ProjectServiceForHtml
+    from ppigfinder.io.html_report import write_project_report as _io_write_project_report
+
 class ppigFinderApp(QMainWindow):
 
     def __init__(self):
@@ -6954,13 +6962,11 @@ class ppigFinderApp(QMainWindow):
             return
 
         try:
-            _io_write_basic_report(
+            project = _ProjectServiceForHtml().build_snapshot_from_legacy_window(self)
+            _io_write_project_report(
                 f,
+                project,
                 title="ppigFinder Report",
-                genome_name=getattr(self, "genome_name", ""),
-                genome_length=len(getattr(self, "dna_sequence", "") or ""),
-                orfs=getattr(self, "orfs", []) or [],
-                interaction_results=getattr(self, "af3_results", []) or [],
             )
         except Exception as exc:
             QMessageBox.critical(
