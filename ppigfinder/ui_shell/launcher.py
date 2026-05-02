@@ -74,7 +74,7 @@ class ShellController:
                 description="Start from a FASTA, GenBank or SnapGene DNA file.",
                 input_data="DNA / genome sequence",
                 output_data="Genome workspace",
-                action_name="load_fasta",
+                action_name="open_workspace:data",
             ),
             HomeAction(
                 id="open_project",
@@ -82,7 +82,7 @@ class ShellController:
                 description="Resume a previous ppigFinder session.",
                 input_data="Project file",
                 output_data="Restored session",
-                action_name="load_project",
+                action_name="open_workspace:data",
             ),
             HomeAction(
                 id="predict_orfs",
@@ -90,7 +90,7 @@ class ShellController:
                 description="Identify protein-coding regions in the loaded genome.",
                 input_data="Loaded DNA / genome",
                 output_data="ORF and protein table",
-                action_name="analyze_orfs",
+                action_name="open_workspace:orfs",
             ),
             HomeAction(
                 id="guided_workspace",
@@ -98,7 +98,7 @@ class ShellController:
                 description="Open the future workflow-oriented workspace preview.",
                 input_data="Experimental interface shell",
                 output_data="Stepwise analysis workspace",
-                action_name="open_guided_workspace",
+                action_name="open_workspace:overview",
             ),
             HomeAction(
                 id="reports",
@@ -106,7 +106,7 @@ class ShellController:
                 description="Generate HTML reports, snapshots and tabular exports.",
                 input_data="Current project state",
                 output_data="HTML / JSON / TSV",
-                action_name="export_html_report",
+                action_name="open_workspace:reports",
             ),
         ]
 
@@ -151,15 +151,21 @@ class ShellController:
 
         return True
 
-    def open_guided_workspace(self) -> bool:
+    def open_guided_workspace(self, route_id: str = "overview") -> bool:
         """
-        Open the future guided workspace preview.
+        Open the future guided workspace preview and optionally switch route.
         """
         if self.workspace is None:
             self.workspace = WorkspaceWindow(bridge=ShellBridge(self))
 
         self.workspace.show()
         self.workspace.raise_()
+
+        try:
+            self.workspace.show_route(route_id)
+        except Exception:
+            pass
+
         return True
 
     def call_legacy_action(self, action_name: str | None) -> bool:
@@ -174,6 +180,10 @@ class ShellController:
 
         if action_name == "open_guided_workspace":
             return self.open_guided_workspace()
+
+        if action_name.startswith("open_workspace:"):
+            route_id = action_name.split(":", 1)[1] or "overview"
+            return self.open_guided_workspace(route_id)
 
         self.open_legacy_interface()
 

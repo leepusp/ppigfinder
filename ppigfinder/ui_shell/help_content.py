@@ -7,41 +7,53 @@ from __future__ import annotations
 
 
 HELP_CONTENT = {
+    "open_current_interface": {
+        "purpose": "Open the current complete ppigFinder interface while the guided interface is still under development.",
+        "when": "Use this when you need access to all existing tools in the current Qt interface.",
+        "data": "Current ppigFinder application.",
+        "next": "Use the current interface for complete analysis execution.",
+    },
     "open_genome": {
-        "purpose": "Load the DNA/genome sequence that will be used as the basis for ORF prediction and downstream analyses.",
-        "when": "Use this as the first step for a new analysis.",
+        "purpose": "Start a new project by loading DNA/genome data.",
+        "when": "Use this as the first step for a new genome-based analysis.",
         "data": "FASTA, GenBank or SnapGene nucleotide files.",
-        "next": "After loading the genome, inspect the genome overview and run ORF prediction.",
+        "next": "Continue to the Data / Project module to load files, then proceed to ORF prediction.",
     },
     "open_project": {
-        "purpose": "Restore a previously saved ppigFinder session.",
-        "when": "Use this when continuing a previous analysis.",
-        "data": "ppigFinder project files.",
-        "next": "Review loaded ORFs, annotations or AlphaFold results.",
+        "purpose": "Restore a previously saved ppigFinder analysis.",
+        "when": "Use this when continuing a previous project.",
+        "data": "ppigFinder project files or project snapshots.",
+        "next": "Review loaded data, ORFs, annotations or AlphaFold results.",
     },
     "predict_orfs": {
-        "purpose": "Detect protein-coding regions in the loaded genome.",
-        "when": "Run this after loading a DNA/genome sequence.",
-        "data": "DNA/genome sequence.",
-        "next": "Review the ORF table, export proteins or run annotation.",
+        "purpose": "Move to the Protein / ORFs module, where ORF prediction and protein export are organized.",
+        "when": "Use this after loading a DNA/genome sequence.",
+        "data": "Loaded DNA/genome sequence.",
+        "next": "Predict ORFs, inspect the ORF table and export protein sequences if needed.",
     },
     "annotation": {
-        "purpose": "Associate predicted proteins with similarity hits, conserved domains and genomic context.",
+        "purpose": "Move to the Annotation module for BLAST, HMM/domain and neighborhood analyses.",
         "when": "Use this after ORFs have been predicted.",
         "data": "Predicted proteins and ORF genomic coordinates.",
-        "next": "Use BLAST/HMM/domain/neighborhood results to select candidates for AlphaFold/PPI analysis.",
+        "next": "Run similarity/domain/context analyses to select candidates for downstream interpretation.",
     },
     "alphafold": {
-        "purpose": "Prepare protein pairs for AlphaFold 3 and import predicted interaction results.",
+        "purpose": "Move to the AlphaFold / PPI module for interaction-oriented structural analysis.",
         "when": "Use this after selecting candidate ORFs or protein pairs.",
         "data": "Protein sequences, AlphaFold Server JSON or AF3 result folders.",
-        "next": "Score interactions using ipTM, cp_ipTM, PAE_min, PAE_inter and contact percentage.",
+        "next": "Prepare AF3 input, import AF3 outputs and interpret interaction metrics.",
+    },
+    "guided_workspace": {
+        "purpose": "Open the modular workspace preview organized by data type and analysis stage.",
+        "when": "Use this to explore the future guided interface.",
+        "data": "Current or future project state.",
+        "next": "Choose a module such as Data, Genome, ORFs, Annotation, AlphaFold or Reports.",
     },
     "reports": {
-        "purpose": "Generate final outputs for documentation, interpretation and reproducibility.",
-        "when": "Use this after ORF prediction, annotation or AF3 result import.",
+        "purpose": "Move to the Reports module for final documentation and exports.",
+        "when": "Use this after loading data, predicting ORFs, annotating proteins or importing AF3 results.",
         "data": "Current project state.",
-        "next": "Export HTML, TSV/CSV tables or Project Snapshot v3.",
+        "next": "Export HTML reports, project snapshots and tabular results.",
     },
 }
 

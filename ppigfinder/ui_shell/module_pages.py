@@ -19,6 +19,7 @@ from ppigfinder.ui_shell.qt import (
 
 WORKFLOW_STEPS = [
     "Data",
+    "Genome",
     "ORFs",
     "Annotation",
     "AlphaFold",
@@ -28,11 +29,12 @@ WORKFLOW_STEPS = [
 
 MODULE_STEP_INDEX = {
     "overview": 0,
-    "genome": 0,
-    "orfs": 1,
-    "annotation": 2,
-    "alphafold": 3,
-    "reports": 4,
+    "data": 0,
+    "genome": 1,
+    "orfs": 2,
+    "annotation": 3,
+    "alphafold": 4,
+    "reports": 5,
 }
 
 

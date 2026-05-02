@@ -11,7 +11,13 @@ MODULE_DOCS = {
         "purpose": "General overview of the analysis flow.",
         "input": "Project state",
         "output": "Guided navigation across modules",
-        "next": "Start with DNA / Genome if beginning a new analysis.",
+        "next": "Start with Data / Project if beginning a new analysis.",
+    },
+    "data": {
+        "purpose": "Create, open or restore the analysis dataset.",
+        "input": "Genome files, project files or snapshot files",
+        "output": "Loaded project or genome workspace",
+        "next": "After loading data, proceed to DNA / Genome and Protein / ORFs.",
     },
     "genome": {
         "purpose": "Load and inspect genomic DNA sequence data.",

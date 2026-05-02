@@ -188,7 +188,7 @@ class HomeWindow(QMainWindow):
 
         layout.addStretch(1)
 
-        button = QPushButton("Details / Run")
+        button = QPushButton("Details")
         button.clicked.connect(lambda checked=False, a=action: self._activate(a))
         layout.addWidget(button)
 
@@ -239,17 +239,21 @@ class HomeWindow(QMainWindow):
         self.detail_next.setText(f"<b>Next step</b><br>{help_data['next']}")
 
         if action.action_name and self.bridge.available(action.action_name):
-            self.detail_button.setText("Run selected step")
+            self.detail_button.setText("Continue")
             self.detail_button.setEnabled(True)
         else:
             self.detail_button.setText("Preview only")
             self.detail_button.setEnabled(False)
 
     def _activate(self, action: HomeAction) -> None:
-        self._show_details(action)
+        """
+        Selecting a card only updates the detail panel.
 
-        if action.action_name and self.bridge.available(action.action_name):
-            self.bridge.call(action.action_name)
+        The actual navigation/action is performed by the button in the
+        detail panel. This keeps the Home screen explanatory instead of
+        executing analyses immediately.
+        """
+        self._show_details(action)
 
     def _run_selected_action(self) -> None:
         if not self.selected_action:

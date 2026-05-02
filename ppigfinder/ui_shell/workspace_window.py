@@ -30,6 +30,13 @@ DEFAULT_ROUTES = [
         status="Ready",
     ),
     ModuleRoute(
+        id="data",
+        title="Data / Project",
+        description="Start a project, open genome data or restore previous analyses.",
+        data_type="Project / Input data",
+        status="Ready",
+    ),
+    ModuleRoute(
         id="genome",
         title="DNA / Genome",
         description="Genome loading, translation and sequence inspection.",
@@ -77,6 +84,7 @@ class WorkspaceWindow(QMainWindow):
 
         self.bridge = bridge
         self.routes = routes or DEFAULT_ROUTES
+        self.route_index_by_id = {}
 
         self.setWindowTitle(f"{APP_TITLE} — Workspace")
         self.resize(1320, 820)
@@ -122,7 +130,9 @@ class WorkspaceWindow(QMainWindow):
         }
 
     def _build_pages(self):
-        for route in self.routes:
+        for index, route in enumerate(self.routes):
+            self.route_index_by_id[route.id] = index
+
             item = QListWidgetItem(f"{route.title}\n{route.status}")
             item.setToolTip(
                 f"{route.title}\n\n"
@@ -138,21 +148,46 @@ class WorkspaceWindow(QMainWindow):
                 actions = [
                     self._action(
                         "Open current interface",
-                        "Open the current full ppigFinder interface while this modular workspace evolves.",
+                        "Open the current complete ppigFinder interface while this modular workspace evolves.",
                         "open_legacy_interface",
                     ),
                 ]
-            elif route.id == "genome":
+
+            elif route.id == "data":
                 actions = [
                     self._action(
-                        "Open genome",
+                        "Open genome file",
                         "Load a FASTA, GenBank or SnapGene nucleotide file.",
                         "load_fasta",
                     ),
                     self._action(
+                        "Open project",
+                        "Restore a previously saved ppigFinder project.",
+                        "load_project",
+                    ),
+                    self._action(
+                        "Import Project Snapshot v3",
+                        "Import a versioned project snapshot containing genome, ORFs and results.",
+                        "import_project_snapshot",
+                    ),
+                    self._action(
+                        "Open current interface",
+                        "Open the complete current interface for full access.",
+                        "open_legacy_interface",
+                    ),
+                ]
+
+            elif route.id == "genome":
+                actions = [
+                    self._action(
                         "Translate genome",
                         "Translate genome sequence or selected regions into protein sequence.",
                         "translate_genome",
+                    ),
+                    self._action(
+                        "Export genome map",
+                        "Export the current genome/ORF map as a PDF figure.",
+                        "export_map_pdf",
                     ),
                     self._action(
                         "Open current genome tools",
@@ -160,6 +195,7 @@ class WorkspaceWindow(QMainWindow):
                         "open_legacy_interface",
                     ),
                 ]
+
             elif route.id == "orfs":
                 actions = [
                     self._action(
@@ -168,11 +204,17 @@ class WorkspaceWindow(QMainWindow):
                         "analyze_orfs",
                     ),
                     self._action(
+                        "Export ORF FASTA",
+                        "Export predicted protein sequences for downstream analysis.",
+                        "save_fasta",
+                    ),
+                    self._action(
                         "Open current ORF tools",
                         "Open the current interface for ORF table inspection and filters.",
                         "open_legacy_interface",
                     ),
                 ]
+
             elif route.id == "annotation":
                 actions = [
                     self._action(
@@ -191,6 +233,7 @@ class WorkspaceWindow(QMainWindow):
                         "open_legacy_interface",
                     ),
                 ]
+
             elif route.id == "alphafold":
                 actions = [
                     self._action(
@@ -204,17 +247,28 @@ class WorkspaceWindow(QMainWindow):
                         "import_af3_results_folder",
                     ),
                     self._action(
+                        "Export AF3 results table",
+                        "Export parsed AF3 interaction metrics as TSV/CSV.",
+                        "export_af3_results_table",
+                    ),
+                    self._action(
                         "Open current AlphaFold tools",
                         "Open the current interface with AlphaFold-related tabs.",
                         "open_legacy_interface",
                     ),
                 ]
+
             elif route.id == "reports":
                 actions = [
                     self._action(
                         "Export HTML report",
                         "Generate a standalone HTML report from the current project snapshot.",
                         "export_html_report",
+                    ),
+                    self._action(
+                        "Export Project Snapshot v3",
+                        "Export a versioned JSON snapshot for reproducibility.",
+                        "export_project_snapshot",
                     ),
                     self._action(
                         "Open current export tools",
@@ -225,6 +279,18 @@ class WorkspaceWindow(QMainWindow):
 
             page = ModulePage(route, actions=actions)
             self.pages.addWidget(page)
+
+    def show_route(self, route_id: str) -> bool:
+        """
+        Switch workspace to a route by ID.
+        """
+        index = self.route_index_by_id.get(route_id)
+
+        if index is None:
+            return False
+
+        self.navigation.setCurrentRow(index)
+        return True
 
     def _on_route_changed(self, index):
         if index < 0 or index >= len(self.routes):
