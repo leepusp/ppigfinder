@@ -44,3 +44,7 @@ __all__ += [
     "write_project_report",
     "write_report_from_project_json",
 ]
+
+from .af3_table_export import write_af3_results_table, AF3_RESULT_COLUMNS
+
+__all__ += ["write_af3_results_table", "AF3_RESULT_COLUMNS"]
