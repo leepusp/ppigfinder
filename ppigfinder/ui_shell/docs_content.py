@@ -26,7 +26,7 @@ MODULE_DOCS = {
         "next": "Proceed to Protein / ORFs after loading data.",
     },
     "orfs": {
-        "purpose": "Predict and inspect protein-coding ORFs.",
+        "purpose": "Predict, inspect and export protein-coding ORFs. The guided shell currently provides a lightweight six-frame ORF scan and will progressively connect Pyrodigal/hybrid backends.",
         "input": "Loaded genome sequence",
         "output": "ORF table and protein sequences",
         "next": "Continue to Annotation or export protein FASTA.",

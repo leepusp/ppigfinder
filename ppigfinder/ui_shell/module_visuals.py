@@ -197,6 +197,24 @@ class ModuleVisualizationPanel(QFrame):
                 else:
                     self.boxes["input"].set_value("Waiting for genome")
 
+            if "table" in self.boxes:
+                count = state.get("guided_orf_count") or 0
+                self.boxes["table"].set_value(f"{count} ORFs" if count else "Pending")
+
+            if "mode" in self.boxes:
+                if state.get("guided_orf_count"):
+                    self.boxes["mode"].set_value("Guided six-frame scan")
+                else:
+                    self.boxes["mode"].set_value("Pyrodigal / six-frame / hybrid")
+
+            if "next" in self.boxes:
+                if state.get("guided_orf_count"):
+                    longest = state.get("guided_longest_orf_aa") or 0
+                    shortest = state.get("guided_shortest_orf_aa") or 0
+                    self.boxes["next"].set_value(f"Longest {longest} aa / shortest {shortest} aa")
+                else:
+                    self.boxes["next"].set_value("Annotation")
+
         elif self.module_id == "annotation":
             if "blast" in self.boxes:
                 self.boxes["blast"].set_value("Ready after ORFs")

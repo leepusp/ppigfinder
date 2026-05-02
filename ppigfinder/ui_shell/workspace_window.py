@@ -22,6 +22,7 @@ from ppigfinder.ui_shell.qt import (
 from ppigfinder.ui_shell.theme import APP_TITLE, shell_stylesheet
 from ppigfinder.ui_shell.branding import apply_ppigfinder_branding
 from ppigfinder.ui_shell.input_validation import validate_genome_input, summary_to_state
+from ppigfinder.ui_shell.orf_results_dialog import show_guided_orf_results
 from ppigfinder.ui_shell.guided_backend import (
     predict_orfs_from_file,
     write_orfs_fasta,
@@ -201,6 +202,16 @@ class WorkspaceWindow(QMainWindow):
             ),
         )
 
+    def _show_guided_orfs(self) -> None:
+        if not self.guided_orfs:
+            self._show_message(
+                "Review ORF table",
+                "No guided ORFs are available yet. Run Predict ORFs first.",
+            )
+            return
+
+        show_guided_orf_results(self.guided_orfs, parent=self)
+
     def _export_guided_orfs_fasta(self) -> None:
         if not self.guided_orfs:
             self._show_message(
@@ -275,6 +286,10 @@ class WorkspaceWindow(QMainWindow):
 
         if action_name == "guided:predict_orfs":
             self._predict_guided_orfs()
+            return
+
+        if action_name == "guided:review_orfs":
+            self._show_guided_orfs()
             return
 
         if action_name == "guided:export_orfs_fasta":
@@ -359,6 +374,7 @@ class WorkspaceWindow(QMainWindow):
         if route_id == "orfs":
             return [
                 self._action("Predict ORFs", "Run a lightweight six-frame ORF scan inside the guided shell.", "guided:predict_orfs"),
+                self._action("Review guided ORF table", "Inspect guided ORF coordinates, strand, frame and protein previews.", "guided:review_orfs"),
                 self._action("Export ORF FASTA", "Export guided ORF protein sequences for downstream analysis.", "guided:export_orfs_fasta"),
                 self._action("Continue to Annotation", "Move to BLAST, HMM/domain and neighbourhood analysis.", "route:annotation"),
             ]
