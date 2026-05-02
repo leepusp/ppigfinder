@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 try:
+    from PyQt6.QtCore import QTimer
     from PyQt6.QtWidgets import (
         QMainWindow,
         QWidget,
@@ -15,6 +16,7 @@ try:
         QMessageBox,
     )
 except Exception:
+    from PyQt5.QtCore import QTimer
     from PyQt5.QtWidgets import (
         QMainWindow,
         QWidget,
@@ -33,31 +35,42 @@ from ppigfinder.ui_shell.navigation import ModuleRoute
 from ppigfinder.ui_shell.theme import APP_TITLE, shell_stylesheet
 from ppigfinder.ui_shell.branding import apply_ppigfinder_branding
 from ppigfinder.ui_shell.workflow_state import WorkflowState
+from ppigfinder.ui_shell.input_start_dialog import choose_initial_data
 
 
 DEFAULT_ROUTES = [
     ModuleRoute("overview", "Overview", "General overview of the ppigFinder analysis workflow.", "Workflow", "Ready"),
-    ModuleRoute("data", "Data / Project", "Start a project, open genome data or restore previous analyses.", "Project / Input data", "Ready"),
-    ModuleRoute("genome", "DNA / Genome", "Genome loading, translation and sequence inspection.", "DNA / Genome", "Ready"),
-    ModuleRoute("orfs", "Protein / ORFs", "ORF prediction, ORF review and protein export.", "Protein / ORFs", "Ready"),
-    ModuleRoute("annotation", "Annotation", "BLAST, HMM/domain and neighbourhood analyses.", "Functional annotation", "Ready"),
-    ModuleRoute("alphafold", "AlphaFold / PPI", "AF3 export, result import and interaction interpretation.", "Protein interaction", "Ready"),
+    ModuleRoute("data", "Data / Project", "Start a project, open genome data or restore previous analyses.", "Project / Input data", "Start here"),
+    ModuleRoute("genome", "DNA / Genome", "Genome loading, translation and sequence inspection.", "DNA / Genome", "Waiting input"),
+    ModuleRoute("orfs", "Protein / ORFs", "ORF prediction, ORF review and protein export.", "Protein / ORFs", "Waiting genome"),
+    ModuleRoute("annotation", "Annotation", "BLAST, HMM/domain and neighbourhood analyses.", "Functional annotation", "Waiting ORFs"),
+    ModuleRoute("alphafold", "AlphaFold / PPI", "AF3 export, result import and interaction interpretation.", "Protein interaction", "Waiting candidates"),
     ModuleRoute("hpc", "DaVinci / HPC", "Optional server/HPC execution and workflow preparation.", "HPC / Remote execution", "Optional"),
-    ModuleRoute("reports", "Reports", "Generate HTML, JSON and tabular outputs.", "Reporting", "Ready"),
+    ModuleRoute("reports", "Reports", "Generate HTML, JSON and tabular outputs.", "Reporting", "Waiting outputs"),
 ]
 
 
 class WorkspaceWindow(QMainWindow):
+    """
+    Data-first guided workflow.
+
+    The workspace opens on Data / Project. If no input is loaded, it prompts
+    the user to choose a genome/project/snapshot and then enables downstream
+    steps according to the generated state.
+    """
+
     def __init__(self, bridge=None, routes=None):
         super().__init__()
 
         self.bridge = bridge
         self.routes = routes or DEFAULT_ROUTES
         self.route_index_by_id = {}
+        self.navigation_items_by_id = {}
         self.module_pages_by_id = {}
         self.workflow_state = WorkflowState()
         self.guided_orfs = []
         self._floating_windows = []
+        self._auto_data_prompt_done = False
 
         self.setWindowTitle(f"{APP_TITLE} — Guided Workflow")
         self.resize(1440, 900)
@@ -79,7 +92,7 @@ class WorkspaceWindow(QMainWindow):
         main_area = QVBoxLayout()
         root.addLayout(main_area, 1)
 
-        self.breadcrumb = QLabel("Workspace > Overview")
+        self.breadcrumb = QLabel("Workspace > Data / Project")
         self.breadcrumb.setObjectName("SectionTitle")
         main_area.addWidget(self.breadcrumb)
 
@@ -89,10 +102,22 @@ class WorkspaceWindow(QMainWindow):
         self._build_pages()
         self.navigation.currentRowChanged.connect(self._on_route_changed)
 
-        if self.navigation.count():
-            self.navigation.setCurrentRow(0)
+        # Data-first behavior.
+        self.show_route("data")
+        self.statusBar().showMessage("Start by loading genome data, opening a project, or importing a snapshot.")
 
-        self.statusBar().showMessage("Ready. Start by loading genome data.")
+        QTimer.singleShot(450, self._maybe_prompt_for_initial_data)
+
+    # --------------------------------------------------------
+    # State helpers
+    # --------------------------------------------------------
+
+    def _has_any_input(self) -> bool:
+        return bool(
+            self.workflow_state.get("genome_file")
+            or self.workflow_state.get("project_file")
+            or self.workflow_state.get("snapshot_file")
+        )
 
     def _show_message(self, title: str, message: str) -> None:
         QMessageBox.information(self, title, message)
@@ -100,10 +125,6 @@ class WorkspaceWindow(QMainWindow):
     def _remember_window(self, dialog) -> None:
         if dialog is not None:
             self._floating_windows.append(dialog)
-
-    def _refresh_pages(self) -> None:
-        for page in self.module_pages_by_id.values():
-            page.update_state(self.workflow_state)
 
     def _safe_import(self, module_name: str, object_name: str):
         module = __import__(module_name, fromlist=[object_name])
@@ -113,63 +134,167 @@ class WorkspaceWindow(QMainWindow):
         self.workflow_state.set_current_route(route_id)
         self._refresh_pages()
 
+    def _refresh_pages(self) -> None:
+        self._update_navigation_status()
+
+        for page in self.module_pages_by_id.values():
+            page.update_state(self.workflow_state)
+
+    def _update_navigation_status(self) -> None:
+        completed = self.workflow_state.completed_steps()
+        genome_loaded = bool(self.workflow_state.get("genome_file"))
+        orfs_ready = bool(self.workflow_state.get("guided_orf_count"))
+        annotation_selected = bool(
+            self.workflow_state.get("guided_blast_planned")
+            or self.workflow_state.get("guided_hmm_planned")
+            or self.workflow_state.get("guided_neighborhood_planned")
+        )
+        af3_ready = bool(self.workflow_state.get("af3_pair_count") or self.workflow_state.get("af3_json_path"))
+        hpc_status = self.workflow_state.get("hpc_status")
+
+        status_by_route = {
+            "overview": "Ready",
+            "data": "Loaded" if self._has_any_input() else "Start here",
+            "genome": "Ready" if genome_loaded else "Waiting input",
+            "orfs": "Completed" if orfs_ready else ("Ready" if genome_loaded else "Waiting genome"),
+            "annotation": "Selected" if annotation_selected else ("Ready" if orfs_ready else "Waiting ORFs"),
+            "alphafold": "Ready" if orfs_ready else "Waiting candidates",
+            "hpc": str(hpc_status) if hpc_status else "Optional",
+            "reports": "Ready" if self._has_any_input() else "Waiting outputs",
+        }
+
+        for route in self.routes:
+            item = self.navigation_items_by_id.get(route.id)
+            if item is None:
+                continue
+
+            status = status_by_route.get(route.id, route.status)
+            item.setText(f"{route.title}\n{status}")
+
+    # --------------------------------------------------------
+    # Initial data behavior
+    # --------------------------------------------------------
+
+    def _maybe_prompt_for_initial_data(self) -> None:
+        if self._auto_data_prompt_done:
+            return
+
+        if self.workflow_state.current_route != "data":
+            return
+
+        if self._has_any_input():
+            return
+
+        self._auto_data_prompt_done = True
+        self._open_initial_data_dialog()
+
+    def _open_initial_data_dialog(self) -> None:
+        choice = choose_initial_data(parent=self)
+
+        if choice == "genome":
+            self._select_file(
+                "genome_file",
+                "Open genome file",
+                "Genome files (*.fasta *.fa *.fna *.gb *.gbk *.dna);;All files (*)",
+            )
+        elif choice == "project":
+            self._select_file(
+                "project_file",
+                "Open project",
+                "Project (*.json *.ppigfinder.json);;All files (*)",
+            )
+        elif choice == "snapshot":
+            self._select_file(
+                "snapshot_file",
+                "Import Project Snapshot",
+                "Snapshot (*.json *.ppigfinder.json);;All files (*)",
+            )
+
+    # --------------------------------------------------------
+    # File/folder loading
+    # --------------------------------------------------------
+
     def _select_file(self, key: str, title: str, file_filter: str) -> bool:
         path, _ = QFileDialog.getOpenFileName(self, title, "", file_filter)
 
         if not path:
+            self._refresh_pages()
             return False
 
         self.workflow_state.set_input(key, path)
         self.workflow_state.add_event(self.workflow_state.current_route, "select_file", path)
 
         if key == "genome_file":
-            try:
-                validate_genome_input = self._safe_import(
-                    "ppigfinder.ui_shell.input_validation",
-                    "validate_genome_input",
-                )
-                summary = validate_genome_input(path)
+            self._load_genome_file(path)
+            return True
 
-                self.workflow_state.set_metric("sequence_count", getattr(summary, "sequence_count", None))
-                self.workflow_state.set_metric("total_length", getattr(summary, "total_length", None))
-                self.workflow_state.set_metric("longest_length", getattr(summary, "longest_length", None))
-                self.workflow_state.set_metric("gc_percent", getattr(summary, "gc_percent", None))
-                self.workflow_state.set_flag("genome_valid", getattr(summary, "valid", False))
+        if key == "project_file":
+            self.workflow_state.set_flag("project_loaded", True)
+            self.workflow_state.add_event("data", "open_project", path)
+            self.statusBar().showMessage("Project file selected. Project restore service will be connected progressively.", 10000)
+            self._refresh_pages()
+            self.show_route("reports")
+            return True
 
-                try:
-                    show_genome_inspector = self._safe_import(
-                        "ppigfinder.ui_shell.genome_inspector_dialog",
-                        "show_genome_inspector",
-                    )
-                    dialog = show_genome_inspector(path, parent=self)
-                    self._remember_window(dialog)
-                except Exception:
-                    pass
-
-                self._refresh_pages()
-
-                if getattr(summary, "valid", False):
-                    self.statusBar().showMessage(
-                        "Genome loaded. Workflow advanced to Protein / ORFs.",
-                        10000,
-                    )
-                    self.show_route("orfs")
-                else:
-                    self.statusBar().showMessage(
-                        "Genome selected, but validation reported a problem.",
-                        10000,
-                    )
-                    self.show_route("data")
-
-                return True
-
-            except Exception as exc:
-                self._show_message("Genome loading", f"Could not validate genome file:\n\n{exc}")
-                self._refresh_pages()
-                return True
+        if key == "snapshot_file":
+            self.workflow_state.set_flag("snapshot_loaded", True)
+            self.workflow_state.add_event("data", "import_snapshot", path)
+            self.statusBar().showMessage("Snapshot selected. Snapshot import service will be connected progressively.", 10000)
+            self._refresh_pages()
+            self.show_route("reports")
+            return True
 
         self._refresh_pages()
         return True
+
+    def _load_genome_file(self, path: str) -> None:
+        try:
+            validate_genome_input = self._safe_import(
+                "ppigfinder.ui_shell.input_validation",
+                "validate_genome_input",
+            )
+            summary = validate_genome_input(path)
+
+            self.workflow_state.set_metric("sequence_count", getattr(summary, "sequence_count", None))
+            self.workflow_state.set_metric("genome_sequence_count", getattr(summary, "sequence_count", None))
+            self.workflow_state.set_metric("total_length", getattr(summary, "total_length", None))
+            self.workflow_state.set_metric("genome_total_length", getattr(summary, "total_length", None))
+            self.workflow_state.set_metric("longest_length", getattr(summary, "longest_length", None))
+            self.workflow_state.set_metric("gc_percent", getattr(summary, "gc_percent", None))
+            self.workflow_state.set_metric("genome_gc_percent", getattr(summary, "gc_percent", None))
+            self.workflow_state.set_input("genome_file_type", getattr(summary, "file_type", "Unknown"))
+            self.workflow_state.set_input("genome_name", getattr(summary, "name", "Genome"))
+            self.workflow_state.set_flag("genome_valid", getattr(summary, "valid", False))
+            self.workflow_state.add_event("data", "load_genome", path)
+
+            try:
+                show_genome_inspector = self._safe_import(
+                    "ppigfinder.ui_shell.genome_inspector_dialog",
+                    "show_genome_inspector",
+                )
+                dialog = show_genome_inspector(path, parent=self)
+                self._remember_window(dialog)
+            except Exception as exc:
+                self.statusBar().showMessage(f"Genome inspector unavailable: {exc}", 10000)
+
+            self._refresh_pages()
+
+            if getattr(summary, "valid", False):
+                self.statusBar().showMessage(
+                    "Genome loaded and validated. ORF prediction is now available.",
+                    12000,
+                )
+                self.show_route("orfs")
+            else:
+                self.statusBar().showMessage(
+                    "Genome selected, but validation detected a problem.",
+                    12000,
+                )
+                self.show_route("data")
+
+        except Exception as exc:
+            self._show_message("Genome loading", f"Could not validate genome file:\n\n{exc}")
+            self._refresh_pages()
 
     def _select_folder(self, key: str, title: str) -> bool:
         path = QFileDialog.getExistingDirectory(self, title, "")
@@ -182,15 +307,17 @@ class WorkspaceWindow(QMainWindow):
         self._refresh_pages()
         return True
 
+    # --------------------------------------------------------
+    # Workflow operations
+    # --------------------------------------------------------
+
     def _predict_guided_orfs(self) -> None:
         genome_file = self.workflow_state.get("genome_file")
 
         if not genome_file:
-            self._show_message(
-                "Predict ORFs",
-                "Load a genome file first in Data / Project.",
-            )
+            self._show_message("Predict ORFs", "Load a genome file first in Data / Project.")
             self.show_route("data")
+            QTimer.singleShot(300, self._open_initial_data_dialog)
             return
 
         try:
@@ -215,8 +342,8 @@ class WorkspaceWindow(QMainWindow):
                 dialog = GuidedORFResultsDialog(self.guided_orfs, parent=self)
                 dialog.show()
                 self._remember_window(dialog)
-            except Exception:
-                pass
+            except Exception as exc:
+                self.statusBar().showMessage(f"ORF table unavailable: {exc}", 10000)
 
             self._refresh_pages()
             self.statusBar().showMessage(
@@ -255,6 +382,7 @@ class WorkspaceWindow(QMainWindow):
             "guided_orfs.faa",
             "Protein FASTA (*.faa *.fasta *.fa);;All files (*)",
         )
+
         if not path:
             return
 
@@ -284,8 +412,8 @@ class WorkspaceWindow(QMainWindow):
             dialog = AnnotationCandidatesDialog(self.guided_orfs, parent=self)
             dialog.show()
             self._remember_window(dialog)
-        except Exception:
-            pass
+        except Exception as exc:
+            self.statusBar().showMessage(f"Candidate table unavailable: {exc}", 10000)
 
         self.workflow_state.set_metric("guided_annotation_candidates_count", len(self.guided_orfs))
         self.workflow_state.add_event("annotation", "review_candidates", str(len(self.guided_orfs)))
@@ -353,6 +481,7 @@ class WorkspaceWindow(QMainWindow):
             "ppigfinder_guided_summary.md",
             "Markdown (*.md);;Text files (*.txt);;All files (*)",
         )
+
         if not path:
             return
 
@@ -370,6 +499,7 @@ class WorkspaceWindow(QMainWindow):
             self.workflow_state.set_flag("guided_summary_exported", True)
             self.workflow_state.add_event("reports", "export_guided_summary", path)
             self._refresh_pages()
+            self.statusBar().showMessage(f"Guided summary exported: {path}", 10000)
 
         except Exception as exc:
             self._show_message("Reports", f"Could not export guided summary:\n\n{exc}")
@@ -388,13 +518,20 @@ class WorkspaceWindow(QMainWindow):
         if self.bridge:
             self.bridge.call("open_legacy_interface")
             return
+
         self._show_message("Legacy interface", "Bridge not available yet.")
+
+    # --------------------------------------------------------
+    # Actions
+    # --------------------------------------------------------
 
     def _action(self, label: str, description: str, callback):
         lower = label.lower()
         button_text = "Run"
 
-        if lower.startswith("open"):
+        if lower.startswith("add"):
+            button_text = "Add"
+        elif lower.startswith("open"):
             button_text = "Open"
         elif lower.startswith("import"):
             button_text = "Import"
@@ -410,6 +547,8 @@ class WorkspaceWindow(QMainWindow):
             button_text = "Show"
         elif lower.startswith("configure"):
             button_text = "Configure"
+        elif lower.startswith("build"):
+            button_text = "Build"
 
         return {
             "label": label,
@@ -427,6 +566,7 @@ class WorkspaceWindow(QMainWindow):
 
         if route_id == "data":
             return [
+                self._action("Add input data", "Choose Genome, Project or Snapshot as the workflow starting point.", self._open_initial_data_dialog),
                 self._action("Open genome file", "Load and validate a genome FASTA, GenBank or SnapGene file. The workflow will automatically advance if valid.", lambda: self._select_file("genome_file", "Open genome file", "Genome files (*.fasta *.fa *.fna *.gb *.gbk *.dna);;All files (*)")),
                 self._action("Open project", "Resume a previously saved ppigFinder project.", lambda: self._select_file("project_file", "Open project", "Project (*.json *.ppigfinder.json);;All files (*)")),
                 self._action("Import Project Snapshot v3", "Import a portable guided/project snapshot.", lambda: self._select_file("snapshot_file", "Import snapshot", "Snapshot (*.json *.ppigfinder.json);;All files (*)")),
@@ -434,7 +574,7 @@ class WorkspaceWindow(QMainWindow):
 
         if route_id == "genome":
             return [
-                self._action("Open genome file", "Load or replace the current genome.", lambda: self._select_file("genome_file", "Open genome file", "Genome files (*.fasta *.fa *.fna *.gb *.gbk *.dna);;All files (*)")),
+                self._action("Add input data", "Load or replace the current genome/project input.", self._open_initial_data_dialog),
                 self._action("Continue to Protein / ORFs", "Go to ORF prediction.", lambda: self.show_route("orfs")),
             ]
 
@@ -482,6 +622,7 @@ class WorkspaceWindow(QMainWindow):
 
             item = QListWidgetItem(f"{route.title}\n{route.status}")
             self.navigation.addItem(item)
+            self.navigation_items_by_id[route.id] = item
 
             page = ModulePage(route, actions=self._actions_for_route(route.id))
             self.module_pages_by_id[route.id] = page
@@ -489,8 +630,10 @@ class WorkspaceWindow(QMainWindow):
 
     def show_route(self, route_id: str) -> bool:
         index = self.route_index_by_id.get(route_id)
+
         if index is None:
             return False
+
         self.navigation.setCurrentRow(index)
         return True
 
@@ -502,3 +645,6 @@ class WorkspaceWindow(QMainWindow):
         self.breadcrumb.setText(f"Workspace > {route.title}")
         self.pages.setCurrentIndex(index)
         self._set_current_route(route.id)
+
+        if route.id == "data":
+            QTimer.singleShot(350, self._maybe_prompt_for_initial_data)

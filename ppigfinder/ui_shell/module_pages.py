@@ -188,8 +188,8 @@ class ModulePage(QWidget):
                 "Progress and next recommended action",
             ),
             "data": (
-                "Purpose: Create a new analysis session or restore an existing project. This is the entry point for inserting genome data, opening saved projects, or importing a reproducible project snapshot.",
-                "Next: After loading data, continue to DNA / Genome for inspection or Protein / ORFs for ORF prediction.",
+                "Purpose: Start from input data. Load a genome, project or snapshot and ppigFinder will enable the next analysis steps according to the data type.",
+                "Next: A valid genome automatically enables ORF prediction. A project or snapshot restores workflow state for review/export.",
                 "FASTA, multi-FASTA, GenBank, SnapGene, ppigFinder project files, or Project Snapshot v3 JSON files",
                 "Loaded genome/project state ready for ORF prediction, annotation, AlphaFold/PPI analysis, and reporting",
             ),
