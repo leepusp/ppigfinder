@@ -5051,6 +5051,12 @@ except ImportError:
         BlastSearchService as _BlastSearchService,
     )
 
+
+try:
+    from .ui.af3_export import export_selected_orfs_as_server_json as _ui_export_selected_orfs_as_server_json
+except ImportError:
+    from ppigfinder.ui.af3_export import export_selected_orfs_as_server_json as _ui_export_selected_orfs_as_server_json
+
 class ppigFinderApp(QMainWindow):
 
     def __init__(self):
@@ -5183,6 +5189,8 @@ class ppigFinderApp(QMainWindow):
         fm.addAction(t('save_orfs_fasta'), self.save_fasta)
         fm.addAction(t('save_report_tsv'), self.save_report_tsv)
         fm.addAction(t('save_report_html'), self.export_html_report)
+        fm.addSeparator()
+        fm.addAction(t('export_af3_server_json'), self.export_af3_server_json)
         fm.addSeparator()
         act = fm.addAction(t('quit'), self.close)
         act.setShortcut('Ctrl+Q')
@@ -6949,6 +6957,9 @@ class ppigFinderApp(QMainWindow):
             self._status.showMessage(f"✓ HTML report exported: {f}")
         except Exception:
             pass
+
+    def export_af3_server_json(self):
+        _ui_export_selected_orfs_as_server_json(self)
 
 
     # ═══════════════════════════════════════════════════════════
