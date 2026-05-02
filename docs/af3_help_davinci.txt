@@ -1,0 +1,97 @@
+===== AF3 executable =====
+/home/public/davinci/bin/af3
+
+===== AF3 help =====
+usage: af3 [-h] [--job-name JOB_NAME] [--workdir WORKDIR]
+           [--analysis {auto,single,complex,pairwise,all-vs-all}]
+           [--reference REFERENCE] [--against AGAINST]
+           [--stage {all,pipeline,inference}] [--copies COPIES]
+           [--model-seeds MODEL_SEEDS] [--limit LIMIT] [--start START]
+           [--recursive] [--dry-run] [--force] [--show-resources] [--quiet]
+           [--advanced-help]
+           [inputs ...]
+
+AlphaFold 3 launcher for proteins, complexes, and PPI screening.
+
+positional arguments:
+  inputs                Input FASTA/JSON files, directories, or file patterns such as '*.json'.
+
+options:
+  -h, --help            show this help message and exit
+  --job-name JOB_NAME, --job_name JOB_NAME
+                        Optional job name. With multiple inputs, acts as a prefix.
+  --workdir WORKDIR     Base output directory. Default: ~/JOB_NAME. If provided, jobs are created as WORKDIR/JOB_NAME.
+  --analysis {auto,single,complex,pairwise,all-vs-all}
+                        Analysis type. auto: single FASTA record = single protein; multiple FASTA records = one complex. single: require one protein. complex: all records form one complex. pairwise: reference-vs-target PPI screening. all-vs-all: every pairwise combination.
+  --reference REFERENCE, --bait REFERENCE, --ppi-reference REFERENCE, --ppi_reference REFERENCE
+                        Reference protein for --analysis pairwise. Accepts a 1-based FASTA index, a FASTA header/name, or a FASTA file path.
+  --against AGAINST     Additional target FASTA file, directory, or file pattern for pairwise screening. May be used more than once.
+  --stage {all,pipeline,inference}
+                        Workflow stage. Default: all.
+  --copies COPIES       Copy counts for FASTA chains in one complex, e.g. 2,1.
+  --model-seeds MODEL_SEEDS, --model_seeds MODEL_SEEDS
+                        Model seeds for generated JSON, e.g. 1,2,3.
+  --limit LIMIT         Run only the first N detected inputs or pairwise combinations.
+  --start START         Start from item N after sorting. Default: 1.
+  --recursive           Search subdirectories recursively.
+  --dry-run, --dry_run  Generate files but do not submit.
+  --force               Overwrite existing job directories.
+  --show-resources      Show resource estimate before submission.
+  --quiet               Reduce launcher messages.
+  --advanced-help       Show administrator options.
+
+Common analyses:
+  Single protein prediction
+    af3 protein.faa
+    Use when you want to predict one protein chain.
+
+  Protein complex prediction
+    af3 complex.fasta
+    Use when all FASTA records belong to the same complex.
+    Add --copies when stoichiometry is not 1:1, e.g. --copies 2,1.
+
+  Existing AlphaFold 3 JSON
+    af3 job.json
+    Use when the input is already prepared as an AF3 JSON file.
+
+  Many input files
+    af3 'individual_jsons/*.json' --limit 20
+    Use a quoted file pattern to run all matching files. Example: '*.json'
+    means all JSON files in that directory.
+
+  Protein-protein screening with one reference sequence
+    af3 proteins.fasta --analysis pairwise --reference 1
+    Pairs sequence 1 with every other sequence in the FASTA.
+
+    af3 targets.fasta --analysis pairwise --reference bait.faa
+    Uses the sequence in bait.faa as reference and pairs it with every sequence
+    in targets.fasta. Directories and file patterns are also accepted.
+
+  All-vs-all protein-protein screening
+    af3 proteins.fasta --analysis all-vs-all
+    Creates one job for every pairwise sequence combination.
+
+Stages:
+  --stage all
+    Default. Runs the full AF3 workflow: data pipeline + structure inference.
+
+  --stage pipeline
+    Runs only MSA/template search. Use this to prepare data without GPU inference.
+
+  --stage inference
+    Runs only structure inference from an augmented AF3 data JSON.
+
+Automatic resources:
+  CPU, RAM, walltime, Slurm GPU accounting and XLA VRAM fraction are estimated
+  from the number of residues/tokens and chains. Normal users do not need to
+  set Slurm or XLA options manually.
+
+Useful controls:
+  --dry-run       Create the job directory and sbatch script without submitting.
+  --force         Replace an existing job directory.
+  --start N       Start from item N after sorting.
+  --limit N       Run only N inputs or N pairwise combinations.
+  --recursive     Search subdirectories too.
+
+Administrator options:
+  af3 --advanced-help
