@@ -1538,6 +1538,7 @@ TRANSLATIONS = {
         'save_cand_json':   '💾 Candidates (JSON)',
         'save_af3':         '💾 AlphaFold3',
         'save_report_tsv':  '📊 Report (TSV)',
+        'save_report_html': 'Report (HTML)',
         'export_snapgene':  '🔬 Export as SnapGene (.dna)',
         'export_genbank':   '🔬 Export as GenBank (.gb)',
         'export_map_pdf':   '🖼️ Export Map as PDF',
@@ -5100,6 +5101,7 @@ class ppigFinderApp(QMainWindow):
         fm.addSeparator()
         fm.addAction(t('save_orfs_fasta'), self.save_fasta)
         fm.addAction(t('save_report_tsv'), self.save_report_tsv)
+        fm.addAction(t('save_report_html'), self.export_html_report)
         fm.addSeparator()
         act = fm.addAction(t('quit'), self.close)
         act.setShortcut('Ctrl+Q')

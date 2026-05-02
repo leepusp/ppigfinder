@@ -18,6 +18,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+interactive = ["ipython>=8"]
 gui = [
     "PyQt6>=6.4",
 ]
