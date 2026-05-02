@@ -35,3 +35,7 @@ Thumbs.db
 outputs/
 results/
 tmp/
+
+# Local AF3 test artifacts
+af3_server_example.json
+run_test_af3.sh

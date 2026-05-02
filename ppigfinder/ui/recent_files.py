@@ -112,4 +112,3 @@ def install_recent_files_menu(window, open_callback) -> None:
         recent_menu.addAction(clear_action)
 
     recent_menu.aboutToShow.connect(rebuild_menu)
-    rebuild_menu()
