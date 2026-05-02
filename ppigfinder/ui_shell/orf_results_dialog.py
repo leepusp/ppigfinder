@@ -17,7 +17,7 @@ from statistics import mean
 import re
 
 try:
-    from PyQt6.QtCore import Qt, QRectF, QPointF
+    from PyQt6.QtCore import Qt, QRectF, QPointF, pyqtSignal
     from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QPolygonF, QFont
     from PyQt6.QtWidgets import (
         QDialog,
@@ -41,7 +41,7 @@ try:
     )
     QT6 = True
 except Exception:
-    from PyQt5.QtCore import Qt, QRectF, QPointF
+    from PyQt5.QtCore import Qt, QRectF, QPointF, pyqtSignal
     from PyQt5.QtGui import QPainter, QColor, QPen, QBrush, QPolygonF, QFont
     from PyQt5.QtWidgets import (
         QDialog,
@@ -205,11 +205,17 @@ class SummaryCard(QFrame):
 
 class ORFMapWidget(QWidget):
     """
-    Zoomable/pannable ORF map preview.
+    Zoomable, pannable and clickable ORF map.
 
-    It is intentionally lightweight and local, but follows the same visual idea
-    as locus browsers: directional arrows along a genomic coordinate axis.
+    Mouse interactions:
+    - wheel: zoom around cursor
+    - left drag: pan
+    - click ORF: select ORF
+    - double-click ORF: focus ORF with flanking region
     """
+
+    orf_selected = pyqtSignal(str)
+    orf_double_clicked = pyqtSignal(str)
 
     def __init__(self, orfs, genome_sequence: str = "", parent=None):
         super().__init__(parent)
@@ -217,9 +223,18 @@ class ORFMapWidget(QWidget):
         self.orfs = sorted(list(orfs or []), key=lambda o: _orf_start(o))
         self.genome_sequence = genome_sequence or ""
         self.genome_length = max(self._infer_genome_length(), len(self.genome_sequence))
+
         self.view_start = 1
         self.view_end = max(1, self.genome_length)
         self.selected_orf_id = ""
+
+        self._orf_hitboxes = []
+        self._dragging = False
+        self._drag_start_x = 0
+        self._drag_start_view = (self.view_start, self.view_end)
+        self._drag_moved = False
+
+        self.setMouseTracking(True)
         self.setMinimumHeight(360)
 
     def _infer_genome_length(self) -> int:
@@ -227,12 +242,37 @@ class ORFMapWidget(QWidget):
             return 0
         return max(_orf_end(orf) for orf in self.orfs)
 
+    def _event_pos(self, event):
+        if hasattr(event, "position"):
+            return event.position()
+        return QPointF(event.pos())
+
+    def _left_button(self):
+        return Qt.MouseButton.LeftButton if QT6 else Qt.LeftButton
+
+    def _no_button(self):
+        return Qt.MouseButton.NoButton if QT6 else Qt.NoButton
+
+    def _pointing_cursor(self):
+        return Qt.CursorShape.PointingHandCursor if QT6 else Qt.PointingHandCursor
+
+    def _open_hand_cursor(self):
+        return Qt.CursorShape.OpenHandCursor if QT6 else Qt.OpenHandCursor
+
+    def _closed_hand_cursor(self):
+        return Qt.CursorShape.ClosedHandCursor if QT6 else Qt.ClosedHandCursor
+
+    def _arrow_cursor(self):
+        return Qt.CursorShape.ArrowCursor if QT6 else Qt.ArrowCursor
+
     def set_selected_orf(self, orf_id: str, focus: bool = False) -> None:
         self.selected_orf_id = str(orf_id or "")
+
         if focus:
             orf = self._find_orf(orf_id)
             if orf is not None:
                 self.focus_orf(orf)
+
         self.update()
 
     def _find_orf(self, orf_id: str):
@@ -264,18 +304,43 @@ class ORFMapWidget(QWidget):
 
         self.update()
 
-    def zoom(self, factor: float) -> None:
+    def zoom(self, factor: float, anchor_pos: int | None = None) -> None:
+        """
+        Zoom by factor. factor < 1 zooms in, factor > 1 zooms out.
+        If anchor_pos is provided, zoom keeps the genomic coordinate under
+        the cursor approximately stable.
+        """
         if self.genome_length <= 0:
             return
 
-        center = (self.view_start + self.view_end) / 2
-        span = max(100, (self.view_end - self.view_start) * factor)
-        self.view_start = max(1, int(center - span / 2))
-        self.view_end = min(self.genome_length, int(center + span / 2))
+        old_start = int(self.view_start)
+        old_end = int(self.view_end)
+        old_span = max(100, old_end - old_start)
 
-        if self.view_end <= self.view_start:
-            self.view_end = min(self.genome_length, self.view_start + 100)
+        new_span = max(100, int(old_span * factor))
+        new_span = min(max(100, self.genome_length), new_span)
 
+        if anchor_pos is None:
+            center = (old_start + old_end) / 2
+            new_start = int(center - new_span / 2)
+            new_end = int(center + new_span / 2)
+        else:
+            anchor_pos = max(1, min(self.genome_length, int(anchor_pos)))
+            left_ratio = (anchor_pos - old_start) / old_span
+            left_ratio = max(0.0, min(1.0, left_ratio))
+            new_start = int(anchor_pos - new_span * left_ratio)
+            new_end = int(new_start + new_span)
+
+        if new_start < 1:
+            new_start = 1
+            new_end = new_start + new_span
+
+        if new_end > self.genome_length:
+            new_end = self.genome_length
+            new_start = max(1, new_end - new_span)
+
+        self.view_start = int(new_start)
+        self.view_end = int(new_end)
         self.update()
 
     def pan(self, fraction: float) -> None:
@@ -285,37 +350,55 @@ class ORFMapWidget(QWidget):
         span = self.view_end - self.view_start
         shift = int(span * fraction)
 
-        new_start = self.view_start + shift
-        new_end = self.view_end + shift
+        self._set_view_region(self.view_start + shift, self.view_end + shift)
 
-        if new_start < 1:
-            new_start = 1
-            new_end = new_start + span
+    def _set_view_region(self, start: int, end: int) -> None:
+        if self.genome_length <= 0:
+            return
 
-        if new_end > self.genome_length:
-            new_end = self.genome_length
-            new_start = max(1, new_end - span)
+        start = int(start)
+        end = int(end)
 
-        self.view_start = int(new_start)
-        self.view_end = int(new_end)
+        if end < start:
+            start, end = end, start
+
+        span = max(100, end - start)
+
+        if start < 1:
+            start = 1
+            end = start + span
+
+        if end > self.genome_length:
+            end = self.genome_length
+            start = max(1, end - span)
+
+        if end <= start:
+            end = min(self.genome_length, start + 100)
+
+        self.view_start = int(start)
+        self.view_end = int(end)
         self.update()
 
     def _visible_orfs(self):
         visible = []
+
         for orf in self.orfs:
             start = _orf_start(orf)
             end = _orf_end(orf)
+
             if end < start:
                 start, end = end, start
+
             if end >= self.view_start and start <= self.view_end:
                 visible.append(orf)
 
-        if len(visible) <= 700:
+        if len(visible) <= 900:
             return visible
 
         selected = [orf for orf in visible if _orf_id(orf) == self.selected_orf_id]
-        step = max(1, len(visible) // 650)
+        step = max(1, len(visible) // 850)
         sampled = visible[::step]
+
         for orf in selected:
             if orf not in sampled:
                 sampled.append(orf)
@@ -326,7 +409,129 @@ class ORFMapWidget(QWidget):
         span = max(1, self.view_end - self.view_start)
         return left + ((pos - self.view_start) / span) * width
 
+    def _pos_for_x(self, x: float, left: float, width: float) -> int:
+        span = max(1, self.view_end - self.view_start)
+        frac = (x - left) / max(1, width)
+        return int(self.view_start + frac * span)
+
+    def _hit_orf_at(self, point: QPointF) -> str:
+        for rect, oid in self._orf_hitboxes:
+            if rect.contains(point):
+                return oid
+        return ""
+
+    # --------------------------------------------------------
+    # Mouse interaction
+    # --------------------------------------------------------
+
+    def wheelEvent(self, event):
+        point = self._event_pos(event)
+        width = self.width()
+        left = 44
+        right = width - 26
+        usable = max(1, right - left)
+
+        anchor_pos = self._pos_for_x(point.x(), left, usable)
+
+        delta = event.angleDelta().y()
+        if delta > 0:
+            self.zoom(0.72, anchor_pos=anchor_pos)
+        elif delta < 0:
+            self.zoom(1.38, anchor_pos=anchor_pos)
+
+        try:
+            event.accept()
+        except Exception:
+            pass
+
+    def mousePressEvent(self, event):
+        point = self._event_pos(event)
+
+        if event.button() == self._left_button():
+            self._dragging = True
+            self._drag_start_x = point.x()
+            self._drag_start_view = (self.view_start, self.view_end)
+            self._drag_moved = False
+            self.setCursor(self._closed_hand_cursor())
+
+        try:
+            event.accept()
+        except Exception:
+            pass
+
+    def mouseMoveEvent(self, event):
+        point = self._event_pos(event)
+
+        if self._dragging:
+            dx = point.x() - self._drag_start_x
+
+            if abs(dx) > 3:
+                self._drag_moved = True
+
+            left = 44
+            right = self.width() - 26
+            usable = max(1, right - left)
+
+            start0, end0 = self._drag_start_view
+            span = max(1, end0 - start0)
+            shift = int(-(dx / usable) * span)
+
+            self._set_view_region(start0 + shift, end0 + shift)
+            self.setCursor(self._closed_hand_cursor())
+            return
+
+        oid = self._hit_orf_at(point)
+
+        if oid:
+            self.setCursor(self._pointing_cursor())
+        else:
+            self.setCursor(self._open_hand_cursor())
+
+    def mouseReleaseEvent(self, event):
+        point = self._event_pos(event)
+
+        if self._dragging and event.button() == self._left_button():
+            self._dragging = False
+            self.setCursor(self._open_hand_cursor())
+
+            if not self._drag_moved:
+                oid = self._hit_orf_at(point)
+                if oid:
+                    self.selected_orf_id = oid
+                    self.orf_selected.emit(oid)
+                    self.update()
+
+        try:
+            event.accept()
+        except Exception:
+            pass
+
+    def mouseDoubleClickEvent(self, event):
+        point = self._event_pos(event)
+        oid = self._hit_orf_at(point)
+
+        if oid:
+            self.selected_orf_id = oid
+            orf = self._find_orf(oid)
+
+            if orf is not None:
+                self.focus_orf(orf, flank=12000)
+
+            self.orf_selected.emit(oid)
+            self.orf_double_clicked.emit(oid)
+
+        try:
+            event.accept()
+        except Exception:
+            pass
+
+    # --------------------------------------------------------
+    # Painting
+    # --------------------------------------------------------
+
     def paintEvent(self, event):
+        self._orf_hitboxes = []
+
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing if QT6 else QPainter.Antialiasing)
 
@@ -348,10 +553,10 @@ class ORFMapWidget(QWidget):
             painter.end()
             return
 
-        # Ticks
         tick_count = 6
         painter.setFont(QFont("Arial", 8))
         painter.setPen(QColor("#60717f"))
+
         for i in range(tick_count + 1):
             frac = i / tick_count
             x = left + usable * frac
@@ -417,6 +622,9 @@ class ORFMapWidget(QWidget):
             painter.setPen(QPen(border, 1.2 if is_selected else 0.5))
             painter.drawPolygon(QPolygonF(points))
 
+            hit_rect = QRectF(min(x1, x2) - 2, y - 3, abs(x2 - x1) + 4, h + 6)
+            self._orf_hitboxes.append((hit_rect, oid))
+
             if is_selected or (x2 - x1 > 80 and label_count < 16):
                 painter.setFont(QFont("Arial", 8, QFont.Weight.Bold if QT6 else QFont.Bold))
                 painter.setPen(QColor("#263238"))
@@ -424,11 +632,11 @@ class ORFMapWidget(QWidget):
                 painter.drawText(QRectF(x1 - 20, label_y, max(60, x2 - x1 + 40), 16), _align_center(), oid)
                 label_count += 1
 
-        # Header/legend
         painter.setFont(QFont("Arial", 9))
         painter.setPen(QColor("#17384d"))
         painter.drawText(44, 22, f"View: {self.view_start:,} - {self.view_end:,} nt")
         painter.drawText(44, 42, f"Visible ORFs: {len(visible):,} / total ORFs: {len(self.orfs):,}")
+        painter.drawText(44, 62, "Mouse: wheel zoom | drag pan | click ORF select | double-click ORF focus")
 
         painter.setPen(QColor("#43a047"))
         painter.drawText(width - 210, 22, "+ strand")
@@ -460,13 +668,8 @@ class ORFMapWidget(QWidget):
             painter.drawText(QRectF(x + w - 280, y - 18, 280, 16), _align_center(), value_text)
 
     def _draw_computed_signal_tracks(self, painter, left: float, right: float, top: float, height: float):
-        """
-        Draw computed GC content and GC skew tracks below the ORF map.
-
-        These are available from genome sequence alone. DNA-Seq/RNA-Seq coverage
-        requires external signal files and will be integrated separately.
-        """
         width = max(1, right - left)
+
         bins = compute_gc_and_skew_bins(
             self.genome_sequence,
             self.view_start,
@@ -569,8 +772,6 @@ class ORFMapWidget(QWidget):
             top = min(mid, y2)
             bottom = max(mid, y2)
             painter.drawRect(QRectF(x1, top, max(1, x2 - x1), max(1, bottom - top)))
-
-
 
 
 class LengthHistogramWidget(QWidget):
@@ -920,6 +1121,8 @@ class GuidedORFResultsDialog(QDialog):
         right_layout.addWidget(map_title)
 
         self.map_widget = ORFMapWidget(self.orfs, genome_sequence=self.genome_sequence)
+        self.map_widget.orf_selected.connect(self._select_orf_from_map)
+        self.map_widget.orf_double_clicked.connect(self._select_orf_from_map)
         right_layout.addWidget(self.map_widget, 2)
 
         map_controls = QHBoxLayout()
@@ -1024,6 +1227,8 @@ class GuidedORFResultsDialog(QDialog):
         Open the current ORF map view in a maximized figure window.
         """
         clone = ORFMapWidget(self.orfs, genome_sequence=self.genome_sequence)
+        clone.orf_selected.connect(self._select_orf_from_map)
+        clone.orf_double_clicked.connect(self._select_orf_from_map)
         clone.view_start = self.map_widget.view_start
         clone.view_end = self.map_widget.view_end
         clone.selected_orf_id = self.map_widget.selected_orf_id
@@ -1132,6 +1337,33 @@ class GuidedORFResultsDialog(QDialog):
             if _orf_id(orf) == oid:
                 return orf
         return None
+
+    def _select_orf_from_map(self, orf_id: str):
+        """
+        Synchronize map click with the ORF table and details panel.
+        """
+        if not orf_id:
+            return
+
+        # Make sure the table contains this ORF. If filters hide it, clear filters.
+        visible_ids = {
+            self.table.item(row, 0).text()
+            for row in range(self.table.rowCount())
+            if self.table.item(row, 0) is not None
+        }
+
+        if orf_id not in visible_ids:
+            self.search_input.clear()
+            self.strand_filter.setCurrentText("All")
+            self.min_aa_filter.setValue(0)
+            self._apply_filters()
+
+        for row in range(self.table.rowCount()):
+            item = self.table.item(row, 0)
+            if item is not None and item.text() == orf_id:
+                self.table.selectRow(row)
+                self.table.scrollToItem(item)
+                return
 
     def _on_table_selection_changed(self):
         indexes = self.table.selectedIndexes()
