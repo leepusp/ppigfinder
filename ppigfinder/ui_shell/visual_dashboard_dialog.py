@@ -1,40 +1,40 @@
 #!/usr/bin/env python3
 """
-Visual workflow dashboard for the experimental guided UI shell.
+Interactive visual workflow dashboard for the experimental guided UI shell.
 
-This is the first explicit illustration layer:
-- workflow graph
-- input/operation/output process diagram
-- ORF map preview
-- ORF length distribution
-
-It uses Qt/QPainter only, so it does not depend on QWebEngine or internet access.
+Features:
+- clickable workflow nodes;
+- full-screen section viewers;
+- clickable ORF map/histogram areas;
+- Qt/QPainter implementation without QWebEngine dependency.
 """
 
 from __future__ import annotations
 
-from collections import Counter
-
 try:
-    from PyQt6.QtCore import Qt, QPointF, QRectF
-    from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QFont, QPolygonF
+    from PyQt6.QtCore import Qt, QPointF, QRectF, pyqtSignal
+    from PyQt6.QtGui import QPainter, QColor, QPen, QBrush, QFont, QPolygonF, QCursor
     from PyQt6.QtWidgets import (
         QDialog,
         QVBoxLayout,
+        QHBoxLayout,
         QLabel,
         QWidget,
         QScrollArea,
+        QPushButton,
     )
     QT6 = True
 except Exception:
-    from PyQt5.QtCore import Qt, QPointF, QRectF
-    from PyQt5.QtGui import QPainter, QColor, QPen, QBrush, QFont, QPolygonF
+    from PyQt5.QtCore import Qt, QPointF, QRectF, pyqtSignal
+    from PyQt5.QtGui import QPainter, QColor, QPen, QBrush, QFont, QPolygonF, QCursor
     from PyQt5.QtWidgets import (
         QDialog,
         QVBoxLayout,
+        QHBoxLayout,
         QLabel,
         QWidget,
         QScrollArea,
+        QPushButton,
     )
     QT6 = False
 
@@ -42,13 +42,13 @@ from ppigfinder.ui_shell.branding import apply_ppigfinder_branding
 
 
 WORKFLOW_NODES = [
-    ("data", "Input data"),
-    ("genome", "Genome"),
-    ("orfs", "ORFs"),
-    ("annotation", "Annotation"),
-    ("alphafold", "AF3 / PPI"),
-    ("hpc", "DaVinci / HPC"),
-    ("reports", "Reports"),
+    ("data", "Input data", "DATA"),
+    ("genome", "Genome", "DNA"),
+    ("orfs", "ORFs", "ORF"),
+    ("annotation", "Annotation", "HMM"),
+    ("alphafold", "AF3 / PPI", "AF3"),
+    ("hpc", "DaVinci / HPC", "HPC"),
+    ("reports", "Reports", "REP"),
 ]
 
 
@@ -62,6 +62,14 @@ def _window_flags():
 
 def _align_center():
     return Qt.AlignmentFlag.AlignCenter if QT6 else Qt.AlignCenter
+
+
+def _cursor_pointing():
+    return Qt.CursorShape.PointingHandCursor if QT6 else Qt.PointingHandCursor
+
+
+def _cursor_arrow():
+    return Qt.CursorShape.ArrowCursor if QT6 else Qt.ArrowCursor
 
 
 def _safe_int(value, default=0):
@@ -104,35 +112,106 @@ def _orf_length(orf) -> int:
 
 class VisualDashboardCanvas(QWidget):
     """
-    Large illustrated dashboard canvas.
+    Interactive illustrated dashboard canvas.
+
+    mode:
+      - full
+      - workflow
+      - data
+      - orfs
+      - downstream
     """
 
-    def __init__(self, state=None, orfs=None, parent=None):
+    route_requested = pyqtSignal(str)
+    figure_requested = pyqtSignal(str)
+
+    def __init__(self, state=None, orfs=None, mode: str = "full", parent=None):
         super().__init__(parent)
+
         self.state = state
         self.orfs = list(orfs or [])
-        self.setMinimumSize(1280, 1050)
+        self.mode = mode
+        self.hitboxes: list[tuple[QRectF, str, str]] = []
+
+        self.setMouseTracking(True)
+
+        if mode == "full":
+            self.setMinimumSize(1280, 1080)
+        elif mode == "workflow":
+            self.setMinimumSize(1280, 360)
+        elif mode == "data":
+            self.setMinimumSize(1280, 420)
+        elif mode == "orfs":
+            self.setMinimumSize(1280, 460)
+        else:
+            self.setMinimumSize(1280, 360)
 
     def set_data(self, state=None, orfs=None) -> None:
         self.state = state
         self.orfs = list(orfs or [])
         self.update()
 
+    def _event_pos(self, event) -> QPointF:
+        if hasattr(event, "position"):
+            return event.position()
+        return QPointF(event.pos())
+
+    def _hit_at(self, point: QPointF):
+        for rect, kind, payload in self.hitboxes:
+            if rect.contains(point):
+                return kind, payload
+        return None
+
+    def mouseMoveEvent(self, event):
+        hit = self._hit_at(self._event_pos(event))
+        self.setCursor(QCursor(_cursor_pointing() if hit else _cursor_arrow()))
+
+    def mousePressEvent(self, event):
+        hit = self._hit_at(self._event_pos(event))
+        if not hit:
+            return
+
+        kind, payload = hit
+
+        if kind == "route":
+            self.route_requested.emit(payload)
+        elif kind == "figure":
+            self.figure_requested.emit(payload)
+
     def paintEvent(self, event):
+        self.hitboxes = []
+
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing if QT6 else QPainter.Antialiasing)
         painter.fillRect(self.rect(), QColor("#f7fafc"))
 
-        self._draw_title(painter)
-        self._draw_workflow_graph(painter, 40, 80, self.width() - 80, 150)
-        self._draw_data_process(painter, 40, 260, self.width() - 80, 220)
-        self._draw_orf_summary(painter, 40, 520, self.width() - 80, 260)
-        self._draw_downstream_panel(painter, 40, 820, self.width() - 80, 190)
+        if self.mode == "workflow":
+            self._draw_title(painter, "Workflow graph", "Click a node to navigate to that workflow page.", compact=True)
+            self._draw_workflow_graph(painter, 40, 90, self.width() - 80, 180)
+        elif self.mode == "data":
+            self._draw_title(painter, "Data → operation → output", "Illustrated relation between loaded data, enabled operations and generated artifacts.", compact=True)
+            self._draw_data_process(painter, 40, 100, self.width() - 80, 240)
+        elif self.mode == "orfs":
+            self._draw_title(painter, "ORF figures", "ORF map and length distribution generated from the predicted protein-coding regions.", compact=True)
+            self._draw_orf_summary(painter, 40, 105, self.width() - 80, 280, section_only=True)
+        elif self.mode == "downstream":
+            self._draw_title(painter, "Downstream decision points", "Annotation, neighbourhood, AlphaFold/PPI and report decisions.", compact=True)
+            self._draw_downstream_panel(painter, 40, 100, self.width() - 80, 220)
+        else:
+            self._draw_title(
+                painter,
+                "ppigFinder visual workflow dashboard",
+                "Illustrated view of data, operations, generated outputs and next decisions.",
+            )
+            self._draw_workflow_graph(painter, 40, 85, self.width() - 80, 150)
+            self._draw_data_process(painter, 40, 270, self.width() - 80, 220)
+            self._draw_orf_summary(painter, 40, 535, self.width() - 80, 270)
+            self._draw_downstream_panel(painter, 40, 845, self.width() - 80, 190)
 
         painter.end()
 
     # --------------------------------------------------------
-    # Helpers
+    # Drawing helpers
     # --------------------------------------------------------
 
     def _font(self, size=10, bold=False):
@@ -141,19 +220,20 @@ class VisualDashboardCanvas(QWidget):
         font.setBold(bold)
         return font
 
+    def _draw_title(self, painter, title, subtitle="", compact=False):
+        painter.setFont(self._font(20 if not compact else 18, True))
+        painter.setPen(QColor("#17384d"))
+        painter.drawText(QRectF(40, 20, 850, 40), title)
+
+        if subtitle:
+            painter.setFont(self._font(10, False))
+            painter.setPen(QColor("#60717f"))
+            painter.drawText(QRectF(40, 54, self.width() - 80, 28), subtitle)
+
     def _draw_rounded_rect(self, painter, rect, color, border="#cfd8dc", radius=14):
         painter.setPen(QPen(QColor(border), 1))
         painter.setBrush(QBrush(QColor(color)))
         painter.drawRoundedRect(QRectF(*rect), radius, radius)
-
-    def _draw_text(self, painter, x, y, w, h, text, size=10, color="#263238", bold=False, align=None):
-        painter.setFont(self._font(size=size, bold=bold))
-        painter.setPen(QColor(color))
-        painter.drawText(
-            QRectF(x, y, w, h),
-            align if align is not None else (_align_center()),
-            text,
-        )
 
     def _draw_section_title(self, painter, x, y, title, subtitle=""):
         painter.setFont(self._font(16, True))
@@ -165,41 +245,38 @@ class VisualDashboardCanvas(QWidget):
             painter.setPen(QColor("#60717f"))
             painter.drawText(QRectF(x, y + 28, 900, 40), subtitle)
 
+    def _draw_centered_text(self, painter, rect, text, size=10, color="#263238", bold=False):
+        painter.setFont(self._font(size, bold))
+        painter.setPen(QColor(color))
+        painter.drawText(QRectF(*rect), _align_center(), text)
+
     # --------------------------------------------------------
     # Sections
     # --------------------------------------------------------
 
-    def _draw_title(self, painter):
-        painter.setFont(self._font(20, True))
-        painter.setPen(QColor("#17384d"))
-        painter.drawText(QRectF(40, 22, 600, 40), "ppigFinder visual workflow dashboard")
-
-        painter.setFont(self._font(10, False))
-        painter.setPen(QColor("#60717f"))
-        painter.drawText(
-            QRectF(40, 54, 900, 24),
-            "Illustrated view of data, operations, generated outputs and next decisions.",
-        )
-
     def _draw_workflow_graph(self, painter, x, y, w, h):
-        self._draw_section_title(
-            painter,
-            x,
-            y,
-            "Workflow progression",
-            "Each node becomes active as its required data or output is generated.",
-        )
+        if self.mode == "full":
+            self._draw_section_title(
+                painter,
+                x,
+                y,
+                "Workflow progression",
+                "Click any node to navigate. Active and completed nodes are highlighted.",
+            )
+            node_y = y + 78
+        else:
+            node_y = y + 45
 
         completed = _completed_steps(self.state)
         current = _current_route(self.state)
 
-        node_w = 145
-        node_h = 58
+        node_w = 150
+        node_h = 76
         gap = max(20, (w - len(WORKFLOW_NODES) * node_w) / (len(WORKFLOW_NODES) - 1))
-        start_y = y + 75
 
-        for i, (node_id, label) in enumerate(WORKFLOW_NODES):
+        for i, (node_id, label, icon) in enumerate(WORKFLOW_NODES):
             nx = x + i * (node_w + gap)
+
             active = node_id == current
             done = node_id in completed
 
@@ -207,46 +284,78 @@ class VisualDashboardCanvas(QWidget):
                 fill = "#17384d"
                 text = "#ffffff"
                 border = "#17384d"
+                icon_fill = "#ffffff"
+                icon_text = "#17384d"
             elif done:
                 fill = "#d7ecf5"
                 text = "#17384d"
                 border = "#8bb8c9"
+                icon_fill = "#17384d"
+                icon_text = "#ffffff"
             else:
                 fill = "#ffffff"
                 text = "#60717f"
                 border = "#cfd8dc"
+                icon_fill = "#edf3f7"
+                icon_text = "#60717f"
 
-            self._draw_rounded_rect(painter, (nx, start_y, node_w, node_h), fill, border, 16)
-            self._draw_text(painter, nx + 8, start_y + 6, node_w - 16, node_h - 12, label, 10, text, True)
+            rect = QRectF(nx, node_y, node_w, node_h)
+            self.hitboxes.append((rect, "route", node_id))
+
+            self._draw_rounded_rect(painter, (nx, node_y, node_w, node_h), fill, border, 16)
+
+            # icon circle
+            painter.setBrush(QBrush(QColor(icon_fill)))
+            painter.setPen(QPen(QColor(border), 1))
+            painter.drawEllipse(QRectF(nx + 12, node_y + 15, 42, 42))
+
+            painter.setFont(self._font(8, True))
+            painter.setPen(QColor(icon_text))
+            painter.drawText(QRectF(nx + 12, node_y + 15, 42, 42), _align_center(), icon)
+
+            painter.setFont(self._font(10, True))
+            painter.setPen(QColor(text))
+            painter.drawText(QRectF(nx + 60, node_y + 14, node_w - 70, node_h - 20), _align_center(), label)
+
+            # Click hint on active node
+            if active:
+                painter.setFont(self._font(7, False))
+                painter.setPen(QColor("#cfe3ef"))
+                painter.drawText(QRectF(nx + 60, node_y + 55, node_w - 70, 16), _align_center(), "current")
 
             if i < len(WORKFLOW_NODES) - 1:
                 ax1 = nx + node_w + 4
                 ax2 = nx + node_w + gap - 8
-                ay = start_y + node_h / 2
+                ay = node_y + node_h / 2
                 painter.setPen(QPen(QColor("#90a4ae"), 2))
                 painter.drawLine(int(ax1), int(ay), int(ax2), int(ay))
 
-                arrow = QPolygonF(
-                    [
-                        QPointF(ax2, ay),
-                        QPointF(ax2 - 8, ay - 5),
-                        QPointF(ax2 - 8, ay + 5),
-                    ]
-                )
                 painter.setBrush(QBrush(QColor("#90a4ae")))
-                painter.drawPolygon(arrow)
+                painter.setPen(QPen(QColor("#90a4ae"), 1))
+                painter.drawPolygon(
+                    QPolygonF(
+                        [
+                            QPointF(ax2, ay),
+                            QPointF(ax2 - 8, ay - 5),
+                            QPointF(ax2 - 8, ay + 5),
+                        ]
+                    )
+                )
 
     def _draw_data_process(self, painter, x, y, w, h):
-        self._draw_section_title(
-            painter,
-            x,
-            y,
-            "Data → operation → output",
-            "The interface should show what data entered, what operation is possible, and what artifact is produced.",
-        )
+        if self.mode == "full":
+            self._draw_section_title(
+                painter,
+                x,
+                y,
+                "Data → operation → output",
+                "The interface should show what data entered, what operation is possible, and what artifact is produced.",
+            )
+            box_y = y + 72
+        else:
+            box_y = y + 38
 
-        box_y = y + 70
-        box_h = 115
+        box_h = 125
         box_w = (w - 60) / 3
 
         genome = _state_get(self.state, "genome_file", "No genome loaded")
@@ -259,7 +368,6 @@ class VisualDashboardCanvas(QWidget):
             "HMM profiles: " + str(hmm).split("/")[-1]
         )
 
-        orf_count = _state_get(self.state, "guided_orf_count", 0)
         operation_text = (
             "Available operations\n"
             "• ORF prediction\n"
@@ -270,19 +378,22 @@ class VisualDashboardCanvas(QWidget):
 
         output_text = (
             f"Generated outputs\n"
-            f"• ORFs: {orf_count}\n"
+            f"• ORFs: {_state_get(self.state, 'guided_orf_count', 0)}\n"
             f"• AF3 pairs: {_state_get(self.state, 'af3_pair_count', 0)}\n"
             f"• HPC: {_state_get(self.state, 'hpc_status', 'not configured')}"
         )
 
         labels = [
-            ("Input data", input_text, "#ffffff"),
-            ("Operations", operation_text, "#eef7fb"),
-            ("Outputs", output_text, "#ffffff"),
+            ("Input data", input_text, "#ffffff", "route", "data"),
+            ("Operations", operation_text, "#eef7fb", "route", "orfs"),
+            ("Outputs", output_text, "#ffffff", "route", "reports"),
         ]
 
-        for i, (title, body, color) in enumerate(labels):
+        for i, (title, body, color, kind, payload) in enumerate(labels):
             bx = x + i * (box_w + 30)
+            rect = QRectF(bx, box_y, box_w, box_h)
+            self.hitboxes.append((rect, kind, payload))
+
             self._draw_rounded_rect(painter, (bx, box_y, box_w, box_h), color, "#cfd8dc", 14)
 
             painter.setFont(self._font(11, True))
@@ -310,21 +421,30 @@ class VisualDashboardCanvas(QWidget):
                     )
                 )
 
-    def _draw_orf_summary(self, painter, x, y, w, h):
-        self._draw_section_title(
-            painter,
-            x,
-            y,
-            "ORF discovery illustration",
-            "After ORF prediction, this panel becomes a graphical summary of the generated protein set.",
-        )
+    def _draw_orf_summary(self, painter, x, y, w, h, section_only=False):
+        if self.mode == "full":
+            self._draw_section_title(
+                painter,
+                x,
+                y,
+                "ORF discovery illustration",
+                "Click the ORF map or histogram to open this section in a larger view.",
+            )
+            panel_y = y + 70
+        else:
+            panel_y = y + 40
 
-        panel_y = y + 70
         map_x = x
         map_w = w * 0.58
         hist_x = x + map_w + 30
         hist_w = w - map_w - 30
-        panel_h = 160
+        panel_h = 175 if section_only else 165
+
+        map_rect = QRectF(map_x, panel_y, map_w, panel_h)
+        hist_rect = QRectF(hist_x, panel_y, hist_w, panel_h)
+
+        self.hitboxes.append((map_rect, "figure", "orfs"))
+        self.hitboxes.append((hist_rect, "figure", "orfs"))
 
         self._draw_rounded_rect(painter, (map_x, panel_y, map_w, panel_h), "#ffffff", "#cfd8dc", 14)
         self._draw_rounded_rect(painter, (hist_x, panel_y, hist_w, panel_h), "#ffffff", "#cfd8dc", 14)
@@ -333,6 +453,11 @@ class VisualDashboardCanvas(QWidget):
         painter.setPen(QColor("#17384d"))
         painter.drawText(QRectF(map_x + 16, panel_y + 12, map_w - 32, 24), "Genome / ORF map preview")
         painter.drawText(QRectF(hist_x + 16, panel_y + 12, hist_w - 32, 24), "ORF length distribution")
+
+        painter.setFont(self._font(8, False))
+        painter.setPen(QColor("#60717f"))
+        painter.drawText(QRectF(map_x + 16, panel_y + panel_h - 22, map_w - 32, 16), "Click to enlarge")
+        painter.drawText(QRectF(hist_x + 16, panel_y + panel_h - 22, hist_w - 32, 16), "Click to enlarge")
 
         if not self.orfs:
             painter.setFont(self._font(10, False))
@@ -349,8 +474,8 @@ class VisualDashboardCanvas(QWidget):
             )
             return
 
-        self._draw_orf_map(painter, map_x + 18, panel_y + 50, map_w - 36, 90)
-        self._draw_orf_histogram(painter, hist_x + 18, panel_y + 45, hist_w - 36, 95)
+        self._draw_orf_map(painter, map_x + 18, panel_y + 50, map_w - 36, panel_h - 82)
+        self._draw_orf_histogram(painter, hist_x + 18, panel_y + 45, hist_w - 36, panel_h - 78)
 
     def _draw_orf_map(self, painter, x, y, w, h):
         genome_length = max(_safe_int(getattr(orf, "end", 0)) for orf in self.orfs)
@@ -448,27 +573,33 @@ class VisualDashboardCanvas(QWidget):
             painter.drawText(QRectF(bx, base_y + 3, bar_w, 16), _align_center(), labels[i])
 
     def _draw_downstream_panel(self, painter, x, y, w, h):
-        self._draw_section_title(
-            painter,
-            x,
-            y,
-            "Downstream decision points",
-            "The next visual layers should resemble genome-browser and dashboard views, not only forms.",
-        )
+        if self.mode == "full":
+            self._draw_section_title(
+                painter,
+                x,
+                y,
+                "Downstream decision points",
+                "Click a card to navigate to that module.",
+            )
+            box_y = y + 70
+        else:
+            box_y = y + 45
 
-        box_y = y + 70
         box_w = (w - 60) / 4
-        box_h = 85
+        box_h = 95
 
         items = [
-            ("Annotation", "BLAST hits\nHMM domains\nCandidate table", "#eef7fb"),
-            ("Neighbourhood", "Gene arrows\nDomain colors\nLocal context", "#ffffff"),
-            ("AlphaFold / PPI", "Pair network\nAF3 JSON\nipTM/PAE metrics", "#eef7fb"),
-            ("Reports", "Tables\nFigures\nWorkflow summary", "#ffffff"),
+            ("Annotation", "BLAST hits\nHMM domains\nCandidate table", "#eef7fb", "annotation"),
+            ("Neighbourhood", "Gene arrows\nDomain colors\nLocal context", "#ffffff", "annotation"),
+            ("AlphaFold / PPI", "Pair network\nAF3 JSON\nipTM/PAE metrics", "#eef7fb", "alphafold"),
+            ("Reports", "Tables\nFigures\nWorkflow summary", "#ffffff", "reports"),
         ]
 
-        for i, (title, body, fill) in enumerate(items):
+        for i, (title, body, fill, route_id) in enumerate(items):
             bx = x + i * (box_w + 20)
+            rect = QRectF(bx, box_y, box_w, box_h)
+            self.hitboxes.append((rect, "route", route_id))
+
             self._draw_rounded_rect(painter, (bx, box_y, box_w, box_h), fill, "#cfd8dc", 14)
 
             painter.setFont(self._font(11, True))
@@ -477,7 +608,39 @@ class VisualDashboardCanvas(QWidget):
 
             painter.setFont(self._font(8, False))
             painter.setPen(QColor("#37474f"))
-            painter.drawText(QRectF(bx + 14, box_y + 34, box_w - 28, 44), body)
+            painter.drawText(QRectF(bx + 14, box_y + 34, box_w - 28, 48), body)
+
+
+class VisualSectionDialog(QDialog):
+    """
+    Full-screen section viewer.
+    """
+
+    def __init__(self, title: str, state=None, orfs=None, mode: str = "workflow", parent=None):
+        super().__init__(parent)
+
+        self.setWindowTitle(title)
+        self.setWindowFlags(_window_flags())
+        self.resize(1360, 840)
+        self.setMinimumSize(1000, 700)
+        self.setSizeGripEnabled(True)
+        apply_ppigfinder_branding(self)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(10)
+
+        title_label = QLabel(title)
+        title_label.setObjectName("SectionTitle")
+        layout.addWidget(title_label)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+
+        self.canvas = VisualDashboardCanvas(state=state, orfs=orfs, mode=mode)
+        scroll.setWidget(self.canvas)
+
+        layout.addWidget(scroll, 1)
 
 
 class VisualDashboardDialog(QDialog):
@@ -487,6 +650,10 @@ class VisualDashboardDialog(QDialog):
 
     def __init__(self, state=None, orfs=None, parent=None):
         super().__init__(parent)
+
+        self.workflow_parent = parent
+        self.state = state
+        self.orfs = list(orfs or [])
 
         self.setWindowTitle("ppigFinder Visual Dashboard")
         self.setWindowFlags(_window_flags())
@@ -504,18 +671,68 @@ class VisualDashboardDialog(QDialog):
         layout.addWidget(title)
 
         subtitle = QLabel(
-            "This dashboard illustrates how inputs, operations, generated outputs and next steps connect across the ppigFinder workflow."
+            "Click workflow nodes to navigate. Use the buttons below to enlarge specific parts of the workflow."
         )
         subtitle.setWordWrap(True)
         layout.addWidget(subtitle)
 
+        button_row = QHBoxLayout()
+
+        btn_workflow = QPushButton("Open workflow graph full screen")
+        btn_workflow.clicked.connect(lambda: self._open_section("workflow"))
+        button_row.addWidget(btn_workflow)
+
+        btn_data = QPushButton("Open data/process full screen")
+        btn_data.clicked.connect(lambda: self._open_section("data"))
+        button_row.addWidget(btn_data)
+
+        btn_orfs = QPushButton("Open ORF figures full screen")
+        btn_orfs.clicked.connect(lambda: self._open_section("orfs"))
+        button_row.addWidget(btn_orfs)
+
+        btn_downstream = QPushButton("Open downstream decisions full screen")
+        btn_downstream.clicked.connect(lambda: self._open_section("downstream"))
+        button_row.addWidget(btn_downstream)
+
+        button_row.addStretch(1)
+
+        layout.addLayout(button_row)
+
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
 
-        self.canvas = VisualDashboardCanvas(state=state, orfs=orfs)
+        self.canvas = VisualDashboardCanvas(state=state, orfs=orfs, mode="full")
+        self.canvas.route_requested.connect(self._handle_route_requested)
+        self.canvas.figure_requested.connect(self._open_section)
         scroll.setWidget(self.canvas)
 
         layout.addWidget(scroll, 1)
+
+    def _handle_route_requested(self, route_id: str) -> None:
+        if hasattr(self.workflow_parent, "show_route"):
+            self.workflow_parent.show_route(route_id)
+            if hasattr(self.workflow_parent, "raise_"):
+                self.workflow_parent.raise_()
+
+    def _open_section(self, mode: str) -> None:
+        titles = {
+            "workflow": "Workflow graph — full screen",
+            "data": "Data → operation → output — full screen",
+            "orfs": "ORF figures — full screen",
+            "downstream": "Downstream decisions — full screen",
+        }
+
+        dialog = VisualSectionDialog(
+            titles.get(mode, "Visual section"),
+            state=self.state,
+            orfs=self.orfs,
+            mode=mode,
+            parent=self,
+        )
+        dialog.canvas.route_requested.connect(self._handle_route_requested)
+        dialog.canvas.figure_requested.connect(self._open_section)
+        dialog.showMaximized()
+        dialog.exec() if hasattr(dialog, "exec") else dialog.exec_()
 
 
 def open_visual_dashboard(state=None, orfs=None, parent=None):
