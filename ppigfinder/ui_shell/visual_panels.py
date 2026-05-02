@@ -12,6 +12,11 @@ try:
         QGridLayout,
         QScrollArea,
         QPushButton,
+        QTableWidget,
+        QTableWidgetItem,
+        QHeaderView,
+        QLineEdit,
+        QComboBox,
     )
     QT6 = True
 except Exception:
@@ -25,6 +30,11 @@ except Exception:
         QGridLayout,
         QScrollArea,
         QPushButton,
+        QTableWidget,
+        QTableWidgetItem,
+        QHeaderView,
+        QLineEdit,
+        QComboBox,
     )
     QT6 = False
 
@@ -122,6 +132,129 @@ class FlowRibbonWidget(QWidget):
     def set_route_callback(self, callback) -> None:
         self._on_route_selected = callback
 
+    def _build_annotation_candidate_panel(self) -> None:
+        """
+        Embedded candidate table for the Annotation page.
+
+        This avoids opening a separate dialog for the normal workflow. A separate
+        full-screen table can still be used later for deep inspection.
+        """
+        title = QLabel("Candidate ORFs")
+        title.setObjectName("SectionSubTitle")
+        self.layout_main.addWidget(title)
+
+        controls = QHBoxLayout()
+
+        self.annotation_search = QLineEdit()
+        self.annotation_search.setPlaceholderText("Filter by ORF ID")
+        self.annotation_search.textChanged.connect(self._refresh_annotation_candidate_table)
+        controls.addWidget(self.annotation_search, 2)
+
+        self.annotation_strand = QComboBox()
+        self.annotation_strand.addItems(["All strands", "+", "-"])
+        self.annotation_strand.currentIndexChanged.connect(self._refresh_annotation_candidate_table)
+        controls.addWidget(self.annotation_strand, 1)
+
+        self.layout_main.addLayout(controls)
+
+        self.annotation_candidate_table = QTableWidget(0, 8)
+        self.annotation_candidate_table.setHorizontalHeaderLabels(
+            [
+                "Candidate",
+                "ORF ID",
+                "Start",
+                "End",
+                "Strand",
+                "Frame",
+                "AA length",
+                "Status",
+            ]
+        )
+        self.annotation_candidate_table.setAlternatingRowColors(True)
+
+        try:
+            self.annotation_candidate_table.verticalHeader().setVisible(False)
+            header = self.annotation_candidate_table.horizontalHeader()
+            for col in range(7):
+                header.setSectionResizeMode(
+                    col,
+                    QHeaderView.ResizeMode.ResizeToContents if QT6 else QHeaderView.ResizeToContents,
+                )
+            header.setSectionResizeMode(
+                7,
+                QHeaderView.ResizeMode.Stretch if QT6 else QHeaderView.Stretch,
+            )
+        except Exception:
+            pass
+
+        self.layout_main.addWidget(self.annotation_candidate_table, 2)
+        self._refresh_annotation_candidate_table()
+
+    def set_annotation_candidates(self, orfs) -> None:
+        self.annotation_candidates = list(orfs or [])
+        self._refresh_annotation_candidate_table()
+
+    def _refresh_annotation_candidate_table(self) -> None:
+        if self.annotation_candidate_table is None:
+            return
+
+        query = ""
+        strand_filter = "All strands"
+
+        if self.annotation_search is not None:
+            query = self.annotation_search.text().strip().upper()
+
+        if self.annotation_strand is not None:
+            strand_filter = self.annotation_strand.currentText()
+
+        filtered = []
+
+        for orf in self.annotation_candidates:
+            oid = _candidate_orf_id(orf).upper()
+            strand = _candidate_strand(orf)
+
+            if query and query not in oid:
+                continue
+
+            if strand_filter in {"+", "-"} and strand != strand_filter:
+                continue
+
+            filtered.append(orf)
+
+        max_rows = 1200
+        visible = filtered[:max_rows]
+
+        self.annotation_candidate_table.setRowCount(len(visible))
+
+        for row, orf in enumerate(visible, start=0):
+            values = [
+                str(row + 1),
+                _candidate_orf_id(orf, f"orf_{row + 1}"),
+                str(_candidate_start(orf)),
+                str(_candidate_end(orf)),
+                _candidate_strand(orf),
+                _candidate_frame(orf),
+                str(_candidate_aa_length(orf)),
+                "Pending BLAST/HMM/neighbourhood",
+            ]
+
+            for col, value in enumerate(values):
+                self.annotation_candidate_table.setItem(row, col, QTableWidgetItem(value))
+
+        self.annotation_candidate_table.resizeRowsToContents()
+
+        if self.footer is not None and self.route_id == "annotation":
+            if not self.annotation_candidates:
+                self.footer.setText(
+                    "No candidate ORFs embedded yet. Run Predict ORFs, then use Review candidate ORFs."
+                )
+            else:
+                self.footer.setText(
+                    f"Embedded candidate table: showing {len(visible):,} of {len(filtered):,} filtered "
+                    f"ORFs from {len(self.annotation_candidates):,} total candidates. "
+                    "Use the filters above to narrow the table."
+                )
+
     def update_state(self, state: WorkflowState) -> None:
         completed = state.completed_steps()
         current = state.current_route
@@ -143,6 +276,42 @@ class FlowRibbonWidget(QWidget):
                     "QPushButton:hover {background:#ddeaf0;color:#17384d;}"
                 )
 
+
+
+
+def _candidate_orf_id(orf, fallback=""):
+    return str(getattr(orf, "id", fallback) or fallback)
+
+
+def _candidate_start(orf):
+    try:
+        return int(getattr(orf, "start", 0))
+    except Exception:
+        return 0
+
+
+def _candidate_end(orf):
+    try:
+        return int(getattr(orf, "end", 0))
+    except Exception:
+        return 0
+
+
+def _candidate_strand(orf):
+    return str(getattr(orf, "strand", "?") or "?")
+
+
+def _candidate_frame(orf):
+    return str(getattr(orf, "frame", "?") or "?")
+
+
+def _candidate_aa_length(orf):
+    if hasattr(orf, "aa_length"):
+        try:
+            return int(getattr(orf, "aa_length"))
+        except Exception:
+            pass
+    return len(getattr(orf, "protein_sequence", "") or "")
 
 class ModuleVisualizationPanel(QScrollArea):
     def __init__(self, route_id: str, parent=None):
@@ -180,6 +349,15 @@ class ModuleVisualizationPanel(QScrollArea):
         self.footer.setWordWrap(True)
         self.footer.setObjectName("InfoFooter")
         self.layout_main.addWidget(self.footer)
+
+        self.annotation_candidates = []
+        self.annotation_candidate_table = None
+        self.annotation_search = None
+        self.annotation_strand = None
+
+        if self.route_id == "annotation":
+            self._build_annotation_candidate_panel()
+
         self.layout_main.addStretch(1)
 
     def update_state(self, state: WorkflowState) -> None:

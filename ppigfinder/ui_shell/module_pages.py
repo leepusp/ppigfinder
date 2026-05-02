@@ -242,6 +242,10 @@ class ModulePage(QWidget):
         self.input_card.set_content("Input data", input_text, "Main data required by this module.")
         self.output_card.set_content("Expected output", output_text, "Result produced after completing this step.")
 
+    def set_annotation_candidates(self, orfs) -> None:
+        if hasattr(self.visualization_panel, "set_annotation_candidates"):
+            self.visualization_panel.set_annotation_candidates(orfs)
+
     def update_state(self, workflow_state) -> None:
         self.ribbon.update_state(workflow_state)
         self.visualization_panel.update_state(workflow_state)

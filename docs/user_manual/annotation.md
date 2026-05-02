@@ -36,3 +36,10 @@ The neighbourhood step inspects ORFs around a selected candidate within a config
 ## Recommended next step
 
 Use annotation and neighbourhood evidence to select candidate protein pairs for AlphaFold / PPI analysis.
+
+
+## Embedded candidate table
+
+The normal guided workflow now embeds candidate ORFs directly inside the Annotation page. This is more intuitive than opening a separate table window because candidate review is part of the annotation process.
+
+The separate candidate window is kept as an optional full-screen inspection mode for large projects.

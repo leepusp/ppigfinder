@@ -525,6 +525,33 @@ class WorkspaceWindow(QMainWindow):
             self._show_message("Export ORF FASTA", f"Could not export FASTA:\n\n{exc}")
 
     def _show_annotation_candidates(self) -> None:
+        """
+        Embed candidate ORFs in the Annotation page instead of opening a
+        separate window by default.
+        """
+        if not self.guided_orfs:
+            self._show_message("Annotation", "No ORFs available yet. Run Predict ORFs first.")
+            self.show_route("orfs")
+            return
+
+        self.workflow_state.set_metric("guided_annotation_candidates_count", len(self.guided_orfs))
+        self.workflow_state.add_event("annotation", "review_candidates_embedded", str(len(self.guided_orfs)))
+
+        page = self.module_pages_by_id.get("annotation")
+        if page is not None and hasattr(page, "set_annotation_candidates"):
+            page.set_annotation_candidates(self.guided_orfs)
+
+        self._refresh_pages()
+        self.show_route("annotation")
+        self.statusBar().showMessage(
+            f"Candidate ORFs embedded in Annotation page: {len(self.guided_orfs):,} candidates.",
+            12000,
+        )
+
+    def _open_annotation_candidates_fullscreen(self) -> None:
+        """
+        Optional full-screen candidate table for detailed inspection.
+        """
         if not self.guided_orfs:
             self._show_message("Annotation", "No ORFs available yet. Run Predict ORFs first.")
             self.show_route("orfs")
@@ -536,14 +563,10 @@ class WorkspaceWindow(QMainWindow):
                 "AnnotationCandidatesDialog",
             )
             dialog = AnnotationCandidatesDialog(self.guided_orfs, parent=self)
-            dialog.show()
+            dialog.showMaximized()
             self._remember_window(dialog)
         except Exception as exc:
-            self.statusBar().showMessage(f"Candidate table unavailable: {exc}", 10000)
-
-        self.workflow_state.set_metric("guided_annotation_candidates_count", len(self.guided_orfs))
-        self.workflow_state.add_event("annotation", "review_candidates", str(len(self.guided_orfs)))
-        self._refresh_pages()
+            self._show_message("Annotation candidates", f"Could not open full candidate table:\n\n{exc}")
 
     def _mark_annotation_step(self, key: str, label: str) -> None:
         self.workflow_state.set_flag(key, True)
@@ -729,7 +752,8 @@ class WorkspaceWindow(QMainWindow):
         if route_id == "annotation":
             return [
                 self._action("Show visual dashboard", "Review the illustrated workflow status and ORF-derived downstream candidates.", self._open_visual_dashboard),
-                self._action("Review candidate ORFs", "Inspect guided ORFs as candidates for annotation and PPI analysis.", self._show_annotation_candidates),
+                self._action("Review candidate ORFs", "Embed guided ORFs in this Annotation page as candidates for BLAST/HMM/neighbourhood analysis.", self._show_annotation_candidates),
+                self._action("Open candidates full screen", "Open the candidate ORF table in a separate maximized window for detailed inspection.", self._open_annotation_candidates_fullscreen),
                 self._action("Run BLAST", "Mark BLAST as part of the current annotation plan.", lambda: self._mark_annotation_step("guided_blast_planned", "BLAST")),
                 self._action("Annotate HMM", "Mark HMM/domain annotation as part of the current plan.", lambda: self._mark_annotation_step("guided_hmm_planned", "HMM/domain annotation")),
                 self._action("Neighbourhood analysis", "Mark genomic neighbourhood analysis as part of the current plan.", lambda: self._mark_annotation_step("guided_neighborhood_planned", "Neighbourhood analysis")),
