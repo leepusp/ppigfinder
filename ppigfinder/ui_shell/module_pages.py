@@ -26,6 +26,7 @@ WORKFLOW_STEPS = [
     "ORFs",
     "Annotation",
     "AlphaFold",
+    "HPC",
     "Reports",
 ]
 
@@ -37,7 +38,8 @@ MODULE_STEP_INDEX = {
     "orfs": 2,
     "annotation": 3,
     "alphafold": 4,
-    "reports": 5,
+    "hpc": 5,
+    "reports": 6,
 }
 
 

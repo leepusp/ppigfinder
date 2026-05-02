@@ -155,6 +155,15 @@ class ModuleVisualizationPanel(QFrame):
             self._add_box("metrics", "Metrics", "ipTM / PAE / contacts", "Interaction confidence.", 1, 0)
             self._add_box("next", "Next step", "Reports", "Export tables and HTML summaries.", 1, 1)
 
+        elif module_id == "hpc":
+            self.summary.setText(
+                "Conexão opcional com DaVinci/HPC para preparar, submeter ou organizar fluxos computacionais como AF3."
+            )
+            self._add_box("hpc_profile", "Profile", "DaVinci", "Cluster or server profile.", 0, 0)
+            self._add_box("hpc_status", "Connection", "Not tested", "Local cluster detection or SSH test.", 0, 1)
+            self._add_box("hpc_mode", "Execution mode", "Optional", "Use local shell, SSH or Slurm template.", 1, 0)
+            self._add_box("hpc_next", "Next step", "Reports / AF3 results", "Import results after execution.", 1, 1)
+
         elif module_id == "reports":
             self.summary.setText(
                 "Exportação e reprodutibilidade: relatórios HTML, snapshots versionados e tabelas."
@@ -265,6 +274,14 @@ class ModuleVisualizationPanel(QFrame):
         elif self.module_id == "alphafold":
             if "af3_results_folder" in self.boxes:
                 self.boxes["af3_results_folder"].set_value(_short_path(state.get("af3_results_folder", "")))
+
+        elif self.module_id == "hpc":
+            if "hpc_profile" in self.boxes:
+                self.boxes["hpc_profile"].set_value(state.get("hpc_profile") or "DaVinci")
+            if "hpc_status" in self.boxes:
+                self.boxes["hpc_status"].set_value(state.get("hpc_status") or "Not tested")
+            if "hpc_mode" in self.boxes:
+                self.boxes["hpc_mode"].set_value(state.get("hpc_mode") or "Optional")
 
         elif self.module_id == "reports":
             if "snapshot" in self.boxes:

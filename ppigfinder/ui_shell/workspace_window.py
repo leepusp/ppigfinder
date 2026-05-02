@@ -22,6 +22,7 @@ from ppigfinder.ui_shell.qt import (
 from ppigfinder.ui_shell.theme import APP_TITLE, shell_stylesheet
 from ppigfinder.ui_shell.branding import apply_ppigfinder_branding
 from ppigfinder.ui_shell.input_validation import validate_genome_input, summary_to_state
+from ppigfinder.ui_shell.hpc_dialog import open_hpc_connection_dialog
 from ppigfinder.ui_shell.orf_results_dialog import show_guided_orf_results
 from ppigfinder.ui_shell.annotation_candidates_dialog import show_annotation_candidates
 from ppigfinder.ui_shell.guided_backend import (
@@ -38,6 +39,7 @@ DEFAULT_ROUTES = [
     ModuleRoute("orfs", "Protein / ORFs", "ORF prediction, ORF review and protein export.", "Protein / ORFs", "Ready"),
     ModuleRoute("annotation", "Annotation", "BLAST, HMM/domain and neighbourhood analyses.", "Functional annotation", "Ready"),
     ModuleRoute("alphafold", "AlphaFold / PPI", "AF3 export, result import and interaction interpretation.", "Protein interaction", "Ready"),
+    ModuleRoute("hpc", "DaVinci / HPC", "Optional server/HPC execution and workflow preparation.", "HPC / Remote execution", "Optional"),
     ModuleRoute("reports", "Reports", "Generate HTML, JSON and tabular outputs.", "Reporting", "Ready"),
 ]
 
@@ -270,6 +272,24 @@ class WorkspaceWindow(QMainWindow):
             label + " was marked as selected in the guided workflow. Full execution will be connected progressively.",
         )
 
+    def _open_hpc_dialog(self) -> None:
+        status, config = open_hpc_connection_dialog(parent=self)
+
+        self.selected_inputs["hpc_profile"] = config.profile
+        self.selected_inputs["hpc_host"] = config.host
+        self.selected_inputs["hpc_user"] = config.user
+        self.selected_inputs["hpc_port"] = config.port
+
+        if status is not None:
+            self.selected_inputs["hpc_status"] = "OK" if status.connection_ok else "Problem"
+            self.selected_inputs["hpc_mode"] = "Local cluster" if status.running_on_cluster else "SSH"
+            self.selected_inputs["hpc_message"] = status.message
+        else:
+            self.selected_inputs["hpc_status"] = "Configured"
+            self.selected_inputs["hpc_mode"] = "Not tested"
+
+        self._refresh_visualization_panels()
+
     def _export_guided_summary(self) -> None:
         path, _ = QFileDialog.getSaveFileName(
             self,
@@ -335,6 +355,10 @@ class WorkspaceWindow(QMainWindow):
 
         if action_name == "guided:neighborhood":
             self._mark_annotation_step("guided_neighborhood_planned", "Neighbourhood analysis")
+            return
+
+        if action_name == "guided:hpc_connection":
+            self._open_hpc_dialog()
             return
 
         if action_name == "guided:summary":
@@ -421,7 +445,14 @@ class WorkspaceWindow(QMainWindow):
             return [
                 self._action("Export AF3 Server JSON", "Prepare AF3 job export after guided pair selection is implemented.", "info:AF3 JSON export will be connected after guided ORF/protein pair selection is implemented."),
                 self._action("Import AF3 results", "Import AlphaFold 3 output folders and extract interaction metrics.", "select_folder:af3_results"),
-                self._action("Continue to Reports", "Move to result export and reporting.", "route:reports"),
+                self._action("Continue to DaVinci / HPC", "Optionally prepare server execution before reporting.", "route:hpc"),
+            ]
+
+        if route_id == "hpc":
+            return [
+                self._action("Configure DaVinci / HPC", "Open graphical configuration and connection testing for DaVinci/HPC workflows.", "guided:hpc_connection"),
+                self._action("Prepare AF3 Slurm template", "Use the HPC dialog to inspect a basic AF3 Slurm template.", "guided:hpc_connection"),
+                self._action("Continue to Reports", "Proceed to result export and reporting.", "route:reports"),
             ]
 
         if route_id == "reports":

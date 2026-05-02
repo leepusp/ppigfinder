@@ -11,11 +11,12 @@ from ppigfinder.ui_shell.docs_content import docs_for
 
 
 DOC_MAP = {
-    "data": "getting_started.md",
+    "data": "data_project.md",
     "genome": "genome.md",
     "orfs": "orf_prediction.md",
     "annotation": "annotation.md",
     "alphafold": "alphafold.md",
+    "hpc": "davinci_hpc.md",
     "reports": "reports.md",
 }
 

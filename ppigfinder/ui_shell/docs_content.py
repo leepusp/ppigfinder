@@ -43,6 +43,12 @@ MODULE_DOCS = {
         "output": "Interaction metrics and classified results",
         "next": "Export AF3 tables or move to Reports.",
     },
+    "hpc": {
+        "purpose": "Optionally connect the guided workflow to DaVinci or compatible HPC environments for AF3/job execution and project-scale analyses.",
+        "input": "AF3 jobs, project files, SSH configuration, Slurm/PBS/LSF execution context",
+        "output": "Connection status, submission templates, future job monitoring and result retrieval",
+        "next": "After preparing or running jobs, import AF3 results and proceed to Reports.",
+    },
     "reports": {
         "purpose": "Generate final project outputs.",
         "input": "Current project state",
