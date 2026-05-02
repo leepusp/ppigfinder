@@ -3,7 +3,12 @@
 Experimental ppigFinder shell launcher.
 
 This launcher does not replace main.py yet. It provides a future entry point:
-Splash -> Home -> current legacy interface.
+
+Splash
+  -> Home
+      -> current legacy interface
+      -> guided workspace preview
+      -> direct calls into the current interface
 """
 
 from __future__ import annotations
@@ -13,7 +18,9 @@ import sys
 from ppigfinder.ui_shell.qt import QApplication, QTimer, exec_app
 from ppigfinder.ui_shell.splash import SplashWindow
 from ppigfinder.ui_shell.home_window import HomeWindow
+from ppigfinder.ui_shell.workspace_window import WorkspaceWindow
 from ppigfinder.ui_shell.bridge import LegacyActionBridge
+from ppigfinder.ui_shell.models import HomeAction
 from ppigfinder.ui_shell.theme import shell_stylesheet
 
 
@@ -26,45 +33,82 @@ class ShellController:
         self.legacy_window = None
         self.home = None
         self.splash = None
+        self.workspace = None
 
     def start(self) -> None:
         self.splash = SplashWindow()
         self.splash.show()
         self.splash.start()
 
-        QTimer.singleShot(1700, self.show_home)
+        QTimer.singleShot(1600, self.show_home)
 
     def show_home(self) -> None:
         if self.splash is not None:
             self.splash.close()
 
-        self.home = HomeWindow()
-        self._add_open_legacy_button()
-        self.home.show()
-
-    def _add_open_legacy_button(self) -> None:
-        """
-        Add an explicit action to open the current working ppigFinder interface.
-        """
-        from ppigfinder.ui_shell.models import HomeAction
-
-        action = HomeAction(
-            id="open_current_interface",
-            title="Open current ppigFinder interface",
-            description="Open the current full ppigFinder interface while the guided interface is under development.",
-            input_data="Current application",
-            output_data="Current ppigFinder workspace",
-            action_name="open_legacy_interface",
-        )
-
-        self.home.actions.insert(0, action)
-
-        # Rebuild home after inserting the action.
-        self.home.close()
         self.home = HomeWindow(
             bridge=ShellBridge(self),
-            actions=self.home.actions,
+            actions=self._home_actions(),
         )
+        self.home.show()
+
+    def _home_actions(self) -> list[HomeAction]:
+        """
+        Home actions for the experimental shell.
+
+        action_name values are resolved by ShellBridge. Existing legacy
+        actions are opened on demand.
+        """
+        return [
+            HomeAction(
+                id="open_current_interface",
+                title="Open current interface",
+                description="Open the current full ppigFinder interface.",
+                input_data="Current application",
+                output_data="Full ppigFinder workspace",
+                action_name="open_legacy_interface",
+            ),
+            HomeAction(
+                id="open_genome",
+                title="Open genome",
+                description="Start from a FASTA, GenBank or SnapGene DNA file.",
+                input_data="DNA / genome sequence",
+                output_data="Genome workspace",
+                action_name="load_fasta",
+            ),
+            HomeAction(
+                id="open_project",
+                title="Open project",
+                description="Resume a previous ppigFinder session.",
+                input_data="Project file",
+                output_data="Restored session",
+                action_name="load_project",
+            ),
+            HomeAction(
+                id="predict_orfs",
+                title="Predict ORFs",
+                description="Identify protein-coding regions in the loaded genome.",
+                input_data="Loaded DNA / genome",
+                output_data="ORF and protein table",
+                action_name="analyze_orfs",
+            ),
+            HomeAction(
+                id="guided_workspace",
+                title="Guided workspace preview",
+                description="Open the future workflow-oriented workspace preview.",
+                input_data="Experimental interface shell",
+                output_data="Stepwise analysis workspace",
+                action_name="open_guided_workspace",
+            ),
+            HomeAction(
+                id="reports",
+                title="Reports",
+                description="Generate HTML reports, snapshots and tabular exports.",
+                input_data="Current project state",
+                output_data="HTML / JSON / TSV",
+                action_name="export_html_report",
+            ),
+        ]
 
     def open_legacy_interface(self) -> bool:
         """
@@ -101,15 +145,62 @@ class ShellController:
         apply_text_fallback_to_window(self.legacy_window)
 
         self.legacy_window.show()
+        self.legacy_window.raise_()
 
         QTimer.singleShot(100, _check_dependencies_at_startup)
 
+        return True
+
+    def open_guided_workspace(self) -> bool:
+        """
+        Open the future guided workspace preview.
+        """
+        if self.workspace is None:
+            self.workspace = WorkspaceWindow(bridge=ShellBridge(self))
+
+        self.workspace.show()
+        self.workspace.raise_()
+        return True
+
+    def call_legacy_action(self, action_name: str | None) -> bool:
+        """
+        Open legacy interface if needed and call one of its existing methods.
+        """
+        if not action_name:
+            return False
+
+        if action_name == "open_legacy_interface":
+            return self.open_legacy_interface()
+
+        if action_name == "open_guided_workspace":
+            return self.open_guided_workspace()
+
+        self.open_legacy_interface()
+
+        if self.legacy_window is None:
+            return False
+
+        method = getattr(self.legacy_window, action_name, None)
+
+        if not callable(method):
+            try:
+                self.legacy_window._status.showMessage(
+                    f"Action not available yet: {action_name}"
+                )
+            except Exception:
+                pass
+            return False
+
+        method()
         return True
 
 
 class ShellBridge(LegacyActionBridge):
     """
     Bridge used by the experimental shell.
+
+    It marks actions as available because it can open the legacy interface
+    on demand before calling them.
     """
 
     def __init__(self, controller: ShellController):
@@ -117,31 +208,10 @@ class ShellBridge(LegacyActionBridge):
         self.controller = controller
 
     def available(self, action_name: str | None) -> bool:
-        if action_name == "open_legacy_interface":
-            return True
-
-        if self.controller.legacy_window is None:
-            return False
-
-        return callable(getattr(self.controller.legacy_window, action_name, None))
+        return action_name is not None
 
     def call(self, action_name: str | None) -> bool:
-        if action_name == "open_legacy_interface":
-            return self.controller.open_legacy_interface()
-
-        if self.controller.legacy_window is None:
-            self.controller.open_legacy_interface()
-
-        if self.controller.legacy_window is None or action_name is None:
-            return False
-
-        method = getattr(self.controller.legacy_window, action_name, None)
-
-        if callable(method):
-            method()
-            return True
-
-        return False
+        return self.controller.call_legacy_action(action_name)
 
 
 def main() -> int:

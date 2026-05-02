@@ -188,7 +188,7 @@ class HomeWindow(QMainWindow):
 
         layout.addStretch(1)
 
-        button = QPushButton("Details / Start")
+        button = QPushButton("Details / Run")
         button.clicked.connect(lambda checked=False, a=action: self._activate(a))
         layout.addWidget(button)
 
