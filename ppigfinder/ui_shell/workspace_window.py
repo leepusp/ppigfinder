@@ -186,6 +186,17 @@ class WorkspaceWindow(QMainWindow):
                 "guided_shortest_orf_aa": summary.shortest_orf_aa,
                 "guided_orf_min_aa": summary.min_aa,
                 "guided_orf_source": summary.source_file,
+                "guided_orf_map": [
+                    {
+                        "id": orf.id,
+                        "start": orf.start,
+                        "end": orf.end,
+                        "strand": orf.strand,
+                        "frame": orf.frame,
+                        "aa_length": orf.aa_length,
+                    }
+                    for orf in summary.orfs
+                ],
             }
         )
 

@@ -5,6 +5,7 @@ Module-specific visualization/status panels for the guided UI shell.
 
 from __future__ import annotations
 
+from ppigfinder.ui_shell.orf_map_preview import ORFMapPreviewWidget
 from ppigfinder.ui_shell.qt import (
     QFrame,
     QLabel,
@@ -87,6 +88,7 @@ class ModuleVisualizationPanel(QFrame):
         self.layout.addLayout(self.grid)
 
         self.boxes: dict[str, SmallInfoBox] = {}
+        self.map_preview = None
 
         self._build_static_panel()
         self.layout.addStretch(1)
@@ -127,6 +129,13 @@ class ModuleVisualizationPanel(QFrame):
             self._add_box("mode", "Prediction mode", "Pyrodigal / six-frame / hybrid", "Configurable ORF prediction logic.", 0, 1)
             self._add_box("table", "ORF table", "Pending", "Coordinates, strand, frame, size and sequence.", 1, 0)
             self._add_box("next", "Next step", "Annotation", "BLAST, HMM/domain and neighbourhood.", 1, 1)
+
+            map_title = QLabel("ORF map preview")
+            map_title.setObjectName("SectionTitle")
+            self.layout.addWidget(map_title)
+
+            self.map_preview = ORFMapPreviewWidget()
+            self.layout.addWidget(self.map_preview)
 
         elif module_id == "annotation":
             self.summary.setText(
@@ -215,11 +224,36 @@ class ModuleVisualizationPanel(QFrame):
                 else:
                     self.boxes["next"].set_value("Annotation")
 
+            if self.map_preview is not None:
+                self.map_preview.set_data(
+                    state.get("guided_orf_map", []),
+                    int(state.get("genome_total_length") or 0),
+                )
+
         elif self.module_id == "annotation":
             if "blast" in self.boxes:
-                self.boxes["blast"].set_value("Ready after ORFs")
+                if state.get("guided_blast_planned"):
+                    self.boxes["blast"].set_value("Selected")
+                elif state.get("guided_orf_count"):
+                    self.boxes["blast"].set_value("Ready")
+                else:
+                    self.boxes["blast"].set_value("Waiting for ORFs")
+
             if "hmm" in self.boxes:
-                self.boxes["hmm"].set_value("Ready after ORFs")
+                if state.get("guided_hmm_planned"):
+                    self.boxes["hmm"].set_value("Selected")
+                elif state.get("guided_orf_count"):
+                    self.boxes["hmm"].set_value("Ready")
+                else:
+                    self.boxes["hmm"].set_value("Waiting for ORFs")
+
+            if "neighborhood" in self.boxes:
+                if state.get("guided_neighborhood_planned"):
+                    self.boxes["neighborhood"].set_value("Selected")
+                elif state.get("guided_orf_count"):
+                    self.boxes["neighborhood"].set_value("Ready")
+                else:
+                    self.boxes["neighborhood"].set_value("Waiting for ORFs")
 
         elif self.module_id == "alphafold":
             if "af3_results_folder" in self.boxes:
