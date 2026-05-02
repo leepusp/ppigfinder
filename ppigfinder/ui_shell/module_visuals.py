@@ -272,8 +272,24 @@ class ModuleVisualizationPanel(QFrame):
                     self.boxes["next"].set_value("AlphaFold / PPI")
 
         elif self.module_id == "alphafold":
+            if "json" in self.boxes:
+                if state.get("af3_json_exported"):
+                    self.boxes["json"].set_value("Exported")
+                elif state.get("af3_pair_count"):
+                    self.boxes["json"].set_value(f"{state.get('af3_pair_count')} pairs ready")
+                else:
+                    self.boxes["json"].set_value("Pending")
+
             if "af3_results_folder" in self.boxes:
                 self.boxes["af3_results_folder"].set_value(_short_path(state.get("af3_results_folder", "")))
+
+            if "metrics" in self.boxes:
+                if state.get("af3_results_folder"):
+                    self.boxes["metrics"].set_value("Ready to parse")
+                elif state.get("af3_pair_count"):
+                    self.boxes["metrics"].set_value("Waiting for AF3 results")
+                else:
+                    self.boxes["metrics"].set_value("ipTM / PAE / contacts")
 
         elif self.module_id == "hpc":
             if "hpc_profile" in self.boxes:

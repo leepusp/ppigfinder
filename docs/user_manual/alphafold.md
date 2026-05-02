@@ -60,3 +60,10 @@ High ipTM or cp_ipTM and low PAE_inter / PAE_min values support a more confident
 ## Recommended next step
 
 After importing AF3 results, export the AF3 results table and generate an HTML report.
+
+
+## Guided candidate pair builder
+
+The guided shell includes an initial AlphaFold/PPI pair builder. The first strategy generates adjacent ORF pairs from the guided ORF prediction table. This supports the neighbourhood-guided concept of ppigFinder and prepares the interface for more advanced strategies such as query-vs-neighbours, HMM-positive ORFs, selected ORFs all-vs-all, homodimers and custom stoichiometry.
+
+The generated pairs can be exported as AlphaFold Server-compatible JSON.

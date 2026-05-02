@@ -25,6 +25,7 @@ from ppigfinder.ui_shell.input_validation import validate_genome_input, summary_
 from ppigfinder.ui_shell.hpc_dialog import open_hpc_connection_dialog
 from ppigfinder.ui_shell.orf_results_dialog import show_guided_orf_results
 from ppigfinder.ui_shell.annotation_candidates_dialog import show_annotation_candidates
+from ppigfinder.ui_shell.af3_pair_builder_dialog import open_af3_pair_builder_dialog
 from ppigfinder.ui_shell.guided_backend import (
     predict_orfs_from_file,
     write_orfs_fasta,
@@ -272,6 +273,25 @@ class WorkspaceWindow(QMainWindow):
             label + " was marked as selected in the guided workflow. Full execution will be connected progressively.",
         )
 
+    def _open_af3_pair_builder(self) -> None:
+        if not self.guided_orfs:
+            self._show_message(
+                "AlphaFold / PPI",
+                "No ORFs are available yet. Run Predict ORFs in the Protein / ORFs module first.",
+            )
+            self.show_route("orfs")
+            return
+
+        result = open_af3_pair_builder_dialog(self.guided_orfs, parent=self)
+
+        self.selected_inputs["af3_pair_count"] = result.get("pair_count", 0)
+
+        if result.get("json_path"):
+            self.selected_inputs["af3_json_path"] = result["json_path"]
+            self.selected_inputs["af3_json_exported"] = True
+
+        self._refresh_visualization_panels()
+
     def _open_hpc_dialog(self) -> None:
         status, config = open_hpc_connection_dialog(parent=self)
 
@@ -327,6 +347,10 @@ class WorkspaceWindow(QMainWindow):
 
         if action_name == "select_folder:af3_results":
             self._select_folder("af3_results_folder", "Import AlphaFold/AF3 results folder")
+            return
+
+        if action_name == "guided:af3_pair_builder":
+            self._open_af3_pair_builder()
             return
 
         if action_name == "guided:predict_orfs":
@@ -443,7 +467,7 @@ class WorkspaceWindow(QMainWindow):
 
         if route_id == "alphafold":
             return [
-                self._action("Export AF3 Server JSON", "Prepare AF3 job export after guided pair selection is implemented.", "info:AF3 JSON export will be connected after guided ORF/protein pair selection is implemented."),
+                self._action("Build AF3 candidate pairs", "Generate adjacent ORF candidate pairs and optionally export AlphaFold Server JSON.", "guided:af3_pair_builder"),
                 self._action("Import AF3 results", "Import AlphaFold 3 output folders and extract interaction metrics.", "select_folder:af3_results"),
                 self._action("Continue to DaVinci / HPC", "Optionally prepare server execution before reporting.", "route:hpc"),
             ]
