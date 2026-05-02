@@ -16,6 +16,19 @@ import re
 from ppigfinder.alphafold.sequence_validation import clean_protein_sequence
 
 
+def sanitize_job_name(name: str) -> str:
+    """
+    Return a readable but safe AlphaFold job name.
+    """
+    name = str(name or "").strip()
+    name = re.sub(r"\s+", "_", name)
+    name = re.sub(r"[^A-Za-z0-9_.-]+", "_", name)
+    name = name.strip("._-")
+    return name[:120] or "af3_job"
+
+
+
+
 @dataclass(slots=True)
 class ServerProteinChain:
     """
