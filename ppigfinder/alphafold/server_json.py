@@ -13,47 +13,7 @@ from pathlib import Path
 import json
 import re
 
-
-STANDARD_AA = set("ACDEFGHIKLMNPQRSTVWY")
-
-
-def sanitize_job_name(name: str) -> str:
-    """
-    Return a readable but safe AlphaFold job name.
-    """
-    name = name.strip()
-    name = re.sub(r"\s+", "_", name)
-    name = re.sub(r"[^A-Za-z0-9_.-]+", "_", name)
-    return name[:120] or "af3_job"
-
-
-def clean_protein_sequence(sequence: str, strict: bool = False) -> str:
-    """
-    Normalize a protein sequence for AlphaFold Server.
-
-    strict=True raises an error if non-standard amino acids are present.
-    strict=False removes gaps/spaces and keeps alphabetic residues uppercase.
-    """
-    sequence = re.sub(r"[^A-Za-z]", "", sequence or "").upper()
-
-    if not sequence:
-        raise ValueError("Empty protein sequence.")
-
-    invalid = sorted(set(sequence) - STANDARD_AA)
-
-    if invalid and strict:
-        raise ValueError(
-            "AlphaFold Server supports the 20 standard amino acids only. "
-            f"Invalid residues found: {', '.join(invalid)}"
-        )
-
-    if invalid:
-        sequence = "".join(aa for aa in sequence if aa in STANDARD_AA)
-
-    if not sequence:
-        raise ValueError("Protein sequence became empty after cleaning.")
-
-    return sequence
+from ppigfinder.alphafold.sequence_validation import clean_protein_sequence
 
 
 @dataclass(slots=True)

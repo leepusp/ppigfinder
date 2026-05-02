@@ -284,7 +284,10 @@ def export_selected_orfs_as_server_json(window) -> bool:
         QMessageBox.critical(
             window,
             "Export AF3 Server JSON",
-            f"Could not export AlphaFold Server JSON:\n{exc}",
+            "Could not export AlphaFold Server JSON.\n\n"
+            "A common cause is an ORF protein sequence containing unsupported "
+            "residues such as X, B, Z, U or internal stop codons.\n\n"
+            f"Details:\n{exc}",
         )
         return False
 
