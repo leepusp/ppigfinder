@@ -519,43 +519,103 @@ try:
 except ImportError:
     PARAMIKO_AVAILABLE = False
 
-try:
-    import matplotlib
-    if QT_VERSION == 6:
-        matplotlib.use('Qt6Agg')
-        from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
-    else:
-        matplotlib.use('Qt5Agg')
-        from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-    import matplotlib.pyplot as plt
-    MATPLOTLIB_AVAILABLE = True
-except Exception:
-    try:
-        import matplotlib
-        matplotlib.use('Agg')
-        from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
-        import matplotlib.pyplot as plt
-        MATPLOTLIB_AVAILABLE = True
-    except ImportError:
-        MATPLOTLIB_AVAILABLE = False
-        FigureCanvas = None
+# Lazy matplotlib loader.
+# Importing matplotlib can be slow on HPC/shared filesystems, so it is loaded
+# only when plots are actually created.
+import importlib.util as _importlib_util
 
-try:
-    import numpy as np
-    NUMPY_AVAILABLE = True
-except ImportError:
-    np = None  # type: ignore[assignment]
-    NUMPY_AVAILABLE = False
+MATPLOTLIB_AVAILABLE = _importlib_util.find_spec("matplotlib") is not None
+
+
+def _load_matplotlib_objects():
+    import matplotlib
+
+    try:
+        if QT_VERSION == 6:
+            matplotlib.use("Qt6Agg")
+            from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as _FigureCanvas
+        else:
+            matplotlib.use("Qt5Agg")
+            from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as _FigureCanvas
+    except Exception:
+        matplotlib.use("Agg")
+        from matplotlib.backends.backend_agg import FigureCanvasAgg as _FigureCanvas
+
+    import matplotlib.pyplot as _plt
+    return _plt, _FigureCanvas
+
+
+class _LazyPyplot:
+    def __init__(self):
+        self._plt = None
+
+    def _load(self):
+        if self._plt is None:
+            self._plt, _ = _load_matplotlib_objects()
+        return self._plt
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+
+class _LazyFigureCanvas:
+    def __init__(self):
+        self._canvas_cls = None
+
+    def _load(self):
+        if self._canvas_cls is None:
+            _, self._canvas_cls = _load_matplotlib_objects()
+        return self._canvas_cls
+
+    def __call__(self, *args, **kwargs):
+        return self._load()(*args, **kwargs)
+
+
+plt = _LazyPyplot()
+FigureCanvas = _LazyFigureCanvas() if MATPLOTLIB_AVAILABLE else None
+
+# Lazy numpy loader.
+NUMPY_AVAILABLE = _importlib_util.find_spec("numpy") is not None
+
+
+class _LazyNumpy:
+    def __init__(self):
+        self._np = None
+
+    def _load(self):
+        if self._np is None:
+            import numpy as _np
+            self._np = _np
+        return self._np
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+
+np = _LazyNumpy() if NUMPY_AVAILABLE else None  # type: ignore[assignment]
 
 # scipy.ndimage is used by the motif detection in the AlphaFold
 # Analysis tab (connected-component labeling + morphological closing).
 # It is OPTIONAL — a pure-numpy BFS fallback is used when it's missing.
-try:
-    import scipy.ndimage as _scipy_ndimage
-    SCIPY_NDIMAGE_AVAILABLE = True
-except ImportError:
-    _scipy_ndimage = None  # type: ignore[assignment]
-    SCIPY_NDIMAGE_AVAILABLE = False
+# Lazy scipy.ndimage loader.
+SCIPY_NDIMAGE_AVAILABLE = _importlib_util.find_spec("scipy.ndimage") is not None
+
+
+class _LazyScipyNdimage:
+    def __init__(self):
+        self._mod = None
+
+    def _load(self):
+        if self._mod is None:
+            import scipy.ndimage as _mod
+            self._mod = _mod
+        return self._mod
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+
+_scipy_ndimage = _LazyScipyNdimage() if SCIPY_NDIMAGE_AVAILABLE else None  # type: ignore[assignment]
 
 
 

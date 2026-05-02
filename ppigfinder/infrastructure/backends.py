@@ -2,9 +2,9 @@
 """
 External backend detection for ppigFinder.
 
-This module centralizes detection of command-line and optional Python
-backends used by ppigFinder, such as BLAST+, HMMER3, Pyrodigal and Paramiko.
-It is independent from the PyQt interface.
+Startup must be fast. Therefore, default backend detection only checks
+whether executables/modules are available. Slow version probing should be
+requested explicitly with detailed=True.
 """
 
 from __future__ import annotations
@@ -40,13 +40,6 @@ except Exception:
 
 
 def _bundled_tools_dir() -> Path | None:
-    """
-    Return a bundled tools directory when running from a packaged build.
-
-    Search order:
-    1. PyInstaller runtime directory, if present.
-    2. Directory next to the running script.
-    """
     try:
         base = Path(getattr(sys, "_MEIPASS", ""))
         if not base.is_dir():
@@ -61,41 +54,45 @@ def _bundled_tools_dir() -> Path | None:
     return None
 
 
-def _detect_executable(
-    tool_name: str,
-    command: str,
-    version_args: list[str],
-    version_timeout: int = 5,
-) -> dict[str, Any]:
-    """
-    Detect an executable in bundled tools, PATH, or WSL on Windows.
-    """
+def _find_executable(command: str) -> str | None:
     bundled_tools = _bundled_tools_dir()
-    path = None
-    version = None
 
     if bundled_tools:
         executable_name = command + (".exe" if os.name == "nt" else "")
         candidate = bundled_tools / executable_name
         if candidate.is_file():
-            path = str(candidate)
+            return str(candidate)
 
-    if path is None:
-        path = shutil.which(command)
+    return shutil.which(command)
+
+
+def _probe_version(path: str, version_args: list[str], timeout: int = 3) -> str:
+    """
+    Slow version check. Use only when explicitly requested.
+    """
+    try:
+        result = subprocess.run(
+            [path, *version_args],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+        output = result.stdout or result.stderr or ""
+        return output.splitlines()[0] if output else "detected"
+    except Exception:
+        return "detected"
+
+
+def _detect_executable(
+    tool_name: str,
+    command: str,
+    version_args: list[str],
+    detailed: bool = False,
+) -> dict[str, Any]:
+    path = _find_executable(command)
 
     if path:
-        try:
-            result = subprocess.run(
-                [path, *version_args],
-                capture_output=True,
-                text=True,
-                timeout=version_timeout,
-            )
-            output = result.stdout or result.stderr or ""
-            version = output.splitlines()[0] if output else "detected"
-        except Exception:
-            version = "detected"
-
+        version = _probe_version(path, version_args) if detailed else "available"
         return {
             "path": path,
             "version": version,
@@ -103,16 +100,17 @@ def _detect_executable(
             "wsl": False,
         }
 
-    if os.name == "nt":
+    # Do not probe WSL during normal Linux/HPC startup.
+    # WSL probing can be slow and should only be used in detailed mode on Windows.
+    if detailed and os.name == "nt":
         try:
             result = subprocess.run(
-                ["wsl", "bash", "-lc", f"{command} {' '.join(version_args)}"],
+                ["wsl", "bash", "-lc", f"command -v {command}"],
                 capture_output=True,
                 text=True,
-                timeout=10,
+                timeout=3,
             )
-            output = result.stdout + result.stderr
-            if result.returncode == 0 or "Usage" in output or "usage" in output:
+            if result.returncode == 0:
                 return {
                     "path": f"wsl bash -lc {command}",
                     "version": "via WSL",
@@ -130,9 +128,12 @@ def _detect_executable(
     }
 
 
-def detect_backends() -> dict[str, dict[str, Any]]:
+def detect_backends(detailed: bool = False) -> dict[str, dict[str, Any]]:
     """
     Detect external and optional backends used by ppigFinder.
+
+    detailed=False is intended for application startup.
+    detailed=True may execute external commands to obtain versions.
     """
     backends: dict[str, dict[str, Any]] = {}
 
@@ -140,24 +141,26 @@ def detect_backends() -> dict[str, dict[str, Any]]:
         tool_name="blast+",
         command="blastp",
         version_args=["-version"],
+        detailed=detailed,
     )
 
     backends["hmmer3"] = _detect_executable(
         tool_name="hmmer3",
         command="hmmsearch",
         version_args=["-h"],
+        detailed=detailed,
     )
 
     backends["pyrodigal"] = {
         "path": "pyrodigal Python module" if PYRODIGAL_AVAILABLE else None,
-        "version": PYRODIGAL_VERSION,
+        "version": PYRODIGAL_VERSION if detailed else ("available" if PYRODIGAL_AVAILABLE else None),
         "available": PYRODIGAL_AVAILABLE,
         "wsl": False,
     }
 
     backends["paramiko"] = {
         "path": "paramiko Python module" if PARAMIKO_AVAILABLE else None,
-        "version": PARAMIKO_VERSION,
+        "version": PARAMIKO_VERSION if detailed else ("available" if PARAMIKO_AVAILABLE else None),
         "available": PARAMIKO_AVAILABLE,
         "wsl": False,
     }
@@ -165,13 +168,20 @@ def detect_backends() -> dict[str, dict[str, Any]]:
     return backends
 
 
-BACKENDS = detect_backends()
+# Fast startup cache.
+BACKENDS = detect_backends(detailed=False)
+
+
+def refresh_backends(detailed: bool = True) -> dict[str, dict[str, Any]]:
+    """
+    Refresh backend information on demand.
+    """
+    global BACKENDS
+    BACKENDS = detect_backends(detailed=detailed)
+    return BACKENDS
 
 
 def missing_optional_packages() -> list[str]:
-    """
-    Return optional Python packages that are currently unavailable.
-    """
     missing = []
 
     if not PYRODIGAL_AVAILABLE:
