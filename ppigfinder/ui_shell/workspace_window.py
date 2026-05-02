@@ -23,6 +23,7 @@ from ppigfinder.ui_shell.theme import APP_TITLE, shell_stylesheet
 from ppigfinder.ui_shell.branding import apply_ppigfinder_branding
 from ppigfinder.ui_shell.input_validation import validate_genome_input, summary_to_state
 from ppigfinder.ui_shell.orf_results_dialog import show_guided_orf_results
+from ppigfinder.ui_shell.annotation_candidates_dialog import show_annotation_candidates
 from ppigfinder.ui_shell.guided_backend import (
     predict_orfs_from_file,
     write_orfs_fasta,
@@ -248,6 +249,19 @@ class WorkspaceWindow(QMainWindow):
             "Guided ORF protein FASTA exported:\n\n" + path,
         )
 
+    def _show_annotation_candidates(self) -> None:
+        if not self.guided_orfs:
+            self._show_message(
+                "Annotation candidates",
+                "No ORFs are available yet. Run Predict ORFs in the Protein / ORFs module first.",
+            )
+            self.show_route("orfs")
+            return
+
+        self.selected_inputs["guided_annotation_candidates_count"] = len(self.guided_orfs)
+        self._refresh_visualization_panels()
+        show_annotation_candidates(self.guided_orfs, parent=self)
+
     def _mark_annotation_step(self, key: str, label: str) -> None:
         self.selected_inputs[key] = True
         self._refresh_visualization_panels()
@@ -305,6 +319,10 @@ class WorkspaceWindow(QMainWindow):
 
         if action_name == "guided:export_orfs_fasta":
             self._export_guided_orfs_fasta()
+            return
+
+        if action_name == "guided:annotation_candidates":
+            self._show_annotation_candidates()
             return
 
         if action_name == "guided:blast":
@@ -392,6 +410,7 @@ class WorkspaceWindow(QMainWindow):
 
         if route_id == "annotation":
             return [
+                self._action("Review candidate ORFs", "Inspect guided ORFs as candidates for BLAST, HMM/domain and neighbourhood analysis.", "guided:annotation_candidates"),
                 self._action("Run BLAST", "Mark BLAST as selected in the guided flow.", "guided:blast"),
                 self._action("Annotate HMM", "Mark HMM/domain annotation as selected in the guided flow.", "guided:hmm"),
                 self._action("Neighbourhood analysis", "Mark neighbourhood analysis as selected in the guided flow.", "guided:neighborhood"),

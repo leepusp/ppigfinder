@@ -255,6 +255,13 @@ class ModuleVisualizationPanel(QFrame):
                 else:
                     self.boxes["neighborhood"].set_value("Waiting for ORFs")
 
+            if "next" in self.boxes:
+                candidates = state.get("guided_annotation_candidates_count") or state.get("guided_orf_count") or 0
+                if candidates:
+                    self.boxes["next"].set_value(f"{candidates} candidates for AF3/PPI")
+                else:
+                    self.boxes["next"].set_value("AlphaFold / PPI")
+
         elif self.module_id == "alphafold":
             if "af3_results_folder" in self.boxes:
                 self.boxes["af3_results_folder"].set_value(_short_path(state.get("af3_results_folder", "")))

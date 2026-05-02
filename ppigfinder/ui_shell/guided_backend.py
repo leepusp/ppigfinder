@@ -270,6 +270,7 @@ def build_guided_summary_markdown(state: dict) -> str:
         "",
         "## Annotation",
         "",
+        f"- Candidate ORFs available: {state.get('guided_annotation_candidates_count') or state.get('guided_orf_count') or 0}",
         f"- BLAST selected/planned: {'yes' if state.get('guided_blast_planned') else 'no'}",
         f"- HMM selected/planned: {'yes' if state.get('guided_hmm_planned') else 'no'}",
         f"- Neighbourhood selected/planned: {'yes' if state.get('guided_neighborhood_planned') else 'no'}",
