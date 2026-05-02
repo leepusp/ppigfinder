@@ -66,6 +66,7 @@ except Exception:
     QT6 = False
 
 from ppigfinder.ui_shell.branding import apply_ppigfinder_branding
+from ppigfinder.ui_shell.genomic_tracks import read_genome_sequence, compute_gc_and_skew_bins
 
 
 def _window_flags():
@@ -143,6 +144,27 @@ def _protein_preview(orf, length: int = 58) -> str:
     return seq[:length] + "..."
 
 
+
+def _load_genome_sequence_from_parent(parent) -> str:
+    """
+    Recover loaded genome sequence from the workflow parent when available.
+    """
+    try:
+        if parent is not None and hasattr(parent, "loaded_genome_sequence"):
+            seq = getattr(parent, "loaded_genome_sequence") or ""
+            if seq:
+                return seq
+
+        if parent is not None and hasattr(parent, "workflow_state"):
+            genome_file = parent.workflow_state.get("genome_file")
+            if genome_file:
+                return read_genome_sequence(genome_file)
+    except Exception:
+        return ""
+
+    return ""
+
+
 def _format_sequence(seq: str, width: int = 70, block: int = 10) -> str:
     seq = re.sub(r"\s+", "", seq or "").upper()
     if not seq:
@@ -189,15 +211,16 @@ class ORFMapWidget(QWidget):
     as locus browsers: directional arrows along a genomic coordinate axis.
     """
 
-    def __init__(self, orfs, parent=None):
+    def __init__(self, orfs, genome_sequence: str = "", parent=None):
         super().__init__(parent)
 
         self.orfs = sorted(list(orfs or []), key=lambda o: _orf_start(o))
-        self.genome_length = self._infer_genome_length()
+        self.genome_sequence = genome_sequence or ""
+        self.genome_length = max(self._infer_genome_length(), len(self.genome_sequence))
         self.view_start = 1
         self.view_end = max(1, self.genome_length)
         self.selected_orf_id = ""
-        self.setMinimumHeight(270)
+        self.setMinimumHeight(360)
 
     def _infer_genome_length(self) -> int:
         if not self.orfs:
@@ -314,7 +337,7 @@ class ORFMapWidget(QWidget):
         left = 44
         right = width - 26
         usable = max(1, right - left)
-        axis_y = height // 2
+        axis_y = 112 if self.genome_sequence else height // 2
 
         painter.setPen(QPen(QColor("#17384d"), 2))
         painter.drawLine(left, axis_y, right, axis_y)
@@ -414,7 +437,140 @@ class ORFMapWidget(QWidget):
         painter.setPen(QColor("#ff8f00"))
         painter.drawText(width - 70, 22, "selected")
 
+        if self.genome_sequence:
+            self._draw_computed_signal_tracks(
+                painter,
+                left,
+                right,
+                axis_y + 70,
+                max(80, height - axis_y - 95),
+            )
+
         painter.end()
+
+    def _draw_track_axis(self, painter, x: float, y: float, w: float, label: str, value_text: str = ""):
+        painter.setPen(QPen(QColor("#cfd8dc"), 1))
+        painter.drawLine(int(x), int(y), int(x + w), int(y))
+
+        painter.setFont(QFont("Arial", 8))
+        painter.setPen(QColor("#37474f"))
+        painter.drawText(QRectF(x, y - 18, 260, 16), label)
+
+        if value_text:
+            painter.drawText(QRectF(x + w - 280, y - 18, 280, 16), _align_center(), value_text)
+
+    def _draw_computed_signal_tracks(self, painter, left: float, right: float, top: float, height: float):
+        """
+        Draw computed GC content and GC skew tracks below the ORF map.
+
+        These are available from genome sequence alone. DNA-Seq/RNA-Seq coverage
+        requires external signal files and will be integrated separately.
+        """
+        width = max(1, right - left)
+        bins = compute_gc_and_skew_bins(
+            self.genome_sequence,
+            self.view_start,
+            self.view_end,
+            bins=max(60, min(260, int(width / 5))),
+        )
+
+        if not bins:
+            painter.setFont(QFont("Arial", 9))
+            painter.setPen(QColor("#60717f"))
+            painter.drawText(
+                QRectF(left, top, width, 40),
+                _align_center(),
+                "Genome sequence not available for GC tracks.",
+            )
+            return
+
+        gc_values = [row["gc"] for row in bins]
+        skew_values = [row["skew"] for row in bins]
+
+        avg_gc = sum(gc_values) / len(gc_values)
+        avg_skew = sum(skew_values) / len(skew_values)
+
+        gc_y = top + 30
+        skew_y = top + 95
+        track_h = 42
+
+        self._draw_track_axis(
+            painter,
+            left,
+            gc_y + track_h / 2,
+            width,
+            "GC content (%)",
+            f"Average: {avg_gc * 100:.2f}%",
+        )
+
+        self._draw_track_axis(
+            painter,
+            left,
+            skew_y + track_h / 2,
+            width,
+            "GC skew (G-C)/(G+C)",
+            f"Average: {avg_skew:.3f}",
+        )
+
+        self._draw_gc_content_area(painter, bins, left, gc_y, width, track_h)
+        self._draw_gc_skew_area(painter, bins, left, skew_y, width, track_h)
+
+        painter.setFont(QFont("Arial", 8))
+        painter.setPen(QColor("#60717f"))
+        painter.drawText(
+            QRectF(left, skew_y + track_h + 10, width, 18),
+            "Computed tracks from genome sequence. Experimental DNA/RNA/proteomics tracks require external signal files.",
+        )
+
+    def _x_for_track_bin(self, pos: int, left: float, width: float) -> float:
+        span = max(1, self.view_end - self.view_start)
+        return left + ((pos - self.view_start) / span) * width
+
+    def _draw_gc_content_area(self, painter, bins, left: float, y: float, width: float, height: float):
+        baseline = y + height
+        max_h = height
+
+        painter.setPen(QPen(QColor("#fb8c00"), 1))
+        painter.setBrush(QBrush(QColor(255, 183, 77, 120)))
+
+        points = [QPointF(left, baseline)]
+
+        for row in bins:
+            x = self._x_for_track_bin(row["start"], left, width)
+            value = row["gc"]
+            py = baseline - value * max_h
+            points.append(QPointF(x, py))
+
+        points.append(QPointF(left + width, baseline))
+        painter.drawPolygon(QPolygonF(points))
+
+    def _draw_gc_skew_area(self, painter, bins, left: float, y: float, width: float, height: float):
+        mid = y + height / 2
+        scale = height / 2
+
+        painter.setPen(QPen(QColor("#9e9e9e"), 1))
+        painter.drawLine(int(left), int(mid), int(left + width), int(mid))
+
+        for row in bins:
+            x1 = self._x_for_track_bin(row["start"], left, width)
+            x2 = self._x_for_track_bin(row["end"], left, width)
+            skew = max(-1.0, min(1.0, row["skew"]))
+            y2 = mid - skew * scale
+
+            if skew >= 0:
+                color = QColor(76, 175, 80, 130)
+                border = QColor("#43a047")
+            else:
+                color = QColor(156, 39, 176, 120)
+                border = QColor("#8e24aa")
+
+            painter.setBrush(QBrush(color))
+            painter.setPen(QPen(border, 0.4))
+            top = min(mid, y2)
+            bottom = max(mid, y2)
+            painter.drawRect(QRectF(x1, top, max(1, x2 - x1), max(1, bottom - top)))
+
+
 
 
 class LengthHistogramWidget(QWidget):
@@ -496,12 +652,13 @@ class FigureViewerDialog(QDialog):
     """
     Generic full-screen figure viewer for guided visual panels.
 
-    The goal is to let users inspect ORF maps, histograms and future
-    neighbourhood diagrams in a larger window without cluttering the main flow.
+    For ORF maps, this viewer adds zoom, pan and region controls.
     """
 
     def __init__(self, title: str, content_widget: QWidget, parent=None):
         super().__init__(parent)
+
+        self.content_widget = content_widget
 
         self.setWindowTitle(title)
         self.setWindowFlags(_window_flags())
@@ -518,11 +675,105 @@ class FigureViewerDialog(QDialog):
         title_label.setObjectName("SectionTitle")
         layout.addWidget(title_label)
 
+        if isinstance(content_widget, ORFMapWidget):
+            controls = QHBoxLayout()
+
+            btn_full = QPushButton("Full genome")
+            btn_focus = QPushButton("Focus selected")
+            btn_zoom_in = QPushButton("Zoom +")
+            btn_zoom_out = QPushButton("Zoom -")
+            btn_left = QPushButton("←")
+            btn_right = QPushButton("→")
+
+            self.region_start = QSpinBox()
+            self.region_end = QSpinBox()
+            self.region_start.setRange(1, max(1, content_widget.genome_length))
+            self.region_end.setRange(1, max(1, content_widget.genome_length))
+            self.region_start.setPrefix("start ")
+            self.region_end.setPrefix("end ")
+            self.region_start.setValue(max(1, content_widget.view_start))
+            self.region_end.setValue(max(1, content_widget.view_end))
+
+            btn_go = QPushButton("Go region")
+
+            btn_full.clicked.connect(self._map_full_genome)
+            btn_focus.clicked.connect(self._map_focus_selected)
+            btn_zoom_in.clicked.connect(lambda: self._map_zoom(0.5))
+            btn_zoom_out.clicked.connect(lambda: self._map_zoom(2.0))
+            btn_left.clicked.connect(lambda: self._map_pan(-0.35))
+            btn_right.clicked.connect(lambda: self._map_pan(0.35))
+            btn_go.clicked.connect(self._map_go_region)
+
+            controls.addWidget(btn_full)
+            controls.addWidget(btn_focus)
+            controls.addWidget(btn_zoom_in)
+            controls.addWidget(btn_zoom_out)
+            controls.addWidget(btn_left)
+            controls.addWidget(btn_right)
+            controls.addWidget(QLabel("Region"))
+            controls.addWidget(self.region_start)
+            controls.addWidget(self.region_end)
+            controls.addWidget(btn_go)
+
+            layout.addLayout(controls)
+
         layout.addWidget(content_widget, 1)
 
-        close_button = QPushButton("Close")
-        close_button.clicked.connect(self.close)
-        layout.addWidget(close_button)
+    def _sync_region_inputs(self):
+        if not isinstance(self.content_widget, ORFMapWidget):
+            return
+
+        self.region_start.setValue(max(1, int(self.content_widget.view_start)))
+        self.region_end.setValue(max(1, int(self.content_widget.view_end)))
+
+    def _map_full_genome(self):
+        if not isinstance(self.content_widget, ORFMapWidget):
+            return
+
+        self.content_widget.reset_view()
+        self._sync_region_inputs()
+
+    def _map_focus_selected(self):
+        if not isinstance(self.content_widget, ORFMapWidget):
+            return
+
+        orf = self.content_widget._find_orf(self.content_widget.selected_orf_id)
+
+        if orf is not None:
+            self.content_widget.focus_orf(orf, flank=12000)
+            self._sync_region_inputs()
+
+    def _map_zoom(self, factor: float):
+        if not isinstance(self.content_widget, ORFMapWidget):
+            return
+
+        self.content_widget.zoom(factor)
+        self._sync_region_inputs()
+
+    def _map_pan(self, fraction: float):
+        if not isinstance(self.content_widget, ORFMapWidget):
+            return
+
+        self.content_widget.pan(fraction)
+        self._sync_region_inputs()
+
+    def _map_go_region(self):
+        if not isinstance(self.content_widget, ORFMapWidget):
+            return
+
+        start = int(self.region_start.value())
+        end = int(self.region_end.value())
+
+        if end < start:
+            start, end = end, start
+
+        if end == start:
+            end = min(self.content_widget.genome_length, start + 200)
+
+        self.content_widget.view_start = max(1, start)
+        self.content_widget.view_end = min(self.content_widget.genome_length, end)
+        self.content_widget.update()
+        self._sync_region_inputs()
 
 
 class GuidedORFResultsDialog(QDialog):
@@ -532,10 +783,11 @@ class GuidedORFResultsDialog(QDialog):
 
     MAX_ROWS = 2500
 
-    def __init__(self, orfs, parent=None):
+    def __init__(self, orfs, genome_sequence: str = "", parent=None):
         super().__init__(parent)
 
         self.orfs = sorted(list(orfs or []), key=lambda o: _orf_start(o))
+        self.genome_sequence = _load_genome_sequence_from_parent(parent)
         self.filtered_orfs = list(self.orfs)
         self.workflow_parent = parent
         self.selected_orf = None
@@ -667,7 +919,7 @@ class GuidedORFResultsDialog(QDialog):
         map_title.setObjectName("SectionSubTitle")
         right_layout.addWidget(map_title)
 
-        self.map_widget = ORFMapWidget(self.orfs)
+        self.map_widget = ORFMapWidget(self.orfs, genome_sequence=self.genome_sequence)
         right_layout.addWidget(self.map_widget, 2)
 
         map_controls = QHBoxLayout()
@@ -771,7 +1023,7 @@ class GuidedORFResultsDialog(QDialog):
         """
         Open the current ORF map view in a maximized figure window.
         """
-        clone = ORFMapWidget(self.orfs)
+        clone = ORFMapWidget(self.orfs, genome_sequence=self.genome_sequence)
         clone.view_start = self.map_widget.view_start
         clone.view_end = self.map_widget.view_end
         clone.selected_orf_id = self.map_widget.selected_orf_id
