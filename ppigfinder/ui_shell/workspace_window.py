@@ -1,38 +1,38 @@
 #!/usr/bin/env python3
-"""
-Workspace shell for the future ppigFinder guided interface.
-"""
-
 from __future__ import annotations
+
+try:
+    from PyQt6.QtWidgets import (
+        QMainWindow,
+        QWidget,
+        QVBoxLayout,
+        QHBoxLayout,
+        QLabel,
+        QListWidget,
+        QListWidgetItem,
+        QStackedWidget,
+        QFileDialog,
+        QMessageBox,
+    )
+except Exception:
+    from PyQt5.QtWidgets import (
+        QMainWindow,
+        QWidget,
+        QVBoxLayout,
+        QHBoxLayout,
+        QLabel,
+        QListWidget,
+        QListWidgetItem,
+        QStackedWidget,
+        QFileDialog,
+        QMessageBox,
+    )
 
 from ppigfinder.ui_shell.module_pages import ModulePage
 from ppigfinder.ui_shell.navigation import ModuleRoute
-from ppigfinder.ui_shell.qt import (
-    QMainWindow,
-    QWidget,
-    QVBoxLayout,
-    QHBoxLayout,
-    QLabel,
-    QListWidget,
-    QListWidgetItem,
-    QStackedWidget,
-    QFileDialog,
-    QMessageBox,
-)
 from ppigfinder.ui_shell.theme import APP_TITLE, shell_stylesheet
 from ppigfinder.ui_shell.branding import apply_ppigfinder_branding
-from ppigfinder.ui_shell.input_validation import validate_genome_input, summary_to_state
-from ppigfinder.ui_shell.genome_inspector_dialog import show_genome_inspector
-from ppigfinder.ui_shell.orf_results_dialog import GuidedORFResultsDialog
-from ppigfinder.ui_shell.annotation_candidates_dialog import AnnotationCandidatesDialog
-from ppigfinder.ui_shell.hpc_dialog import open_hpc_connection_dialog
-from ppigfinder.ui_shell.workflow_overview_dialog import show_workflow_overview
-from ppigfinder.ui_shell.af3_pair_builder_dialog import open_af3_pair_builder_dialog
-from ppigfinder.ui_shell.guided_backend import (
-    predict_orfs_from_file,
-    write_orfs_fasta,
-    write_guided_summary,
-)
+from ppigfinder.ui_shell.workflow_state import WorkflowState
 
 
 DEFAULT_ROUTES = [
@@ -48,23 +48,20 @@ DEFAULT_ROUTES = [
 
 
 class WorkspaceWindow(QMainWindow):
-    """
-    Data-driven guided workflow window.
-    """
-
     def __init__(self, bridge=None, routes=None):
         super().__init__()
 
         self.bridge = bridge
         self.routes = routes or DEFAULT_ROUTES
         self.route_index_by_id = {}
-        self.selected_inputs = {}
         self.module_pages_by_id = {}
+        self.workflow_state = WorkflowState()
         self.guided_orfs = []
         self._floating_windows = []
 
         self.setWindowTitle(f"{APP_TITLE} — Guided Workflow")
-        self.resize(1320, 820)
+        self.resize(1440, 900)
+        self.setMinimumSize(1200, 760)
         self.setStyleSheet(shell_stylesheet())
         apply_ppigfinder_branding(self)
 
@@ -76,7 +73,7 @@ class WorkspaceWindow(QMainWindow):
         root.setSpacing(18)
 
         self.navigation = QListWidget()
-        self.navigation.setMaximumWidth(280)
+        self.navigation.setMaximumWidth(260)
         root.addWidget(self.navigation)
 
         main_area = QVBoxLayout()
@@ -95,42 +92,26 @@ class WorkspaceWindow(QMainWindow):
         if self.navigation.count():
             self.navigation.setCurrentRow(0)
 
-        self.statusBar().showMessage("Ready. Start by loading genome data or opening a project.")
-
-    def _button_text_for_action(self, label: str) -> str:
-        lower = label.lower()
-        if lower.startswith("open"):
-            return "Open"
-        if lower.startswith("import"):
-            return "Import"
-        if lower.startswith("export"):
-            return "Export"
-        if lower.startswith("predict"):
-            return "Predict"
-        if lower.startswith("annotate"):
-            return "Annotate"
-        if lower.startswith("run"):
-            return "Run"
-        if lower.startswith("continue"):
-            return "Continue"
-        if lower.startswith("show"):
-            return "Show"
-        if lower.startswith("build"):
-            return "Build"
-        return "Continue"
+        self.statusBar().showMessage("Ready. Start by loading genome data.")
 
     def _show_message(self, title: str, message: str) -> None:
         QMessageBox.information(self, title, message)
 
     def _remember_window(self, dialog) -> None:
-        self._floating_windows.append(dialog)
-        try:
-            dialog.destroyed.connect(lambda *_: self._cleanup_windows())
-        except Exception:
-            pass
+        if dialog is not None:
+            self._floating_windows.append(dialog)
 
-    def _cleanup_windows(self) -> None:
-        self._floating_windows = [w for w in self._floating_windows if w is not None]
+    def _refresh_pages(self) -> None:
+        for page in self.module_pages_by_id.values():
+            page.update_state(self.workflow_state)
+
+    def _safe_import(self, module_name: str, object_name: str):
+        module = __import__(module_name, fromlist=[object_name])
+        return getattr(module, object_name)
+
+    def _set_current_route(self, route_id: str) -> None:
+        self.workflow_state.set_current_route(route_id)
+        self._refresh_pages()
 
     def _select_file(self, key: str, title: str, file_filter: str) -> bool:
         path, _ = QFileDialog.getOpenFileName(self, title, "", file_filter)
@@ -138,34 +119,56 @@ class WorkspaceWindow(QMainWindow):
         if not path:
             return False
 
-        self.selected_inputs[key] = path
+        self.workflow_state.set_input(key, path)
+        self.workflow_state.add_event(self.workflow_state.current_route, "select_file", path)
 
         if key == "genome_file":
-            summary = validate_genome_input(path)
-            self.selected_inputs.update(summary_to_state(summary))
-
-            dialog = show_genome_inspector(path, parent=self)
-            self._remember_window(dialog)
-
-            self._refresh_visualization_panels()
-
-            if summary.valid:
-                self.statusBar().showMessage(
-                    "Genome loaded and validated. Moving to Protein / ORFs.",
-                    10000,
+            try:
+                validate_genome_input = self._safe_import(
+                    "ppigfinder.ui_shell.input_validation",
+                    "validate_genome_input",
                 )
-                self.show_route("orfs")
-            else:
-                self.statusBar().showMessage(
-                    "Genome selected, but validation found a problem.",
-                    10000,
-                )
-                self.show_route("data")
+                summary = validate_genome_input(path)
 
-            return True
+                self.workflow_state.set_metric("sequence_count", getattr(summary, "sequence_count", None))
+                self.workflow_state.set_metric("total_length", getattr(summary, "total_length", None))
+                self.workflow_state.set_metric("longest_length", getattr(summary, "longest_length", None))
+                self.workflow_state.set_metric("gc_percent", getattr(summary, "gc_percent", None))
+                self.workflow_state.set_flag("genome_valid", getattr(summary, "valid", False))
 
-        self.statusBar().showMessage(f"Selected file: {path}", 10000)
-        self._refresh_visualization_panels()
+                try:
+                    show_genome_inspector = self._safe_import(
+                        "ppigfinder.ui_shell.genome_inspector_dialog",
+                        "show_genome_inspector",
+                    )
+                    dialog = show_genome_inspector(path, parent=self)
+                    self._remember_window(dialog)
+                except Exception:
+                    pass
+
+                self._refresh_pages()
+
+                if getattr(summary, "valid", False):
+                    self.statusBar().showMessage(
+                        "Genome loaded. Workflow advanced to Protein / ORFs.",
+                        10000,
+                    )
+                    self.show_route("orfs")
+                else:
+                    self.statusBar().showMessage(
+                        "Genome selected, but validation reported a problem.",
+                        10000,
+                    )
+                    self.show_route("data")
+
+                return True
+
+            except Exception as exc:
+                self._show_message("Genome loading", f"Could not validate genome file:\n\n{exc}")
+                self._refresh_pages()
+                return True
+
+        self._refresh_pages()
         return True
 
     def _select_folder(self, key: str, title: str) -> bool:
@@ -174,347 +177,328 @@ class WorkspaceWindow(QMainWindow):
         if not path:
             return False
 
-        self.selected_inputs[key] = path
-        self.statusBar().showMessage(f"Selected folder: {path}", 10000)
-        self._refresh_visualization_panels()
+        self.workflow_state.set_input(key, path)
+        self.workflow_state.add_event(self.workflow_state.current_route, "select_folder", path)
+        self._refresh_pages()
         return True
 
     def _predict_guided_orfs(self) -> None:
-        genome_file = self.selected_inputs.get("genome_file", "")
+        genome_file = self.workflow_state.get("genome_file")
 
         if not genome_file:
             self._show_message(
                 "Predict ORFs",
-                "Select a genome file in Data / Project before predicting ORFs.",
+                "Load a genome file first in Data / Project.",
             )
             self.show_route("data")
             return
 
-        summary = predict_orfs_from_file(genome_file, min_aa=30)
-        self.guided_orfs = summary.orfs
+        try:
+            predict_orfs_from_file = self._safe_import(
+                "ppigfinder.ui_shell.guided_backend",
+                "predict_orfs_from_file",
+            )
+            summary = predict_orfs_from_file(genome_file, min_aa=30)
+            self.guided_orfs = list(getattr(summary, "orfs", []))
 
-        self.selected_inputs.update(
-            {
-                "guided_orf_count": summary.orf_count,
-                "guided_longest_orf_aa": summary.longest_orf_aa,
-                "guided_shortest_orf_aa": summary.shortest_orf_aa,
-                "guided_orf_min_aa": summary.min_aa,
-                "guided_orf_source": summary.source_file,
-                "guided_orf_map": [
-                    {
-                        "id": orf.id,
-                        "start": orf.start,
-                        "end": orf.end,
-                        "strand": orf.strand,
-                        "frame": orf.frame,
-                        "aa_length": orf.aa_length,
-                    }
-                    for orf in summary.orfs
-                ],
-            }
-        )
+            self.workflow_state.set_metric("guided_orf_count", getattr(summary, "orf_count", len(self.guided_orfs)))
+            self.workflow_state.set_metric("guided_longest_orf_aa", getattr(summary, "longest_orf_aa", None))
+            self.workflow_state.set_metric("guided_shortest_orf_aa", getattr(summary, "shortest_orf_aa", None))
+            self.workflow_state.set_metric("guided_orf_min_aa", getattr(summary, "min_aa", 30))
+            self.workflow_state.add_event("orfs", "predict_orfs", f"{len(self.guided_orfs)} ORFs")
 
-        self._refresh_visualization_panels()
+            try:
+                GuidedORFResultsDialog = self._safe_import(
+                    "ppigfinder.ui_shell.orf_results_dialog",
+                    "GuidedORFResultsDialog",
+                )
+                dialog = GuidedORFResultsDialog(self.guided_orfs, parent=self)
+                dialog.show()
+                self._remember_window(dialog)
+            except Exception:
+                pass
 
-        dialog = GuidedORFResultsDialog(self.guided_orfs, parent=self)
-        dialog.show()
-        self._remember_window(dialog)
+            self._refresh_pages()
+            self.statusBar().showMessage(
+                f"ORF prediction completed: {len(self.guided_orfs)} ORFs. Moving to Annotation.",
+                12000,
+            )
+            self.show_route("annotation")
 
-        self.statusBar().showMessage(
-            f"ORF prediction completed: {summary.orf_count} ORFs. Moving to Annotation.",
-            12000,
-        )
-        self.show_route("annotation")
+        except Exception as exc:
+            self._show_message("Predict ORFs", f"Could not run guided ORF prediction:\n\n{exc}")
 
     def _show_guided_orfs(self) -> None:
         if not self.guided_orfs:
-            self._show_message(
-                "Review ORF table",
-                "No guided ORFs are available yet. Run Predict ORFs first.",
-            )
+            self._show_message("ORFs", "No guided ORFs available yet.")
             return
 
-        dialog = GuidedORFResultsDialog(self.guided_orfs, parent=self)
-        dialog.show()
-        self._remember_window(dialog)
+        try:
+            GuidedORFResultsDialog = self._safe_import(
+                "ppigfinder.ui_shell.orf_results_dialog",
+                "GuidedORFResultsDialog",
+            )
+            dialog = GuidedORFResultsDialog(self.guided_orfs, parent=self)
+            dialog.show()
+            self._remember_window(dialog)
+        except Exception as exc:
+            self._show_message("ORF table", f"Could not open ORF viewer:\n\n{exc}")
 
     def _export_guided_orfs_fasta(self) -> None:
         if not self.guided_orfs:
-            self._show_message(
-                "Export ORF FASTA",
-                "No guided ORFs are available yet. Run Predict ORFs first.",
-            )
+            self._show_message("Export ORF FASTA", "No guided ORFs available yet.")
             return
 
         path, _ = QFileDialog.getSaveFileName(
             self,
-            "Export guided ORF proteins",
+            "Export guided ORFs",
             "guided_orfs.faa",
             "Protein FASTA (*.faa *.fasta *.fa);;All files (*)",
         )
-
         if not path:
             return
 
-        write_orfs_fasta(path, self.guided_orfs)
-        self.statusBar().showMessage(f"ORF protein FASTA exported: {path}", 12000)
+        try:
+            write_orfs_fasta = self._safe_import(
+                "ppigfinder.ui_shell.guided_backend",
+                "write_orfs_fasta",
+            )
+            write_orfs_fasta(path, self.guided_orfs)
+            self.workflow_state.add_event("orfs", "export_orfs_fasta", path)
+            self._refresh_pages()
+            self.statusBar().showMessage(f"ORF FASTA exported: {path}", 10000)
+        except Exception as exc:
+            self._show_message("Export ORF FASTA", f"Could not export FASTA:\n\n{exc}")
 
     def _show_annotation_candidates(self) -> None:
         if not self.guided_orfs:
-            self._show_message(
-                "Annotation candidates",
-                "No ORFs are available yet. Run Predict ORFs first.",
-            )
+            self._show_message("Annotation", "No ORFs available yet. Run Predict ORFs first.")
             self.show_route("orfs")
             return
 
-        self.selected_inputs["guided_annotation_candidates_count"] = len(self.guided_orfs)
-        self._refresh_visualization_panels()
+        try:
+            AnnotationCandidatesDialog = self._safe_import(
+                "ppigfinder.ui_shell.annotation_candidates_dialog",
+                "AnnotationCandidatesDialog",
+            )
+            dialog = AnnotationCandidatesDialog(self.guided_orfs, parent=self)
+            dialog.show()
+            self._remember_window(dialog)
+        except Exception:
+            pass
 
-        dialog = AnnotationCandidatesDialog(self.guided_orfs, parent=self)
-        dialog.show()
-        self._remember_window(dialog)
+        self.workflow_state.set_metric("guided_annotation_candidates_count", len(self.guided_orfs))
+        self.workflow_state.add_event("annotation", "review_candidates", str(len(self.guided_orfs)))
+        self._refresh_pages()
 
     def _mark_annotation_step(self, key: str, label: str) -> None:
-        self.selected_inputs[key] = True
-        self._refresh_visualization_panels()
-        self.statusBar().showMessage(f"{label} selected in guided workflow.", 10000)
+        self.workflow_state.set_flag(key, True)
+        self.workflow_state.add_event("annotation", key, label)
+        self._refresh_pages()
+        self.statusBar().showMessage(f"{label} selected in guided workflow.", 8000)
 
     def _open_af3_pair_builder(self) -> None:
         if not self.guided_orfs:
-            self._show_message(
-                "AlphaFold / PPI",
-                "No ORFs are available yet. Run Predict ORFs first.",
-            )
+            self._show_message("AlphaFold / PPI", "No ORFs available yet. Run Predict ORFs first.")
             self.show_route("orfs")
             return
 
-        result = open_af3_pair_builder_dialog(self.guided_orfs, parent=self)
+        try:
+            open_af3_pair_builder_dialog = self._safe_import(
+                "ppigfinder.ui_shell.af3_pair_builder_dialog",
+                "open_af3_pair_builder_dialog",
+            )
+            result = open_af3_pair_builder_dialog(self.guided_orfs, parent=self)
 
-        self.selected_inputs["af3_pair_count"] = result.get("pair_count", 0)
+            if isinstance(result, dict):
+                self.workflow_state.set_metric("af3_pair_count", result.get("pair_count", 0))
+                if result.get("json_path"):
+                    self.workflow_state.set_input("af3_json_path", result["json_path"])
 
-        if result.get("json_path"):
-            self.selected_inputs["af3_json_path"] = result["json_path"]
-            self.selected_inputs["af3_json_exported"] = True
+            self.workflow_state.add_event("alphafold", "build_af3_pairs", "")
+            self._refresh_pages()
 
-        self._refresh_visualization_panels()
+        except Exception as exc:
+            self._show_message("AlphaFold / PPI", f"Could not open AF3 builder:\n\n{exc}")
 
     def _open_hpc_dialog(self) -> None:
-        status, config = open_hpc_connection_dialog(parent=self)
+        try:
+            open_hpc_connection_dialog = self._safe_import(
+                "ppigfinder.ui_shell.hpc_dialog",
+                "open_hpc_connection_dialog",
+            )
+            status, config = open_hpc_connection_dialog(parent=self)
 
-        self.selected_inputs["hpc_profile"] = config.profile
-        self.selected_inputs["hpc_host"] = config.host
-        self.selected_inputs["hpc_user"] = config.user
-        self.selected_inputs["hpc_port"] = config.port
+            if config is not None:
+                self.workflow_state.set_input("hpc_profile", getattr(config, "profile", ""))
+                self.workflow_state.set_input("hpc_host", getattr(config, "host", ""))
+                self.workflow_state.set_input("hpc_user", getattr(config, "user", ""))
+                self.workflow_state.set_input("hpc_port", getattr(config, "port", ""))
 
-        if status is not None:
-            self.selected_inputs["hpc_status"] = "OK" if status.connection_ok else "Problem"
-            self.selected_inputs["hpc_mode"] = "Local cluster" if status.running_on_cluster else "SSH"
-            self.selected_inputs["hpc_message"] = status.message
-        else:
-            self.selected_inputs["hpc_status"] = "Configured"
-            self.selected_inputs["hpc_mode"] = "Not tested"
+            if status is not None:
+                self.workflow_state.set_input("hpc_status", "OK" if getattr(status, "connection_ok", False) else "Problem")
+                self.workflow_state.set_input("hpc_mode", "Local cluster" if getattr(status, "running_on_cluster", False) else "SSH")
+                self.workflow_state.set_flag("hpc_connected", getattr(status, "connection_ok", False))
 
-        self._refresh_visualization_panels()
+            self.workflow_state.add_event("hpc", "configure_hpc", "")
+            self._refresh_pages()
+
+        except Exception as exc:
+            self._show_message("DaVinci / HPC", f"Could not open HPC dialog:\n\n{exc}")
 
     def _export_guided_summary(self) -> None:
         path, _ = QFileDialog.getSaveFileName(
             self,
-            "Export guided workflow summary",
+            "Export guided summary",
             "ppigfinder_guided_summary.md",
             "Markdown (*.md);;Text files (*.txt);;All files (*)",
         )
-
         if not path:
             return
 
-        write_guided_summary(path, self.selected_inputs)
-        self.statusBar().showMessage(f"Guided workflow summary exported: {path}", 12000)
+        try:
+            write_guided_summary = self._safe_import(
+                "ppigfinder.ui_shell.guided_backend",
+                "write_guided_summary",
+            )
+            payload = {}
+            payload.update(self.workflow_state.loaded_inputs)
+            payload.update(self.workflow_state.metrics)
+            payload.update(self.workflow_state.flags)
 
-    def _handle_action(self, action_name: str) -> None:
-        if action_name.startswith("route:"):
-            self.show_route(action_name.split(":", 1)[1])
-            return
+            write_guided_summary(path, payload)
+            self.workflow_state.set_flag("guided_summary_exported", True)
+            self.workflow_state.add_event("reports", "export_guided_summary", path)
+            self._refresh_pages()
 
-        if action_name == "guided:workflow_map":
+        except Exception as exc:
+            self._show_message("Reports", f"Could not export guided summary:\n\n{exc}")
+
+    def _open_workflow_map(self) -> None:
+        try:
+            show_workflow_overview = self._safe_import(
+                "ppigfinder.ui_shell.workflow_overview_dialog",
+                "show_workflow_overview",
+            )
             show_workflow_overview(parent=self)
+        except Exception as exc:
+            self._show_message("Workflow map", f"Could not open workflow map:\n\n{exc}")
+
+    def _open_legacy_interface(self) -> None:
+        if self.bridge:
+            self.bridge.call("open_legacy_interface")
             return
+        self._show_message("Legacy interface", "Bridge not available yet.")
 
-        if action_name == "select_file:genome":
-            self._select_file("genome_file", "Open genome file", "Genome files (*.fasta *.fa *.fna *.gb *.gbk *.dna);;All files (*)")
-            return
+    def _action(self, label: str, description: str, callback):
+        lower = label.lower()
+        button_text = "Run"
 
-        if action_name == "select_file:project":
-            self._select_file("project_file", "Open ppigFinder project", "ppigFinder project (*.json *.ppigfinder.json);;All files (*)")
-            return
-
-        if action_name == "select_file:snapshot":
-            self._select_file("snapshot_file", "Import Project Snapshot v3", "Project Snapshot (*.json *.ppigfinder.json);;All files (*)")
-            return
-
-        if action_name == "select_folder:af3_results":
-            self._select_folder("af3_results_folder", "Import AlphaFold/AF3 results folder")
-            return
-
-        if action_name == "guided:predict_orfs":
-            self._predict_guided_orfs()
-            return
-
-        if action_name == "guided:review_orfs":
-            self._show_guided_orfs()
-            return
-
-        if action_name == "guided:export_orfs_fasta":
-            self._export_guided_orfs_fasta()
-            return
-
-        if action_name == "guided:annotation_candidates":
-            self._show_annotation_candidates()
-            return
-
-        if action_name == "guided:blast":
-            self._mark_annotation_step("guided_blast_planned", "BLAST")
-            return
-
-        if action_name == "guided:hmm":
-            self._mark_annotation_step("guided_hmm_planned", "HMM/domain annotation")
-            return
-
-        if action_name == "guided:neighborhood":
-            self._mark_annotation_step("guided_neighborhood_planned", "Neighbourhood analysis")
-            return
-
-        if action_name == "guided:af3_pair_builder":
-            self._open_af3_pair_builder()
-            return
-
-        if action_name == "guided:hpc_connection":
-            self._open_hpc_dialog()
-            return
-
-        if action_name == "guided:summary":
-            self._export_guided_summary()
-            return
-
-        if action_name.startswith("info:"):
-            self._show_message("Guided workflow", action_name.split(":", 1)[1])
-            return
-
-        if action_name == "open_legacy_interface":
-            if self.bridge:
-                self.bridge.call(action_name)
-            return
-
-        self._show_message("Guided workflow", "Action not connected yet:\n\n" + action_name)
-
-    def _action(self, label: str, description: str, action_name: str) -> dict:
-        def run():
-            self._handle_action(action_name)
+        if lower.startswith("open"):
+            button_text = "Open"
+        elif lower.startswith("import"):
+            button_text = "Import"
+        elif lower.startswith("export"):
+            button_text = "Export"
+        elif lower.startswith("predict"):
+            button_text = "Predict"
+        elif lower.startswith("annotate"):
+            button_text = "Annotate"
+        elif lower.startswith("continue"):
+            button_text = "Continue"
+        elif lower.startswith("show"):
+            button_text = "Show"
+        elif lower.startswith("configure"):
+            button_text = "Configure"
 
         return {
             "label": label,
             "description": description,
-            "button_text": self._button_text_for_action(label),
-            "callback": run,
+            "button_text": button_text,
+            "callback": callback,
         }
+
+    def _actions_for_route(self, route_id: str) -> list[dict]:
+        if route_id == "overview":
+            return [
+                self._action("Show workflow map", "Review the complete guided workflow and step dependencies.", self._open_workflow_map),
+                self._action("Start with Data / Project", "Begin by adding genome data.", lambda: self.show_route("data")),
+            ]
+
+        if route_id == "data":
+            return [
+                self._action("Open genome file", "Load and validate a genome FASTA, GenBank or SnapGene file. The workflow will automatically advance if valid.", lambda: self._select_file("genome_file", "Open genome file", "Genome files (*.fasta *.fa *.fna *.gb *.gbk *.dna);;All files (*)")),
+                self._action("Open project", "Resume a previously saved ppigFinder project.", lambda: self._select_file("project_file", "Open project", "Project (*.json *.ppigfinder.json);;All files (*)")),
+                self._action("Import Project Snapshot v3", "Import a portable guided/project snapshot.", lambda: self._select_file("snapshot_file", "Import snapshot", "Snapshot (*.json *.ppigfinder.json);;All files (*)")),
+            ]
+
+        if route_id == "genome":
+            return [
+                self._action("Open genome file", "Load or replace the current genome.", lambda: self._select_file("genome_file", "Open genome file", "Genome files (*.fasta *.fa *.fna *.gb *.gbk *.dna);;All files (*)")),
+                self._action("Continue to Protein / ORFs", "Go to ORF prediction.", lambda: self.show_route("orfs")),
+            ]
+
+        if route_id == "orfs":
+            return [
+                self._action("Predict ORFs", "Run guided ORF prediction and automatically advance to Annotation.", self._predict_guided_orfs),
+                self._action("Review guided ORF table", "Inspect ORFs already generated in the guided workflow.", self._show_guided_orfs),
+                self._action("Export ORF FASTA", "Export protein sequences for predicted ORFs.", self._export_guided_orfs_fasta),
+                self._action("Continue to Annotation", "Go to annotation stage.", lambda: self.show_route("annotation")),
+            ]
+
+        if route_id == "annotation":
+            return [
+                self._action("Review candidate ORFs", "Inspect guided ORFs as candidates for annotation and PPI analysis.", self._show_annotation_candidates),
+                self._action("Run BLAST", "Mark BLAST as part of the current annotation plan.", lambda: self._mark_annotation_step("guided_blast_planned", "BLAST")),
+                self._action("Annotate HMM", "Mark HMM/domain annotation as part of the current plan.", lambda: self._mark_annotation_step("guided_hmm_planned", "HMM/domain annotation")),
+                self._action("Neighbourhood analysis", "Mark genomic neighbourhood analysis as part of the current plan.", lambda: self._mark_annotation_step("guided_neighborhood_planned", "Neighbourhood analysis")),
+                self._action("Continue to AlphaFold / PPI", "Proceed to structural candidate construction.", lambda: self.show_route("alphafold")),
+            ]
+
+        if route_id == "alphafold":
+            return [
+                self._action("Build AF3 candidate pairs", "Build candidate pairs and optionally export AlphaFold Server JSON.", self._open_af3_pair_builder),
+                self._action("Import AF3 results", "Select a results folder from AlphaFold / AF3 runs.", lambda: self._select_folder("af3_results_folder", "Import AF3 results folder")),
+                self._action("Continue to DaVinci / HPC", "Proceed to optional execution on DaVinci/HPC.", lambda: self.show_route("hpc")),
+            ]
+
+        if route_id == "hpc":
+            return [
+                self._action("Configure DaVinci / HPC", "Open the DaVinci/HPC connection dialog.", self._open_hpc_dialog),
+                self._action("Continue to Reports", "Proceed to summary and export steps.", lambda: self.show_route("reports")),
+            ]
+
+        if route_id == "reports":
+            return [
+                self._action("Export guided summary", "Export the current guided workflow state to Markdown.", self._export_guided_summary),
+                self._action("Open full current interface", "Advanced option: open the complete current ppigFinder interface.", self._open_legacy_interface),
+            ]
+
+        return []
 
     def _build_pages(self):
         for index, route in enumerate(self.routes):
             self.route_index_by_id[route.id] = index
 
             item = QListWidgetItem(f"{route.title}\n{route.status}")
-            item.setToolTip(
-                f"{route.title}\n\n"
-                f"Data type: {route.data_type}\n"
-                f"Description: {route.description}\n"
-                f"Status: {route.status}"
-            )
             self.navigation.addItem(item)
 
             page = ModulePage(route, actions=self._actions_for_route(route.id))
             self.module_pages_by_id[route.id] = page
             self.pages.addWidget(page)
 
-    def _actions_for_route(self, route_id: str) -> list[dict]:
-        if route_id == "overview":
-            return [
-                self._action("Show workflow map", "Review the complete data-driven ppigFinder workflow.", "guided:workflow_map"),
-                self._action("Start with Data / Project", "Begin by adding genome data, opening a project or importing a project snapshot.", "route:data"),
-            ]
-
-        if route_id == "data":
-            return [
-                self._action("Open genome file", "Load and validate the main nucleotide dataset. The workflow will automatically move to ORF Discovery if valid.", "select_file:genome"),
-                self._action("Open project", "Resume a previous ppigFinder session.", "select_file:project"),
-                self._action("Import Project Snapshot v3", "Load a portable JSON snapshot for reproducible analysis.", "select_file:snapshot"),
-            ]
-
-        if route_id == "genome":
-            return [
-                self._action("Open genome file", "Replace or load a genome file and inspect its metadata.", "select_file:genome"),
-                self._action("Continue to Protein / ORFs", "Proceed to ORF prediction and protein sequence generation.", "route:orfs"),
-            ]
-
-        if route_id == "orfs":
-            return [
-                self._action("Predict ORFs", "Run a lightweight six-frame ORF scan inside the guided shell.", "guided:predict_orfs"),
-                self._action("Review guided ORF table", "Inspect guided ORF coordinates, strand, frame and protein previews.", "guided:review_orfs"),
-                self._action("Export ORF FASTA", "Export guided ORF protein sequences.", "guided:export_orfs_fasta"),
-                self._action("Continue to Annotation", "Move to BLAST, HMM/domain and neighbourhood analysis.", "route:annotation"),
-            ]
-
-        if route_id == "annotation":
-            return [
-                self._action("Review candidate ORFs", "Inspect guided ORFs as candidates for annotation and PPI analysis.", "guided:annotation_candidates"),
-                self._action("Run BLAST", "Mark BLAST as selected in the guided flow.", "guided:blast"),
-                self._action("Annotate HMM", "Mark HMM/domain annotation as selected in the guided flow.", "guided:hmm"),
-                self._action("Neighbourhood analysis", "Mark neighbourhood analysis as selected in the guided flow.", "guided:neighborhood"),
-                self._action("Continue to AlphaFold / PPI", "Move from annotation evidence to structural interaction analysis.", "route:alphafold"),
-            ]
-
-        if route_id == "alphafold":
-            return [
-                self._action("Build AF3 candidate pairs", "Generate adjacent ORF candidate pairs and optionally export AlphaFold Server JSON.", "guided:af3_pair_builder"),
-                self._action("Import AF3 results", "Import AlphaFold 3 output folders.", "select_folder:af3_results"),
-                self._action("Continue to DaVinci / HPC", "Optionally prepare server execution before reporting.", "route:hpc"),
-            ]
-
-        if route_id == "hpc":
-            return [
-                self._action("Configure DaVinci / HPC", "Open graphical configuration and connection testing for DaVinci/HPC workflows.", "guided:hpc_connection"),
-                self._action("Prepare AF3 Slurm template", "Use the HPC dialog to inspect a basic AF3 Slurm template.", "guided:hpc_connection"),
-                self._action("Continue to Reports", "Proceed to result export and reporting.", "route:reports"),
-            ]
-
-        if route_id == "reports":
-            return [
-                self._action("Export guided summary", "Export the current guided shell state as a Markdown summary.", "guided:summary"),
-                self._action("Export Project Snapshot v3", "Project Snapshot export will be connected after full guided state synchronization.", "info:Project Snapshot export will be connected after guided state synchronization."),
-                self._action("Open full current interface", "Advanced option: open the complete current interface.", "open_legacy_interface"),
-            ]
-
-        return []
-
-    def _refresh_visualization_panels(self) -> None:
-        for page in self.module_pages_by_id.values():
-            panel = getattr(page, "visualization_panel", None)
-            if panel is not None and hasattr(panel, "update_state"):
-                panel.update_state(self.selected_inputs)
-
     def show_route(self, route_id: str) -> bool:
         index = self.route_index_by_id.get(route_id)
-
         if index is None:
             return False
-
         self.navigation.setCurrentRow(index)
         return True
 
-    def _on_route_changed(self, index):
+    def _on_route_changed(self, index: int):
         if index < 0 or index >= len(self.routes):
             return
 
         route = self.routes[index]
         self.breadcrumb.setText(f"Workspace > {route.title}")
         self.pages.setCurrentIndex(index)
-        self._refresh_visualization_panels()
+        self._set_current_route(route.id)

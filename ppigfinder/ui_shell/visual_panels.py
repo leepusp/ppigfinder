@@ -1,0 +1,339 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+try:
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtWidgets import (
+        QWidget,
+        QVBoxLayout,
+        QHBoxLayout,
+        QLabel,
+        QFrame,
+        QGridLayout,
+        QScrollArea,
+    )
+    QT6 = True
+except Exception:
+    from PyQt5.QtCore import Qt
+    from PyQt5.QtWidgets import (
+        QWidget,
+        QVBoxLayout,
+        QHBoxLayout,
+        QLabel,
+        QFrame,
+        QGridLayout,
+        QScrollArea,
+    )
+    QT6 = False
+
+from ppigfinder.ui_shell.workflow_state import WORKFLOW_ORDER, WorkflowState
+
+
+def _set_alignment(widget, alignment):
+    try:
+        widget.setAlignment(alignment)
+    except Exception:
+        pass
+
+
+class InfoCard(QFrame):
+    def __init__(self, title: str = "", value: str = "", subtitle: str = "", parent=None):
+        super().__init__(parent)
+        self.setObjectName("InfoCard")
+        self.setFrameShape(QFrame.Shape.StyledPanel if QT6 else QFrame.StyledPanel)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(14, 12, 14, 12)
+        layout.setSpacing(6)
+
+        self.title_label = QLabel(title)
+        self.title_label.setObjectName("InfoCardTitle")
+
+        self.value_label = QLabel(value)
+        self.value_label.setObjectName("InfoCardValue")
+        self.value_label.setWordWrap(True)
+
+        self.subtitle_label = QLabel(subtitle)
+        self.subtitle_label.setObjectName("InfoCardSubtitle")
+        self.subtitle_label.setWordWrap(True)
+
+        layout.addWidget(self.title_label)
+        layout.addWidget(self.value_label)
+        layout.addWidget(self.subtitle_label)
+
+    def set_content(self, title: str, value: str, subtitle: str = "") -> None:
+        self.title_label.setText(title)
+        self.value_label.setText(value)
+        self.subtitle_label.setText(subtitle)
+
+
+class FlowRibbonWidget(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._chips = {}
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(8)
+
+        for step in WORKFLOW_ORDER[1:]:
+            chip = QLabel(step.capitalize())
+            chip.setObjectName("FlowChip")
+            chip.setMargin(8)
+            _set_alignment(chip, Qt.AlignmentFlag.AlignCenter if QT6 else Qt.AlignCenter)
+            layout.addWidget(chip)
+            self._chips[step] = chip
+
+            if step != WORKFLOW_ORDER[-1]:
+                arrow = QLabel("→")
+                arrow.setObjectName("FlowArrow")
+                _set_alignment(arrow, Qt.AlignmentFlag.AlignCenter if QT6 else Qt.AlignCenter)
+                layout.addWidget(arrow)
+
+        layout.addStretch(1)
+
+    def update_state(self, state: WorkflowState) -> None:
+        completed = state.completed_steps()
+        current = state.current_route
+
+        for step, label in self._chips.items():
+            if step == current:
+                label.setStyleSheet(
+                    "background:#17384d;color:white;border-radius:10px;padding:6px 12px;font-weight:700;"
+                )
+            elif step in completed:
+                label.setStyleSheet(
+                    "background:#cfe3ef;color:#17384d;border-radius:10px;padding:6px 12px;font-weight:600;"
+                )
+            else:
+                label.setStyleSheet(
+                    "background:#edf3f7;color:#60717f;border-radius:10px;padding:6px 12px;"
+                )
+
+
+class ModuleVisualizationPanel(QScrollArea):
+    def __init__(self, route_id: str, parent=None):
+        super().__init__(parent)
+        self.route_id = route_id
+        self.setWidgetResizable(True)
+
+        self.body = QWidget()
+        self.setWidget(self.body)
+
+        self.layout_main = QVBoxLayout(self.body)
+        self.layout_main.setContentsMargins(10, 10, 10, 10)
+        self.layout_main.setSpacing(10)
+
+        self.title = QLabel("Module status")
+        self.title.setObjectName("SectionSubTitle")
+        self.layout_main.addWidget(self.title)
+
+        self.grid = QGridLayout()
+        self.grid.setHorizontalSpacing(10)
+        self.grid.setVerticalSpacing(10)
+        self.layout_main.addLayout(self.grid)
+
+        self.card1 = InfoCard()
+        self.card2 = InfoCard()
+        self.card3 = InfoCard()
+        self.card4 = InfoCard()
+
+        self.grid.addWidget(self.card1, 0, 0)
+        self.grid.addWidget(self.card2, 0, 1)
+        self.grid.addWidget(self.card3, 1, 0)
+        self.grid.addWidget(self.card4, 1, 1)
+
+        self.footer = QLabel("")
+        self.footer.setWordWrap(True)
+        self.footer.setObjectName("InfoFooter")
+        self.layout_main.addWidget(self.footer)
+        self.layout_main.addStretch(1)
+
+    def update_state(self, state: WorkflowState) -> None:
+        route = self.route_id
+
+        if route == "data":
+            genome_file = state.get("genome_file", "No genome file loaded")
+            project_file = state.get("project_file", "No project file loaded")
+            snapshot_file = state.get("snapshot_file", "No snapshot loaded")
+
+            self.card1.set_content("Genome file", str(genome_file), "Main nucleotide input")
+            self.card2.set_content("Project", str(project_file), "Previously saved ppigFinder session")
+            self.card3.set_content("Snapshot", str(snapshot_file), "Portable workflow state")
+            self.card4.set_content(
+                "Next step",
+                state.next_recommended_step().capitalize(),
+                "Recommended route after data loading",
+            )
+            self.footer.setText(
+                "This panel should evolve into a richer data-entry preview with file validation, "
+                "organism metadata and input summaries."
+            )
+            return
+
+        if route == "genome":
+            self.card1.set_content(
+                "Genome length",
+                str(state.get("total_length", state.get("genome_total_length", "N/A"))),
+                "Loaded nucleotide length",
+            )
+            self.card2.set_content(
+                "GC%",
+                str(state.get("gc_percent", "N/A")),
+                "Genome composition",
+            )
+            self.card3.set_content(
+                "Sequence count",
+                str(state.get("sequence_count", "N/A")),
+                "Number of sequences/contigs",
+            )
+            self.card4.set_content(
+                "Next step",
+                "Protein / ORFs",
+                "Proceed to ORF prediction and protein generation",
+            )
+            self.footer.setText(
+                "Future visual direction: genome strip preview, contig overview and coordinate-aware "
+                "mini-map inspired by bacterial genome browsers."
+            )
+            return
+
+        if route == "orfs":
+            self.card1.set_content(
+                "Predicted ORFs",
+                str(state.get("guided_orf_count", 0)),
+                "ORFs currently generated in guided flow",
+            )
+            self.card2.set_content(
+                "Longest ORF (aa)",
+                str(state.get("guided_longest_orf_aa", "N/A")),
+                "Maximum amino acid length",
+            )
+            self.card3.set_content(
+                "Shortest ORF (aa)",
+                str(state.get("guided_shortest_orf_aa", "N/A")),
+                "Minimum amino acid length",
+            )
+            self.card4.set_content(
+                "Next step",
+                "Annotation",
+                "Run BLAST/HMM and contextual filtering",
+            )
+            self.footer.setText(
+                "Future visual direction: ORF length histogram, strand/frame summaries and a compact "
+                "genome map showing predicted ORF positions."
+            )
+            return
+
+        if route == "annotation":
+            candidate_count = state.get("guided_orf_count", 0)
+            blast = "Selected" if state.get("guided_blast_planned") else "Pending"
+            hmm = "Selected" if state.get("guided_hmm_planned") else "Pending"
+            neigh = "Selected" if state.get("guided_neighborhood_planned") else "Pending"
+
+            self.card1.set_content("BLAST", blast, "Protein similarity search")
+            self.card2.set_content("HMM domains", hmm, "Conserved domain profile scanning")
+            self.card3.set_content("Neighbourhood", neigh, "Candidate selection by genomic context")
+            self.card4.set_content(
+                "Next step",
+                f"{candidate_count} candidates for AF3/PPI",
+                "Prepare candidate pairs",
+            )
+            self.footer.setText(
+                "Functional annotation reduces the search space and selects biologically plausible "
+                "candidates for structural interaction analysis."
+            )
+            return
+
+        if route == "alphafold":
+            self.card1.set_content(
+                "AF3 pairs",
+                str(state.get("af3_pair_count", 0)),
+                "Candidate pairs created from ORFs",
+            )
+            self.card2.set_content(
+                "AF3 JSON",
+                str(state.get("af3_json_path", "Not exported")),
+                "Server-compatible AlphaFold JSON",
+            )
+            self.card3.set_content(
+                "Results folder",
+                str(state.get("af3_results_folder", "Not imported")),
+                "Imported AF3 result directory",
+            )
+            self.card4.set_content(
+                "Next step",
+                "DaVinci / HPC or Reports",
+                "Depending on execution mode",
+            )
+            self.footer.setText(
+                "Future visual direction: pair network preview, ipTM/PAE overview and miniature "
+                "interaction confidence dashboard."
+            )
+            return
+
+        if route == "hpc":
+            self.card1.set_content(
+                "Profile",
+                str(state.get("hpc_profile", "Not configured")),
+                "Selected HPC/server profile",
+            )
+            self.card2.set_content(
+                "Host",
+                str(state.get("hpc_host", "N/A")),
+                "Target server/cluster",
+            )
+            self.card3.set_content(
+                "Status",
+                str(state.get("hpc_status", "Not tested")),
+                "Connection or execution state",
+            )
+            self.card4.set_content(
+                "Execution mode",
+                str(state.get("hpc_mode", "Not defined")),
+                "Local, SSH or cluster mode",
+            )
+            self.footer.setText(
+                "Future visual direction: queue cards, job submission progress and a more graphical "
+                "DaVinci cluster connector."
+            )
+            return
+
+        if route == "reports":
+            self.card1.set_content(
+                "Guided summary",
+                "Exported" if state.get("guided_summary_exported") else "Pending",
+                "Markdown summary of the guided workflow",
+            )
+            self.card2.set_content(
+                "Project snapshot",
+                "Available later",
+                "Guided shell will be synchronized with project snapshots",
+            )
+            self.card3.set_content(
+                "HTML report",
+                "Pending",
+                "HTML reporting integration",
+            )
+            self.card4.set_content(
+                "Workflow next step",
+                "Review / export",
+                "Finalize and share results",
+            )
+            self.footer.setText(
+                "Future visual direction: report templates, figure previews, export checklist and "
+                "provenance tracking."
+            )
+            return
+
+        # overview
+        completed = state.completed_steps()
+
+        self.card1.set_content("Current step", state.current_route.capitalize(), "Current guided route")
+        self.card2.set_content("Completed", ", ".join(sorted(completed)) if completed else "None", "Workflow steps with data")
+        self.card3.set_content("Next", state.next_recommended_step().capitalize(), "Recommended next step")
+        self.card4.set_content("Events", str(len(state.events)), "Actions recorded in this session")
+        self.footer.setText(
+            "This overview should evolve into a fully visual workflow dashboard with process tracking, "
+            "data dependencies and direct access to generated figures and tables."
+        )
