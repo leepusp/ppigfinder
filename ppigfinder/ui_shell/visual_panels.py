@@ -11,6 +11,7 @@ try:
         QFrame,
         QGridLayout,
         QScrollArea,
+        QPushButton,
     )
     QT6 = True
 except Exception:
@@ -23,6 +24,7 @@ except Exception:
         QFrame,
         QGridLayout,
         QScrollArea,
+        QPushButton,
     )
     QT6 = False
 
@@ -68,21 +70,42 @@ class InfoCard(QFrame):
 
 
 class FlowRibbonWidget(QWidget):
-    def __init__(self, parent=None):
+    """
+    Clickable workflow ribbon.
+
+    Each chip behaves like a navigation control. This allows the user to click
+    Data, Genome, ORFs, Annotation, AlphaFold, HPC or Reports and jump directly
+    to the corresponding page.
+    """
+
+    STEP_LABELS = {
+        "data": "Data",
+        "genome": "Genome",
+        "orfs": "ORFs",
+        "annotation": "Annotation",
+        "alphafold": "AlphaFold",
+        "hpc": "HPC",
+        "reports": "Reports",
+    }
+
+    def __init__(self, parent=None, on_route_selected=None):
         super().__init__(parent)
-        self._chips = {}
+        self._buttons = {}
+        self._on_route_selected = on_route_selected
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(8)
 
         for step in WORKFLOW_ORDER[1:]:
-            chip = QLabel(step.capitalize())
-            chip.setObjectName("FlowChip")
-            chip.setMargin(8)
-            _set_alignment(chip, Qt.AlignmentFlag.AlignCenter if QT6 else Qt.AlignCenter)
-            layout.addWidget(chip)
-            self._chips[step] = chip
+            button = QPushButton(self.STEP_LABELS.get(step, step.capitalize()))
+            button.setFlat(True)
+            button.setCursor(Qt.CursorShape.PointingHandCursor if QT6 else Qt.PointingHandCursor)
+            button.clicked.connect(lambda _checked=False, route_id=step: self._route_clicked(route_id))
+            button.setMinimumHeight(34)
+
+            layout.addWidget(button)
+            self._buttons[step] = button
 
             if step != WORKFLOW_ORDER[-1]:
                 arrow = QLabel("→")
@@ -92,22 +115,32 @@ class FlowRibbonWidget(QWidget):
 
         layout.addStretch(1)
 
+    def _route_clicked(self, route_id: str) -> None:
+        if callable(self._on_route_selected):
+            self._on_route_selected(route_id)
+
+    def set_route_callback(self, callback) -> None:
+        self._on_route_selected = callback
+
     def update_state(self, state: WorkflowState) -> None:
         completed = state.completed_steps()
         current = state.current_route
 
-        for step, label in self._chips.items():
+        for step, button in self._buttons.items():
             if step == current:
-                label.setStyleSheet(
-                    "background:#17384d;color:white;border-radius:10px;padding:6px 12px;font-weight:700;"
+                button.setStyleSheet(
+                    "QPushButton {background:#17384d;color:white;border-radius:10px;padding:6px 12px;font-weight:700;}"
+                    "QPushButton:hover {background:#1f4a63;}"
                 )
             elif step in completed:
-                label.setStyleSheet(
-                    "background:#cfe3ef;color:#17384d;border-radius:10px;padding:6px 12px;font-weight:600;"
+                button.setStyleSheet(
+                    "QPushButton {background:#cfe3ef;color:#17384d;border-radius:10px;padding:6px 12px;font-weight:600;}"
+                    "QPushButton:hover {background:#b8d8e8;}"
                 )
             else:
-                label.setStyleSheet(
-                    "background:#edf3f7;color:#60717f;border-radius:10px;padding:6px 12px;"
+                button.setStyleSheet(
+                    "QPushButton {background:#edf3f7;color:#60717f;border-radius:10px;padding:6px 12px;}"
+                    "QPushButton:hover {background:#ddeaf0;color:#17384d;}"
                 )
 
 

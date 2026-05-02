@@ -63,7 +63,7 @@ class ActionItem(QFrame):
 
 
 class ModulePage(QWidget):
-    def __init__(self, route, actions: list[dict] | None = None, parent=None):
+    def __init__(self, route, actions: list[dict] | None = None, parent=None, on_route_selected=None):
         super().__init__(parent)
 
         self.route = route
@@ -80,7 +80,7 @@ class ModulePage(QWidget):
         self.page_subtitle.setWordWrap(True)
         self.page_subtitle.setObjectName("SectionSubtitle")
 
-        self.ribbon = FlowRibbonWidget()
+        self.ribbon = FlowRibbonWidget(on_route_selected=on_route_selected)
 
         root.addWidget(self.page_title)
         root.addWidget(self.page_subtitle)

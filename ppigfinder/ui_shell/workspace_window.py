@@ -218,8 +218,8 @@ class WorkspaceWindow(QMainWindow):
 
         return "generic_input_file"
 
-    def _select_any_input_file(self) -> bool:
-        path, _ = QFileDialog.getOpenFileName(
+    def _select_any_input_files(self) -> bool:
+        paths, _ = QFileDialog.getOpenFileNames(
             self,
             "Add input data",
             "",
@@ -234,18 +234,53 @@ class WorkspaceWindow(QMainWindow):
             ),
         )
 
-        if not path:
+        if not paths:
             return False
 
-        key = self._detect_input_key_from_path(path)
-        return self._register_selected_file(key, path)
+        detected = []
 
-    def _register_selected_file(self, key: str, path: str) -> bool:
+        for path in paths:
+            key = self._detect_input_key_from_path(path)
+            detected.append((key, path))
+            self._register_selected_file(key, path, auto_route=False)
+
+        self._refresh_pages()
+        self._route_after_batch_inputs(detected)
+
+        loaded_summary = ", ".join(
+            f"{key.replace('_file', '').replace('_', ' ')}"
+            for key, _path in detected
+        )
+        self.statusBar().showMessage(
+            f"Loaded {len(detected)} input file(s): {loaded_summary}",
+            12000,
+        )
+
+        return True
+
+    def _route_after_batch_inputs(self, detected: list[tuple[str, str]]) -> None:
+        keys = {key for key, _path in detected}
+
+        if "genome_file" in keys:
+            self.show_route("orfs")
+            return
+
+        if "protein_query_file" in keys or "hmm_profile_file" in keys:
+            self.show_route("annotation")
+            return
+
+        if "project_file" in keys or "snapshot_file" in keys:
+            self.show_route("reports")
+            return
+
+        self.show_route("data")
+
+    def _register_selected_file(self, key: str, path: str, auto_route: bool = True) -> bool:
         self.workflow_state.set_input(key, path)
         self.workflow_state.add_event(self.workflow_state.current_route, "select_file", path)
 
         if key == "genome_file":
-            self._load_genome_file(path)
+            self._load_genome_file(path, auto_route=auto_route)
             return True
 
         if key == "project_file":
@@ -253,7 +288,8 @@ class WorkspaceWindow(QMainWindow):
             self.workflow_state.add_event("data", "open_project", path)
             self.statusBar().showMessage("Project file selected. Project restore service will be connected progressively.", 10000)
             self._refresh_pages()
-            self.show_route("reports")
+            if auto_route:
+                self.show_route("reports")
             return True
 
         if key == "snapshot_file":
@@ -261,7 +297,8 @@ class WorkspaceWindow(QMainWindow):
             self.workflow_state.add_event("data", "import_snapshot", path)
             self.statusBar().showMessage("Snapshot/JSON input selected. Snapshot import service will be connected progressively.", 10000)
             self._refresh_pages()
-            self.show_route("reports")
+            if auto_route:
+                self.show_route("reports")
             return True
 
         if key == "protein_query_file":
@@ -269,7 +306,8 @@ class WorkspaceWindow(QMainWindow):
             self.workflow_state.add_event("data", "load_protein_query", path)
             self.statusBar().showMessage("Protein query loaded. It will be available for BLAST after ORF prediction.", 10000)
             self._refresh_pages()
-            self.show_route("annotation")
+            if auto_route:
+                self.show_route("annotation")
             return True
 
         if key == "hmm_profile_file":
@@ -277,7 +315,8 @@ class WorkspaceWindow(QMainWindow):
             self.workflow_state.add_event("data", "load_hmm_profile", path)
             self.statusBar().showMessage("HMM profile loaded. It will be available for domain annotation after ORF prediction.", 10000)
             self._refresh_pages()
-            self.show_route("annotation")
+            if auto_route:
+                self.show_route("annotation")
             return True
 
         self.workflow_state.set_flag("generic_input_loaded", True)
@@ -288,8 +327,10 @@ class WorkspaceWindow(QMainWindow):
     def _open_initial_data_dialog(self) -> None:
         choice = choose_initial_data(parent=self)
 
-        if choice == "file":
-            self._select_any_input_file()
+        if choice == "files":
+            self._select_any_input_files()
+        elif choice == "file":
+            self._select_any_input_files()
         elif choice == "af3_results":
             self._select_folder(
                 "af3_results_folder",
@@ -312,9 +353,9 @@ class WorkspaceWindow(QMainWindow):
         if key in {"generic_input_file", "auto"}:
             key = self._detect_input_key_from_path(path)
 
-        return self._register_selected_file(key, path)
+        return self._register_selected_file(key, path, auto_route=True)
 
-    def _load_genome_file(self, path: str) -> None:
+    def _load_genome_file(self, path: str, auto_route: bool = True) -> None:
         try:
             validate_genome_input = self._safe_import(
                 "ppigfinder.ui_shell.input_validation",
@@ -351,13 +392,15 @@ class WorkspaceWindow(QMainWindow):
                     "Genome loaded and validated. ORF prediction is now available.",
                     12000,
                 )
-                self.show_route("orfs")
+                if auto_route:
+                    self.show_route("orfs")
             else:
                 self.statusBar().showMessage(
                     "Genome selected, but validation detected a problem.",
                     12000,
                 )
-                self.show_route("data")
+                if auto_route:
+                    self.show_route("data")
 
         except Exception as exc:
             self._show_message("Genome loading", f"Could not validate genome file:\n\n{exc}")
@@ -371,6 +414,14 @@ class WorkspaceWindow(QMainWindow):
 
         self.workflow_state.set_input(key, path)
         self.workflow_state.add_event(self.workflow_state.current_route, "select_folder", path)
+
+        if key == "af3_results_folder":
+            self.workflow_state.set_flag("af3_results_loaded", True)
+            self.statusBar().showMessage("AF3 results folder loaded. AlphaFold / PPI review is available.", 10000)
+            self._refresh_pages()
+            self.show_route("alphafold")
+            return True
+
         self._refresh_pages()
         return True
 
@@ -649,7 +700,7 @@ class WorkspaceWindow(QMainWindow):
     def _actions_for_route(self, route_id: str) -> list[dict]:
         if route_id == "overview":
             return [
-                self._action("Add input data", "Choose an input file or AF3 results folder and let ppigFinder route it into the workflow.", self._open_initial_data_dialog),
+                self._action("Add input data", "Choose one or more files, or an AF3 results folder. ppigFinder detects and routes each input automatically.", self._open_initial_data_dialog),
                 self._action("Show visual dashboard", "Open an illustrated view of inputs, operations, outputs and generated ORF summaries.", self._open_visual_dashboard),
                 self._action("Show workflow map", "Review the complete guided workflow and step dependencies.", self._open_workflow_map),
                 self._action("Start with Data / Project", "Go to the input/status page.", lambda: self.show_route("data")),
@@ -657,7 +708,7 @@ class WorkspaceWindow(QMainWindow):
 
         if route_id == "data":
             return [
-                self._action("Add input data", "Choose an input file or AF3 results folder. ppigFinder will detect the data type and update the workflow.", self._open_initial_data_dialog),
+                self._action("Add input data", "Choose one or more files, or an AF3 results folder. ppigFinder detects and routes each input automatically.", self._open_initial_data_dialog),
             ]
 
         if route_id == "genome":
@@ -714,7 +765,7 @@ class WorkspaceWindow(QMainWindow):
             self.navigation.addItem(item)
             self.navigation_items_by_id[route.id] = item
 
-            page = ModulePage(route, actions=self._actions_for_route(route.id))
+            page = ModulePage(route, actions=self._actions_for_route(route.id), on_route_selected=self.show_route)
             self.module_pages_by_id[route.id] = page
             self.pages.addWidget(page)
 

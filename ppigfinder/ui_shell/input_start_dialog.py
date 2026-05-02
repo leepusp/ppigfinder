@@ -38,8 +38,8 @@ class DataStartDialog(QDialog):
     """
     Unified first input dialog.
 
-    The user selects one input file and ppigFinder detects whether it is a
-    genome, protein query, HMM profile, project or snapshot.
+    The user can select multiple input files at once. ppigFinder detects each
+    role automatically: genome, protein query, HMM profile, project or snapshot.
     """
 
     def __init__(self, parent=None):
@@ -62,9 +62,9 @@ class DataStartDialog(QDialog):
         layout.addWidget(title)
 
         subtitle = QLabel(
-            "Select an input file and ppigFinder will detect how it fits in the workflow. "
-            "Genome files start the full analysis; protein queries and HMM profiles are stored "
-            "for annotation after ORF prediction; project/snapshot files restore previous work."
+            "Select one or more files and ppigFinder will detect how each input fits in the workflow. "
+            "A genome starts the full analysis; protein queries and HMM profiles are stored for annotation; "
+            "project/snapshot JSON files restore previous work."
         )
         subtitle.setWordWrap(True)
         layout.addWidget(subtitle)
@@ -74,10 +74,10 @@ class DataStartDialog(QDialog):
 
         row.addWidget(
             self._card(
-                "Select input file",
-                "Accepted examples: FASTA, GenBank, SnapGene, protein FASTA, HMM profiles, project JSON or snapshot JSON.",
-                "Choose file",
-                "file",
+                "Select input file(s)",
+                "Accepted examples: genome FASTA/GenBank/SnapGene, protein FASTA, HMM profiles, project JSON or snapshot JSON. Multiple files can be selected together.",
+                "Choose file(s)",
+                "files",
             ),
             2,
         )
@@ -95,7 +95,7 @@ class DataStartDialog(QDialog):
         layout.addLayout(row, 1)
 
         hint = QLabel(
-            "The guided workflow will update available steps after the input is recognized."
+            "After loading, the workflow steps become available according to the detected data types."
         )
         hint.setWordWrap(True)
         hint.setObjectName("InfoFooter")
