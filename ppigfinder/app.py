@@ -31,6 +31,7 @@ def main() -> int:
     from ppigfinder.ui.toolbar import polish_toolbars
     from ppigfinder.ui.recent_files import install_recent_files_menu
     from ppigfinder.ui.file_opening import open_genome_file_into_window
+    from ppigfinder.ui.af3_results_import import install_af3_results_import_action
 
     app = QApplication(sys.argv)
     app.setApplicationName("ppigFinder")
@@ -56,6 +57,7 @@ def main() -> int:
             lambda path: open_genome_file_into_window(window, path),
         )
         polish_toolbars(window)
+        install_af3_results_import_action(window)
         apply_text_fallback_to_window(window)
 
     QTimer.singleShot(100, post_startup_ui_polish)
