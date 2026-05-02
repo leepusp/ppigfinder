@@ -8,16 +8,15 @@ across local desktops, X11 forwarding, VNC and different monitor sizes.
 
 from __future__ import annotations
 
-
 try:
     from PyQt6.QtCore import QSettings
     from PyQt6.QtGui import QAction
     from PyQt6.QtWidgets import QApplication, QInputDialog
-    QT6 = True
 except Exception:
     from PyQt5.QtCore import QSettings
     from PyQt5.QtWidgets import QApplication, QAction, QInputDialog
-    QT6 = False
+
+from ppigfinder.ui.text_fallback import clean_ui_text
 
 
 WINDOW_PRESETS = {
@@ -63,16 +62,37 @@ def resize_relative(window, width_fraction: float = 0.85, height_fraction: float
     window.move(frame.topLeft())
 
 
+def _get_or_create_menu(menu_bar, title: str):
+    """
+    Return an existing menu by title, or create it if it does not exist.
+    """
+    wanted = clean_ui_text(title).replace("&", "")
+
+    for action in menu_bar.actions():
+        try:
+            current = clean_ui_text(action.text()).replace("&", "")
+            if current == wanted and action.menu() is not None:
+                return action.menu()
+        except Exception:
+            pass
+
+    return menu_bar.addMenu(title)
+
+
 def add_window_size_menu(window) -> None:
     """
-    Add a Window menu with responsive size presets.
+    Add responsive size presets to the existing Window menu.
     """
+    if getattr(window, "_ppig_window_size_menu_installed", False):
+        return
+
     try:
         menu_bar = window.menuBar()
     except Exception:
         return
 
-    window_menu = menu_bar.addMenu("Window")
+    window_menu = _get_or_create_menu(menu_bar, "Window")
+    window_menu.addSeparator()
 
     for label, fractions in WINDOW_PRESETS.items():
         action = QAction(label, window)
@@ -122,6 +142,8 @@ def add_window_size_menu(window) -> None:
 
     custom_action.triggered.connect(_custom_size)
     window_menu.addAction(custom_action)
+
+    window._ppig_window_size_menu_installed = True
 
 
 def install_window_management(

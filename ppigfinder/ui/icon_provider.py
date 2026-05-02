@@ -41,9 +41,9 @@ _ICON_DEFINITIONS = {
     "hmm": ("HM", "#ad1457", "#ffffff"),
     "af3": ("AF3", "#283593", "#ffffff"),
     "hpc": ("HPC", "#37474f", "#ffffff"),
-    "run": ("▶", "#2e7d32", "#ffffff"),
-    "stop": ("■", "#b71c1c", "#ffffff"),
-    "settings": ("⚙", "#455a64", "#ffffff"),
+    "run": ("RUN", "#2e7d32", "#ffffff"),
+    "stop": ("STOP", "#b71c1c", "#ffffff"),
+    "settings": ("SET", "#455a64", "#ffffff"),
     "help": ("?", "#0277bd", "#ffffff"),
 }
 

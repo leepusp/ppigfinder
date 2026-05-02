@@ -22,6 +22,7 @@ from .legacy_v20 import (
 from .ui.icon_provider import set_window_icon
 from .ui.text_fallback import apply_text_fallback_to_window
 from .ui.window_manager import install_window_management
+from .ui.toolbar import polish_toolbars
 from .ui.recent_files import install_recent_files_menu
 from .ui.file_opening import open_genome_file_into_window
 
@@ -44,8 +45,9 @@ def main() -> int:
 
     set_window_icon(window)
     install_window_management(window)
-    apply_text_fallback_to_window(window)
     install_recent_files_menu(window, lambda path: open_genome_file_into_window(window, path))
+    polish_toolbars(window)
+    apply_text_fallback_to_window(window)
 
     window.show()
 
