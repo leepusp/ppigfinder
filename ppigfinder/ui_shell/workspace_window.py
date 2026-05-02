@@ -22,67 +22,27 @@ from ppigfinder.ui_shell.qt import (
 from ppigfinder.ui_shell.theme import APP_TITLE, shell_stylesheet
 from ppigfinder.ui_shell.branding import apply_ppigfinder_branding
 from ppigfinder.ui_shell.input_validation import validate_genome_input, summary_to_state
+from ppigfinder.ui_shell.guided_backend import (
+    predict_orfs_from_file,
+    write_orfs_fasta,
+    write_guided_summary,
+)
 
 
 DEFAULT_ROUTES = [
-    ModuleRoute(
-        id="overview",
-        title="Overview",
-        description="General overview of the ppigFinder analysis workflow.",
-        data_type="Workflow",
-        status="Ready",
-    ),
-    ModuleRoute(
-        id="data",
-        title="Data / Project",
-        description="Start a project, open genome data or restore previous analyses.",
-        data_type="Project / Input data",
-        status="Ready",
-    ),
-    ModuleRoute(
-        id="genome",
-        title="DNA / Genome",
-        description="Genome loading, translation and sequence inspection.",
-        data_type="DNA / Genome",
-        status="Ready",
-    ),
-    ModuleRoute(
-        id="orfs",
-        title="Protein / ORFs",
-        description="ORF prediction, ORF review and protein export.",
-        data_type="Protein / ORFs",
-        status="Ready",
-    ),
-    ModuleRoute(
-        id="annotation",
-        title="Annotation",
-        description="BLAST, HMM/domain and neighbourhood analyses.",
-        data_type="Functional annotation",
-        status="Ready",
-    ),
-    ModuleRoute(
-        id="alphafold",
-        title="AlphaFold / PPI",
-        description="AF3 export, result import and interaction interpretation.",
-        data_type="Protein interaction",
-        status="Ready",
-    ),
-    ModuleRoute(
-        id="reports",
-        title="Reports",
-        description="Generate HTML, JSON and tabular outputs.",
-        data_type="Reporting",
-        status="Ready",
-    ),
+    ModuleRoute("overview", "Overview", "General overview of the ppigFinder analysis workflow.", "Workflow", "Ready"),
+    ModuleRoute("data", "Data / Project", "Start a project, open genome data or restore previous analyses.", "Project / Input data", "Ready"),
+    ModuleRoute("genome", "DNA / Genome", "Genome loading, translation and sequence inspection.", "DNA / Genome", "Ready"),
+    ModuleRoute("orfs", "Protein / ORFs", "ORF prediction, ORF review and protein export.", "Protein / ORFs", "Ready"),
+    ModuleRoute("annotation", "Annotation", "BLAST, HMM/domain and neighbourhood analyses.", "Functional annotation", "Ready"),
+    ModuleRoute("alphafold", "AlphaFold / PPI", "AF3 export, result import and interaction interpretation.", "Protein interaction", "Ready"),
+    ModuleRoute("reports", "Reports", "Generate HTML, JSON and tabular outputs.", "Reporting", "Ready"),
 ]
 
 
 class WorkspaceWindow(QMainWindow):
     """
     Future stepwise workspace window.
-
-    At this stage, the shell keeps actions inside the guided workflow.
-    Full backend execution will be connected progressively.
     """
 
     def __init__(self, bridge=None, routes=None):
@@ -93,6 +53,7 @@ class WorkspaceWindow(QMainWindow):
         self.route_index_by_id = {}
         self.selected_inputs = {}
         self.module_pages_by_id = {}
+        self.guided_orfs = []
 
         self.setWindowTitle(f"{APP_TITLE} — Workspace")
         self.resize(1320, 820)
@@ -160,7 +121,6 @@ class WorkspaceWindow(QMainWindow):
         if key == "genome_file":
             summary = validate_genome_input(path)
             self.selected_inputs.update(summary_to_state(summary))
-
             message = (
                 "Selected genome file:\n\n"
                 + path
@@ -179,8 +139,7 @@ class WorkspaceWindow(QMainWindow):
             message = (
                 "Selected file:\n\n"
                 + path
-                + "\n\nThis file is now registered in the guided shell. "
-                + "Full backend parsing will be connected progressively."
+                + "\n\nThis file is now registered in the guided shell."
             )
 
         self._show_message("Input selected", message)
@@ -198,54 +157,148 @@ class WorkspaceWindow(QMainWindow):
         message = (
             "Selected folder:\n\n"
             + path
-            + "\n\nThis folder is now registered in the guided shell. "
-            + "Full backend parsing will be connected progressively."
+            + "\n\nThis folder is now registered in the guided shell."
         )
 
         self._show_message("Folder selected", message)
         self._refresh_visualization_panels()
         return True
 
+    def _predict_guided_orfs(self) -> None:
+        genome_file = self.selected_inputs.get("genome_file", "")
+
+        if not genome_file:
+            self._show_message(
+                "Predict ORFs",
+                "Select a genome file in Data / Project before predicting ORFs.",
+            )
+            self.show_route("data")
+            return
+
+        summary = predict_orfs_from_file(genome_file, min_aa=30)
+        self.guided_orfs = summary.orfs
+
+        self.selected_inputs.update(
+            {
+                "guided_orf_count": summary.orf_count,
+                "guided_longest_orf_aa": summary.longest_orf_aa,
+                "guided_shortest_orf_aa": summary.shortest_orf_aa,
+                "guided_orf_min_aa": summary.min_aa,
+                "guided_orf_source": summary.source_file,
+            }
+        )
+
+        self._refresh_visualization_panels()
+
+        self._show_message(
+            "ORF prediction",
+            (
+                "Guided ORF prediction completed.\n\n"
+                + f"ORFs found: {summary.orf_count}\n"
+                + f"Longest ORF: {summary.longest_orf_aa} aa\n"
+                + f"Shortest ORF: {summary.shortest_orf_aa} aa\n\n"
+                + "This is the guided shell lightweight ORF scan. Full Pyrodigal/hybrid integration will be connected progressively."
+            ),
+        )
+
+    def _export_guided_orfs_fasta(self) -> None:
+        if not self.guided_orfs:
+            self._show_message(
+                "Export ORF FASTA",
+                "No guided ORFs are available yet. Run Predict ORFs first.",
+            )
+            return
+
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export guided ORF proteins",
+            "guided_orfs.faa",
+            "Protein FASTA (*.faa *.fasta *.fa);;All files (*)",
+        )
+
+        if not path:
+            return
+
+        write_orfs_fasta(path, self.guided_orfs)
+
+        self._show_message(
+            "Export ORF FASTA",
+            "Guided ORF protein FASTA exported:\n\n" + path,
+        )
+
+    def _mark_annotation_step(self, key: str, label: str) -> None:
+        self.selected_inputs[key] = True
+        self._refresh_visualization_panels()
+        self._show_message(
+            label,
+            label + " was marked as selected in the guided workflow. Full execution will be connected progressively.",
+        )
+
+    def _export_guided_summary(self) -> None:
+        path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export guided workflow summary",
+            "ppigfinder_guided_summary.md",
+            "Markdown (*.md);;Text files (*.txt);;All files (*)",
+        )
+
+        if not path:
+            return
+
+        write_guided_summary(path, self.selected_inputs)
+
+        self._show_message(
+            "Guided summary",
+            "Guided workflow summary exported:\n\n" + path,
+        )
+
     def _handle_action(self, action_name: str) -> None:
         if action_name.startswith("route:"):
-            route_id = action_name.split(":", 1)[1]
-            self.show_route(route_id)
+            self.show_route(action_name.split(":", 1)[1])
             return
 
         if action_name == "select_file:genome":
-            self._select_file(
-                "genome_file",
-                "Open genome file",
-                "Genome files (*.fasta *.fa *.fna *.gb *.gbk *.dna);;All files (*)",
-            )
+            self._select_file("genome_file", "Open genome file", "Genome files (*.fasta *.fa *.fna *.gb *.gbk *.dna);;All files (*)")
             return
 
         if action_name == "select_file:project":
-            self._select_file(
-                "project_file",
-                "Open ppigFinder project",
-                "ppigFinder project (*.json *.ppigfinder.json);;All files (*)",
-            )
+            self._select_file("project_file", "Open ppigFinder project", "ppigFinder project (*.json *.ppigfinder.json);;All files (*)")
             return
 
         if action_name == "select_file:snapshot":
-            self._select_file(
-                "snapshot_file",
-                "Import Project Snapshot v3",
-                "Project Snapshot (*.json *.ppigfinder.json);;All files (*)",
-            )
+            self._select_file("snapshot_file", "Import Project Snapshot v3", "Project Snapshot (*.json *.ppigfinder.json);;All files (*)")
             return
 
         if action_name == "select_folder:af3_results":
-            self._select_folder(
-                "af3_results_folder",
-                "Import AlphaFold/AF3 results folder",
-            )
+            self._select_folder("af3_results_folder", "Import AlphaFold/AF3 results folder")
+            return
+
+        if action_name == "guided:predict_orfs":
+            self._predict_guided_orfs()
+            return
+
+        if action_name == "guided:export_orfs_fasta":
+            self._export_guided_orfs_fasta()
+            return
+
+        if action_name == "guided:blast":
+            self._mark_annotation_step("guided_blast_planned", "BLAST")
+            return
+
+        if action_name == "guided:hmm":
+            self._mark_annotation_step("guided_hmm_planned", "HMM/domain annotation")
+            return
+
+        if action_name == "guided:neighborhood":
+            self._mark_annotation_step("guided_neighborhood_planned", "Neighbourhood analysis")
+            return
+
+        if action_name == "guided:summary":
+            self._export_guided_summary()
             return
 
         if action_name.startswith("info:"):
-            message = action_name.split(":", 1)[1]
-            self._show_message("Guided workflow", message)
+            self._show_message("Guided workflow", action_name.split(":", 1)[1])
             return
 
         if action_name == "open_legacy_interface":
@@ -253,11 +306,7 @@ class WorkspaceWindow(QMainWindow):
                 self.bridge.call(action_name)
             return
 
-        message = (
-            "This action is not connected in the guided shell yet:\n\n"
-            + action_name
-        )
-        self._show_message("Guided workflow", message)
+        self._show_message("Guided workflow", "Action not connected yet:\n\n" + action_name)
 
     def _action(self, label: str, description: str, action_name: str) -> dict:
         def run():
@@ -283,151 +332,68 @@ class WorkspaceWindow(QMainWindow):
             )
             self.navigation.addItem(item)
 
-            actions = self._actions_for_route(route.id)
-            page = ModulePage(route, actions=actions)
+            page = ModulePage(route, actions=self._actions_for_route(route.id))
             self.module_pages_by_id[route.id] = page
             self.pages.addWidget(page)
 
     def _actions_for_route(self, route_id: str) -> list[dict]:
         if route_id == "overview":
             return [
-                self._action(
-                    "Start with Data / Project",
-                    "Begin by adding genome data, opening a project or importing a project snapshot.",
-                    "route:data",
-                ),
+                self._action("Start with Data / Project", "Begin by adding genome data, opening a project or importing a project snapshot.", "route:data"),
             ]
 
         if route_id == "data":
             return [
-                self._action(
-                    "Open genome file",
-                    "Insert the main nucleotide dataset for a new bacterial genome analysis.",
-                    "select_file:genome",
-                ),
-                self._action(
-                    "Open project",
-                    "Resume a previous ppigFinder session with genome data, ORFs, annotations and analysis state.",
-                    "select_file:project",
-                ),
-                self._action(
-                    "Import Project Snapshot v3",
-                    "Load a portable JSON snapshot for reproducible analysis, reporting or continuation.",
-                    "select_file:snapshot",
-                ),
-                self._action(
-                    "Continue to Protein / ORFs",
-                    "Move to ORF prediction after adding or restoring input data.",
-                    "route:orfs",
-                ),
+                self._action("Open genome file", "Insert the main nucleotide dataset for a new bacterial genome analysis.", "select_file:genome"),
+                self._action("Open project", "Resume a previous ppigFinder session with genome data, ORFs, annotations and analysis state.", "select_file:project"),
+                self._action("Import Project Snapshot v3", "Load a portable JSON snapshot for reproducible analysis or continuation.", "select_file:snapshot"),
+                self._action("Continue to Protein / ORFs", "Move to ORF prediction after adding or restoring input data.", "route:orfs"),
             ]
 
         if route_id == "genome":
             return [
-                self._action(
-                    "Review genome data",
-                    "Inspect genome information and prepare for downstream ORF prediction.",
-                    "info:Genome inspection will be connected to guided state after input parsing is wired.",
-                ),
-                self._action(
-                    "Continue to Protein / ORFs",
-                    "Proceed to ORF prediction and protein sequence generation.",
-                    "route:orfs",
-                ),
+                self._action("Review genome metadata", "Inspect the selected genome metadata captured by the guided shell.", "info:Genome metadata is summarized in the module status panel."),
+                self._action("Continue to Protein / ORFs", "Proceed to ORF prediction and protein sequence generation.", "route:orfs"),
             ]
 
         if route_id == "orfs":
             return [
-                self._action(
-                    "Predict ORFs",
-                    "Detect protein-coding open reading frames from the loaded genome.",
-                    "info:ORF prediction will be connected directly to this guided module after backend state binding is completed.",
-                ),
-                self._action(
-                    "Review ORF table",
-                    "Inspect coordinates, strand, frame, size, GC content and protein sequence output.",
-                    "info:ORF table review will be embedded in this module as the guided interface evolves.",
-                ),
-                self._action(
-                    "Continue to Annotation",
-                    "Move to BLAST, HMM/domain and neighbourhood analysis.",
-                    "route:annotation",
-                ),
+                self._action("Predict ORFs", "Run a lightweight six-frame ORF scan inside the guided shell.", "guided:predict_orfs"),
+                self._action("Export ORF FASTA", "Export guided ORF protein sequences for downstream analysis.", "guided:export_orfs_fasta"),
+                self._action("Continue to Annotation", "Move to BLAST, HMM/domain and neighbourhood analysis.", "route:annotation"),
             ]
 
         if route_id == "annotation":
             return [
-                self._action(
-                    "Run BLAST",
-                    "Search a protein query against predicted ORFs.",
-                    "info:BLAST search will be connected inside the Annotation module after guided query input is added.",
-                ),
-                self._action(
-                    "Annotate HMM",
-                    "Annotate conserved domains with HMMER or internal fallback scanner.",
-                    "info:HMM/domain annotation will be connected after guided profile selection is added.",
-                ),
-                self._action(
-                    "Continue to AlphaFold / PPI",
-                    "Move from annotation evidence to structural interaction analysis.",
-                    "route:alphafold",
-                ),
+                self._action("Run BLAST", "Mark BLAST as selected in the guided flow.", "guided:blast"),
+                self._action("Annotate HMM", "Mark HMM/domain annotation as selected in the guided flow.", "guided:hmm"),
+                self._action("Neighbourhood analysis", "Mark neighbourhood analysis as selected in the guided flow.", "guided:neighborhood"),
+                self._action("Continue to AlphaFold / PPI", "Move from annotation evidence to structural interaction analysis.", "route:alphafold"),
             ]
 
         if route_id == "alphafold":
             return [
-                self._action(
-                    "Export AF3 Server JSON",
-                    "Generate AlphaFold Server JSON for selected ORF protein pairs.",
-                    "info:AF3 Server JSON export will be connected after guided ORF/protein pair selection is implemented.",
-                ),
-                self._action(
-                    "Import AF3 results",
-                    "Import AlphaFold 3 output folders and extract interaction metrics.",
-                    "select_folder:af3_results",
-                ),
-                self._action(
-                    "Continue to Reports",
-                    "Move to result export and reporting.",
-                    "route:reports",
-                ),
+                self._action("Export AF3 Server JSON", "Prepare AF3 job export after guided pair selection is implemented.", "info:AF3 JSON export will be connected after guided ORF/protein pair selection is implemented."),
+                self._action("Import AF3 results", "Import AlphaFold 3 output folders and extract interaction metrics.", "select_folder:af3_results"),
+                self._action("Continue to Reports", "Move to result export and reporting.", "route:reports"),
             ]
 
         if route_id == "reports":
             return [
-                self._action(
-                    "Export HTML report",
-                    "Generate a standalone HTML report from the current project snapshot.",
-                    "info:HTML report export will be connected after guided project state is synchronized.",
-                ),
-                self._action(
-                    "Export Project Snapshot v3",
-                    "Export a versioned JSON snapshot for reproducibility.",
-                    "info:Project Snapshot export will be connected after guided state synchronization.",
-                ),
-                self._action(
-                    "Open full current interface",
-                    "Advanced option: open the complete current interface after reviewing the guided workflow.",
-                    "open_legacy_interface",
-                ),
+                self._action("Export guided summary", "Export the current guided shell state as a Markdown summary.", "guided:summary"),
+                self._action("Export Project Snapshot v3", "Project Snapshot export will be connected after full guided state synchronization.", "info:Project Snapshot export will be connected after guided state synchronization."),
+                self._action("Open full current interface", "Advanced option: open the complete current interface after reviewing the guided workflow.", "open_legacy_interface"),
             ]
 
         return []
 
-
     def _refresh_visualization_panels(self) -> None:
-        """
-        Refresh visualization/status panels using the current guided state.
-        """
         for page in self.module_pages_by_id.values():
             panel = getattr(page, "visualization_panel", None)
             if panel is not None and hasattr(panel, "update_state"):
                 panel.update_state(self.selected_inputs)
 
     def show_route(self, route_id: str) -> bool:
-        """
-        Switch workspace to a route by ID.
-        """
         index = self.route_index_by_id.get(route_id)
 
         if index is None:
@@ -443,3 +409,4 @@ class WorkspaceWindow(QMainWindow):
         route = self.routes[index]
         self.breadcrumb.setText(f"Workspace > {route.title}")
         self.pages.setCurrentIndex(index)
+        self._refresh_visualization_panels()
