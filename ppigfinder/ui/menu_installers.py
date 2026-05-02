@@ -68,6 +68,14 @@ def install_modular_gui_actions(window) -> None:
     """
     # Imports are intentionally local to keep startup light and avoid breaking
     # the GUI if one optional extension has a problem.
+
+    try:
+        from ppigfinder.ui.backend_status import install_backend_status_action
+
+        install_backend_status_action(window)
+    except Exception:
+        pass
+
     try:
         from ppigfinder.ui.af3_export import export_selected_orfs_as_server_json
 

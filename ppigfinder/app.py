@@ -32,6 +32,7 @@ def main() -> int:
     from ppigfinder.ui.recent_files import install_recent_files_menu
     from ppigfinder.ui.file_opening import open_genome_file_into_window
     from ppigfinder.ui.menu_installers import install_modular_gui_actions
+    from ppigfinder.ui.tab_compactor import compact_tab_labels
 
     app = QApplication(sys.argv)
     app.setApplicationName("ppigFinder")
@@ -58,6 +59,7 @@ def main() -> int:
         )
         polish_toolbars(window)
         install_modular_gui_actions(window)
+        compact_tab_labels(window)
         apply_text_fallback_to_window(window)
 
     QTimer.singleShot(100, post_startup_ui_polish)
