@@ -221,8 +221,12 @@ def metrics_from_af3_summary(summary: dict) -> InteractionMetrics:
     ptm = _safe_float(summary.get("ptm", summary.get("pTM")))
     ranking_score = _safe_float(summary.get("ranking_score"))
 
-    cp_iptm = None
-    pae_min = None
+    cp_iptm = safe_float(
+        summary.get("cp_iptm", summary.get("chain_pair_iptm_value"))
+    )
+    pae_min = safe_float(
+        summary.get("pae_min", summary.get("PAE_min", summary.get("chain_pair_pae_min_value")))
+    )
 
     if "chain_pair_iptm" in summary:
         cp_iptm = extract_pair_metric(summary.get("chain_pair_iptm"), 0, 1)

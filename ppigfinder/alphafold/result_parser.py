@@ -136,6 +136,9 @@ def _extract_matrix(data: dict, keys: list[str]):
 def _metrics_from_confidence_json(confidence: dict, current: InteractionMetrics) -> InteractionMetrics:
     """
     Improve metrics using confidence JSON matrices when available.
+
+    This function must preserve metrics already obtained from summary.json,
+    especially chain-pair metrics such as cp_ipTM and PAE_min.
     """
     chain_a_len, chain_b_len = _extract_chain_lengths(confidence)
 
@@ -151,29 +154,44 @@ def _metrics_from_confidence_json(confidence: dict, current: InteractionMetrics)
     if pae_matrix is not None and chain_a_len and chain_b_len:
         ab, ba = off_diagonal_blocks(pae_matrix, chain_a_len, chain_b_len)
 
-        if pae_inter is None:
-            pae_inter = pae_inter_from_blocks(ab, ba)
+        computed_pae_inter = pae_inter_from_blocks(ab, ba)
+        computed_pae_min = pae_min_from_blocks(ab, ba)
+        computed_contact_percent = contact_percent_from_pae(ab, ba, threshold=5.0)
 
-        if pae_min is None:
-            pae_min = pae_min_from_blocks(ab, ba)
+        if pae_inter is None:
+            pae_inter = computed_pae_inter
+
+        # Prefer the focal minimum from the PAE matrix when available.
+        if computed_pae_min is not None:
+            pae_min = computed_pae_min
 
         if contact_percent is None:
-            contact_percent = contact_percent_from_pae(ab, ba, threshold=5.0)
+            contact_percent = computed_contact_percent
 
-    summary = {
-        "iptm": current.iptm,
-        "ptm": current.ptm,
-        "ranking_score": current.ranking_score,
-        "pae_inter": pae_inter,
-        "pae_min": pae_min,
-        "cp_iptm": current.cp_iptm,
-        "contact_percent": contact_percent,
-    }
+    classification = "UNKNOWN"
 
-    updated = metrics_from_af3_summary(summary)
-    updated.contact_percent = contact_percent
+    try:
+        from ppigfinder.alphafold.metrics import classify_interaction
+        classification = classify_interaction(
+            pae_min=pae_min,
+            cp_iptm=current.cp_iptm,
+            pae_inter=pae_inter,
+        )
+    except Exception:
+        classification = current.classification
 
-    return updated
+    return InteractionMetrics(
+        iptm=current.iptm,
+        ptm=current.ptm,
+        ranking_score=current.ranking_score,
+        pae_inter=pae_inter,
+        pae_min=pae_min,
+        cp_iptm=current.cp_iptm,
+        contact_percent=contact_percent,
+        chain_a=current.chain_a,
+        chain_b=current.chain_b,
+        classification=classification,
+    )
 
 
 def parse_af3_result_directory(path: str | Path) -> dict:
