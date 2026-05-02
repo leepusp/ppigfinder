@@ -561,86 +561,26 @@ except ImportError:
 
 # ═══════════════════════════════════════════════════════════════
 # EXTERNAL BACKEND DETECTION
+# Extracted into ppigfinder.infrastructure.backends
 # ═══════════════════════════════════════════════════════════════
 
-def detect_backends():
-    """Detect installed external tools (PATH, WSL, and bundled tools/ folder).
+try:
+    from .infrastructure.backends import BACKENDS, detect_backends
+except ImportError:
+    from ppigfinder.infrastructure.backends import BACKENDS, detect_backends
 
-    When running as a PyInstaller bundle, external tools (BLAST+, HMMER3) may
-    be shipped inside a  tools/  subfolder next to the executable.  This
-    function checks that location before falling back to PATH / WSL.
-    """
-    backends = {}
-
-    # ── Locate bundled tools/ directory (PyInstaller exe next to tools/) ──
-    _bundled_tools: Path | None = None
-    try:
-        # sys._MEIPASS is set by PyInstaller at runtime
-        _base = Path(getattr(sys, '_MEIPASS', ''))
-        if not _base.is_dir():
-            # Running as normal script — check next to the .py file
-            _base = Path(sys.argv[0]).resolve().parent
-        _candidate = _base / 'tools'
-        if _candidate.is_dir():
-            _bundled_tools = _candidate
-    except Exception:
-        pass
-
-    for tool, cmd in [('blast+', 'blastp'), ('hmmer3', 'hmmsearch')]:
-        path = None
-        version = None
-
-        # 1. Bundled tools/ folder (PyInstaller distribution)
-        if _bundled_tools:
-            _exe = (_bundled_tools / (cmd + ('.exe' if os.name == 'nt' else '')))
-            if _exe.is_file():
-                path = str(_exe)
-
-        # 2. System PATH
-        if path is None:
-            path = shutil.which(cmd)
-
-        if path:
-            try:
-                r = subprocess.run(
-                    [path, '-version'] if tool == 'blast+' else [path, '-h'],
-                    capture_output=True, text=True, timeout=5)
-                version = r.stdout.split('\n')[0] if r.stdout else 'detected'
-                backends[tool] = {'path': path, 'version': version,
-                                  'available': True, 'wsl': False}
-            except Exception:
-                backends[tool] = {'path': path, 'version': '?',
-                                  'available': True, 'wsl': False}
-        else:
-            # 3. Try WSL on Windows
-            wsl_found = False
-            if os.name == 'nt':
-                try:
-                    r = subprocess.run(
-                        ['wsl', 'bash', '-c', f'{cmd} -h'],
-                        capture_output=True, text=True, timeout=10)
-                    if r.returncode == 0 or 'Usage' in (r.stdout + r.stderr):
-                        backends[tool] = {
-                            'path': f'wsl bash -c {cmd}',
-                            'version': 'via WSL',
-                            'available': True, 'wsl': True}
-                        wsl_found = True
-                except Exception:
-                    pass
-            if not wsl_found:
-                backends[tool] = {'path': None, 'version': None,
-                                  'available': False, 'wsl': False}
-    return backends
-
-BACKENDS = detect_backends()
-
-# Pyrodigal detection (Python module, not external tool)
-BACKENDS['pyrodigal'] = {
-    'path': 'pyrodigal (Python module)',
-    'version': pyrodigal.__version__ if PYRODIGAL_AVAILABLE else None,
-    'available': PYRODIGAL_AVAILABLE,
-    'wsl': False,
-}
+try:
+    from .bioseq.sequence import (
+        gc_content as _bioseq_gc_content,
+        reverse_complement as _bioseq_reverse_complement,
+        translate_dna as _bioseq_translate_dna,
+    )
+except ImportError:
+    from ppigfinder.bioseq.sequence import (
+        gc_content as _bioseq_gc_content,
+        reverse_complement as _bioseq_reverse_complement,
+        translate_dna as _bioseq_translate_dna,
+    )
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -656,6 +596,20 @@ except ImportError:
     from ppigfinder.io.genbank import parse_genbank, write_genbank
 
 
+
+
+try:
+    from .bioseq.orf_finder import (
+        find_orfs as _bioseq_find_orfs,
+        find_orfs_pyrodigal as _bioseq_find_orfs_pyrodigal,
+        find_orfs_hybrid as _bioseq_find_orfs_hybrid,
+    )
+except ImportError:
+    from ppigfinder.bioseq.orf_finder import (
+        find_orfs as _bioseq_find_orfs,
+        find_orfs_pyrodigal as _bioseq_find_orfs_pyrodigal,
+        find_orfs_hybrid as _bioseq_find_orfs_hybrid,
+    )
 
 class AdvancedORFAnalyzer:
 
@@ -721,261 +675,48 @@ class AdvancedORFAnalyzer:
     KA_K = 0.041
 
     def translate(self, dna_seq):
-        dna_seq = dna_seq.upper()
-        protein = []
-        for i in range(0, len(dna_seq), 3):
-            codon = dna_seq[i:i+3]
-            if len(codon) == 3:
-                aa = self.CODON_TABLE.get(codon, 'X')
-                protein.append(aa)
-                if aa == '*': break
-        return ''.join(protein)
+        return _bioseq_translate_dna(dna_seq)
 
     def reverse_complement(self, seq):
-        comp = {'A':'T','T':'A','G':'C','C':'G','a':'t','t':'a','g':'c','c':'g'}
-        return ''.join(comp.get(b, 'N') for b in reversed(seq))
+        return _bioseq_reverse_complement(seq)
 
     def gc_content(self, seq):
-        seq = seq.upper()
-        return (seq.count('G') + seq.count('C')) / len(seq) * 100 if seq else 0
+        return _bioseq_gc_content(seq)
 
     def find_orfs(self, dna_sequence, min_aa=30, start_codons=None):
-        if start_codons is None: start_codons = {'ATG','GTG','TTG'}
-        stop_codons = {'TAA','TAG','TGA'}
-        min_len = min_aa * 3
-        orfs = []
-        for frame in range(3):
-            for strand_seq, strand_name in [(dna_sequence, '+'),
-                                            (self.reverse_complement(dna_sequence), '-')]:
-                i = frame
-                while i < len(strand_seq) - 2:
-                    codon = strand_seq[i:i+3]
-                    if codon in start_codons:
-                        j = i + 3
-                        while j < len(strand_seq):
-                            if strand_seq[j:j+3] in stop_codons:
-                                length = j + 3 - i
-                                if length >= min_len:
-                                    dna = strand_seq[i:j+3]
-                                    protein = self.translate(dna)
-                                    orfs.append({
-                                        'frame': frame + (3 if strand_name == '-' else 0),
-                                        'strand': strand_name,
-                                        'start': i if strand_name == '+' else len(dna_sequence) - (j + 3),
-                                        'end': j + 3 if strand_name == '+' else len(dna_sequence) - i,
-                                        'dna': dna, 'protein': protein, 'length': length,
-                                        'gc': self.gc_content(dna),
-                                        'domains': [],
-                                        'neighborhood': [], 'candidate_score': 0.0,
-                                        'source': '6frame',
-                                    })
-                                i = j; break
-                            j += 3
-                    i += 3
-        # Sort by genomic start position 5'→3' so ORF numbers increase from
-        # the molecule origin toward the end (lower number = closer to 5')
-        orfs.sort(key=lambda x: x['start'])
-        return orfs
+        return _bioseq_find_orfs(
+            dna_sequence,
+            min_aa=min_aa,
+            start_codons=start_codons,
+        )
 
     def find_orfs_pyrodigal(self, dna_sequence, meta=True, min_aa=30,
                             closed_ends=False, translation_table=11, mask=False):
-        """
-        Find ORFs using Pyrodigal (Python binding for Prodigal gene caller).
-
-        Pyrodigal uses dynamic programming on GC-content, RBS motifs, and
-        coding potential to predict real protein-coding genes — much more
-        accurate than simple start→stop scanning.
-
-        Parameters
-        ----------
-        dna_sequence : str — DNA sequence (uppercase)
-        meta : bool — True for metagenomic mode (no training needed),
-                      False for single-genome mode (trains on the sequence)
-        min_aa : int — minimum protein length in amino acids
-        closed_ends : bool — allow genes to run off edges of the sequence
-
-        Returns
-        -------
-        list of ORF dicts (same format as find_orfs)
-        """
-        if not PYRODIGAL_AVAILABLE:
-            raise ImportError(
-                "Pyrodigal not installed.\n\n"
-                "Install with:\n"
-                "  pip install pyrodigal\n\n"
-                "Or use conda:\n"
-                "  conda install -c bioconda pyrodigal"
-            )
-
-        orfs = []
-        seq = dna_sequence.upper()
-
-        if meta:
-            # Metagenomic mode — uses pre-trained models, no training needed
-            gene_finder = pyrodigal.GeneFinder(
-                meta=True, closed=closed_ends,
-                min_gene=min_aa * 3, mask=mask)
-        else:
-            # Single-genome mode — trains on the input sequence
-            gene_finder = pyrodigal.GeneFinder(
-                meta=False, closed=closed_ends,
-                min_gene=min_aa * 3, mask=mask)
-            gene_finder.train(
-                seq.encode() if isinstance(seq, str) else seq,
-                translation_table=translation_table)
-
-        # Run gene prediction
-        genes = gene_finder.find_genes(seq.encode() if isinstance(seq, str) else seq)
-
-        for gene in genes:
-            # Pyrodigal uses 1-based coordinates
-            start_0 = gene.begin - 1   # convert to 0-based
-            end_0 = gene.end           # end is already exclusive-like in our format
-            strand = '+' if gene.strand == 1 else '-'
-
-            # Calculate frame (0-based)
-            if strand == '+':
-                frame = start_0 % 3
-            else:
-                frame = (len(seq) - end_0) % 3 + 3  # frames 3,4,5 for minus strand
-
-            # Extract DNA subsequence
-            if strand == '+':
-                dna_sub = seq[start_0:end_0]
-            else:
-                dna_sub = self.reverse_complement(seq[start_0:end_0])
-
-            protein = self.translate(dna_sub)
-            gc = self.gc_content(dna_sub)
-
-            # Pyrodigal confidence score (0-100)
-            try:
-                cscore = gene.confidence()
-            except (AttributeError, TypeError):
-                cscore = gene.cscore if hasattr(gene, 'cscore') else 0.0
-
-            # RBS motif if available
-            try:
-                rbs_motif = gene.rbs_motif
-            except AttributeError:
-                rbs_motif = None
-
-            orfs.append({
-                'frame': frame,
-                'strand': strand,
-                'start': start_0,
-                'end': end_0,
-                'dna': dna_sub,
-                'protein': protein,
-                'length': end_0 - start_0,
-                'gc': gc,
-                'domains': [],
-                'neighborhood': [],
-                'candidate_score': 0.0,
-                'source': 'pyrodigal',
-                'pyrodigal_score': round(cscore, 2) if cscore else 0.0,
-                'rbs_motif': rbs_motif or '',
-                'partial': getattr(gene, 'partial_begin', False) or getattr(gene, 'partial_end', False),
-            })
-
-        orfs.sort(key=lambda x: x['start'])
-        return orfs
+        return _bioseq_find_orfs_pyrodigal(
+            dna_sequence,
+            meta=meta,
+            min_aa=min_aa,
+            closed_ends=closed_ends,
+            translation_table=translation_table,
+            mask=mask,
+        )
 
     def find_orfs_hybrid(self, dna_sequence,
-                         # --- 6-frame scanner params ---
                          min_aa=30, start_codons=None,
-                         # --- Pyrodigal params ---
                          pyro_meta=True, pyro_min_aa=30,
                          pyro_closed=False, pyro_translation_table=11,
                          pyro_mask=False, pyro_start_filter=None):
-        """
-        Hybrid gene finder: Pyrodigal as primary caller + 6-frame ORF
-        scanner as gap-filler.
-
-        Strategy
-        --------
-        1. Run Pyrodigal on the full sequence → primary ORF set.
-        2. Build a merged coverage map of every nucleotide position
-           that falls inside at least one Pyrodigal ORF (both strands).
-        3. Identify contiguous uncovered gaps (positions not spanned by
-           any Pyrodigal prediction).
-        4. Run the 6-frame start→stop codon scanner *only* on each gap
-           subsequence, using the user-defined min_aa and start_codons.
-        5. Re-map gap-local coordinates to global genome coordinates.
-        6. Merge both lists and sort by genomic start position so that
-           ORF numbering (ORF1, ORF2 …) follows the 5'→3' order of the
-           chromosome regardless of source.
-
-        Source tags
-        -----------
-        Pyrodigal predictions  → source = 'pyrodigal'
-        Gap-filler predictions → source = 'automatic'
-        """
-        if start_codons is None:
-            start_codons = {'ATG', 'GTG', 'TTG'}
-
-        # ── Step 1: Pyrodigal ────────────────────────────────────────
-        pyro_orfs = self.find_orfs_pyrodigal(
+        return _bioseq_find_orfs_hybrid(
             dna_sequence,
-            meta=pyro_meta,
-            min_aa=pyro_min_aa,
-            closed_ends=pyro_closed,
-            translation_table=pyro_translation_table,
-            mask=pyro_mask,
+            min_aa=min_aa,
+            start_codons=start_codons,
+            pyro_meta=pyro_meta,
+            pyro_min_aa=pyro_min_aa,
+            pyro_closed=pyro_closed,
+            pyro_translation_table=pyro_translation_table,
+            pyro_mask=pyro_mask,
+            pyro_start_filter=pyro_start_filter,
         )
-
-        # Optional post-prediction start-codon filter for Pyrodigal ORFs
-        if pyro_start_filter and not pyro_start_filter.get('all', True):
-            allowed = {k for k in ('ATG', 'GTG', 'TTG')
-                       if pyro_start_filter.get(k)}
-            if allowed:
-                pyro_orfs = [o for o in pyro_orfs
-                             if o.get('dna', '')[:3].upper() in allowed]
-
-        # ── Step 2: build merged coverage intervals ───────────────────
-        # Use genomic coordinates (0-based half-open) from every
-        # Pyrodigal ORF, regardless of strand.
-        seq_len = len(dna_sequence)
-        intervals = sorted((o['start'], o['end']) for o in pyro_orfs)
-
-        merged = []
-        for seg_s, seg_e in intervals:
-            if merged and seg_s <= merged[-1][1]:
-                merged[-1] = (merged[-1][0], max(merged[-1][1], seg_e))
-            else:
-                merged.append([seg_s, seg_e])
-
-        # ── Step 3: compute gaps (uncovered regions) ──────────────────
-        gaps = []
-        prev_end = 0
-        for seg_s, seg_e in merged:
-            if seg_s > prev_end:
-                gaps.append((prev_end, seg_s))
-            prev_end = max(prev_end, seg_e)
-        if prev_end < seq_len:
-            gaps.append((prev_end, seq_len))
-
-        # ── Step 4: 6-frame scan on each gap ─────────────────────────
-        auto_orfs = []
-        min_gap = min_aa * 3 + 3   # smallest meaningful gap
-        for gap_start, gap_end in gaps:
-            if gap_end - gap_start < min_gap:
-                continue
-            subseq = dna_sequence[gap_start:gap_end]
-            sub_orfs = self.find_orfs(subseq,
-                                      min_aa=min_aa,
-                                      start_codons=start_codons)
-            # Re-map sub-sequence coordinates → global genome coordinates
-            for orf in sub_orfs:
-                orf['start'] += gap_start
-                orf['end']   += gap_start
-                orf['source'] = 'automatic'
-            auto_orfs.extend(sub_orfs)
-
-        # ── Step 5: merge + sort by start position ────────────────────
-        all_orfs = pyro_orfs + auto_orfs
-        all_orfs.sort(key=lambda x: x['start'])
-        return all_orfs
 
     def classify_domains(self, protein_seq):
         found = []
