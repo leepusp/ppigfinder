@@ -6,24 +6,28 @@ The Reports module generates final outputs for interpretation, sharing and repro
 
 ## Input data
 
-- Current project state
-- Genome information
-- ORF table
-- BLAST/HMM annotations
-- AlphaFold/AF3 results
+- loaded genome
+- predicted ORFs
+- BLAST results
+- HMM/domain annotations
+- AlphaFold jobs
+- parsed AF3 results
 
-## Main tasks
+## Main outputs
 
-- Export HTML report
-- Export Project Snapshot v3
-- Export TSV/CSV tables
+ppigFinder can generate:
 
-## Expected output
+- HTML reports
+- Project Snapshot v3 JSON files
+- ORF tables
+- FASTA exports
+- AF3 JSON files
+- TSV/CSV result tables
 
-- Standalone HTML report
-- Versioned project JSON snapshot
-- Tabular exports for Excel, R or Python
+## Project Snapshot v3
 
-## Recommended next step
+The Project Snapshot is a versioned JSON representation of the analysis state. It is intended to support reproducible, interruptible and shareable workflows.
 
-Use reports and snapshots to archive, share or continue analyses later.
+## Recommended use
+
+Generate reports after completing the major analysis steps or whenever you need to archive the current state of a project.

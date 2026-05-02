@@ -2,24 +2,34 @@
 
 ## Purpose
 
-The Protein / ORFs module predicts protein-coding open reading frames from the loaded genome.
+The Protein / ORFs module predicts protein-coding regions from a loaded genome sequence.
 
 ## Input data
 
-- Loaded DNA/genome sequence
+- DNA/genome sequence
 
-## Main tasks
+## ORF prediction modes
 
-- Predict ORFs with Pyrodigal, six-frame scanning or hybrid logic
-- Inspect ORF coordinates, strand, frame, size and GC content
-- Export predicted protein sequences
+ppigFinder supports multiple strategies:
 
-## Expected output
+- Pyrodigal / Prodigal-like gene calling
+- exhaustive six-frame translation
+- hybrid ORF prediction
 
-- ORF table
-- Protein sequence set
-- FASTA export for downstream tools
+## Output
+
+The ORF table can include:
+
+- ORF identifier
+- start and end coordinates
+- strand
+- reading frame
+- size
+- GC content
+- predicted protein sequence
+- prediction source
+- annotation fields
 
 ## Recommended next step
 
-After predicting ORFs, continue to Annotation for BLAST, HMM/domain and neighborhood analyses.
+After predicting ORFs, continue to Annotation to identify homologs, domains and genomic neighbourhood context.

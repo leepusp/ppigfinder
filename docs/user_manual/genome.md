@@ -2,28 +2,30 @@
 
 ## Purpose
 
-The DNA / Genome module is responsible for loading and inspecting nucleotide sequence data before downstream protein-level analyses.
+The DNA / Genome module loads and inspects nucleotide sequence data before downstream protein-level analyses.
 
 ## Input data
 
 - FASTA nucleotide files
+- multi-FASTA files
 - GenBank files
 - SnapGene files
 
 ## Main tasks
 
-- Load genome sequence
-- Inspect genome length and GC content
-- Translate genome regions
-- Export genome/ORF map
+- load genome sequence
+- inspect genome length and metadata
+- provide coordinates for ORF prediction
+- translate genome regions when needed
+- support genome map visualization and export
 
 ## Expected output
 
-- Loaded genome workspace
-- Genome metadata
-- Coordinates for ORF prediction
-- Optional genome map figure
+- loaded genome sequence
+- genome metadata
+- coordinate system for ORFs
+- genome map data
 
 ## Recommended next step
 
-After loading and inspecting the genome, continue to the Protein / ORFs module.
+After loading and inspecting the genome, proceed to Protein / ORFs.
