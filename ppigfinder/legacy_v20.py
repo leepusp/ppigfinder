@@ -4971,6 +4971,14 @@ try:
 except ImportError:
     from ppigfinder.io.html_report import write_basic_report as _io_write_basic_report
 
+
+try:
+    from .ui.icon_provider import make_icon as _ui_make_icon
+    from .ui.text_fallback import clean_ui_text as _ui_clean_text
+except ImportError:
+    from ppigfinder.ui.icon_provider import make_icon as _ui_make_icon
+    from ppigfinder.ui.text_fallback import clean_ui_text as _ui_clean_text
+
 class ppigFinderApp(QMainWindow):
 
     def __init__(self):
@@ -5080,6 +5088,7 @@ class ppigFinderApp(QMainWindow):
         self._create_toolbar()
         self._create_central()
         self._create_statusbar()
+        self._normalize_toolbar_actions()
 
     # ─── MENUS ─────────────────────────────────────────────────
 
@@ -5286,6 +5295,46 @@ class ppigFinderApp(QMainWindow):
         self._status.showMessage(t('ready_status'))
 
     # ─── CENTRAL LAYOUT ───────────────────────────────────────
+
+
+    def _normalize_toolbar_actions(self):
+        icon_map = {
+            "open": "open",
+            "load": "open",
+            "genome": "orf",
+            "orf": "orf",
+            "pyrodigal": "orf",
+            "automatic": "settings",
+            "hybrid": "settings",
+            "hmm": "hmm",
+            "blast": "blast",
+            "af3": "af3",
+            "export": "export",
+            "pdf": "export",
+            "html": "export",
+            "hpc": "hpc",
+        }
+
+        try:
+            actions = self.findChildren(QAction)
+        except Exception:
+            return
+
+        for action in actions:
+            try:
+                original = action.text()
+                cleaned = _ui_clean_text(original)
+                if cleaned and cleaned != original:
+                    action.setText(cleaned)
+
+                lower = cleaned.lower()
+                for key, icon_name in icon_map.items():
+                    if key in lower:
+                        action.setIcon(_ui_make_icon(icon_name))
+                        break
+            except Exception:
+                pass
+
 
     def _create_central(self):
         central = QWidget()
