@@ -4958,6 +4958,18 @@ except ImportError:
         write_orf_protein_fasta as _io_write_orf_protein_fasta,
     )
 
+
+try:
+    from .ui.file_opening import open_genome_file_into_window as _ui_open_genome_file_into_window
+except ImportError:
+    from ppigfinder.ui.file_opening import open_genome_file_into_window as _ui_open_genome_file_into_window
+
+
+try:
+    from .io.html_report import write_basic_report as _io_write_basic_report
+except ImportError:
+    from ppigfinder.io.html_report import write_basic_report as _io_write_basic_report
+
 class ppigFinderApp(QMainWindow):
 
     def __init__(self):
@@ -6696,22 +6708,14 @@ class ppigFinderApp(QMainWindow):
     def load_fasta(self):
         f, _ = QFileDialog.getOpenFileName(
             self,
-            "Open FASTA",
+            "Open sequence file",
             "",
-            "FASTA (*.fasta *.fa *.fna *.faa);;All (*)",
+            "Sequence files (*.fasta *.fa *.fna *.faa *.gb *.gbk *.genbank *.dna);;All (*)",
         )
         if not f:
             return
 
-        try:
-            record = _io_choose_longest_record(_io_read_fasta(f))
-        except Exception as exc:
-            QMessageBox.critical(self, "Open FASTA", f"Could not read FASTA file:\n{exc}")
-            return
-
-        self.dna_sequence = record.sequence.upper()
-        self.genome_name = record.name or Path(f).stem
-        self._on_sequence_loaded(f)
+        _ui_open_genome_file_into_window(self, f)
 
     def load_multi_fasta(self):
         self.load_fasta()
@@ -6782,6 +6786,38 @@ class ppigFinderApp(QMainWindow):
             return
 
         self._status.showMessage(f"✓ Saved {len(self.orfs)} ORFs")
+
+    def export_html_report(self):
+        f, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export HTML report",
+            "",
+            "HTML report (*.html)",
+        )
+        if not f:
+            return
+
+        try:
+            _io_write_basic_report(
+                f,
+                title="ppigFinder Report",
+                genome_name=getattr(self, "genome_name", ""),
+                genome_length=len(getattr(self, "dna_sequence", "") or ""),
+                orfs=getattr(self, "orfs", []) or [],
+                interaction_results=getattr(self, "af3_results", []) or [],
+            )
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                "Export HTML report",
+                f"Could not export HTML report:\n{exc}",
+            )
+            return
+
+        try:
+            self._status.showMessage(f"✓ HTML report exported: {f}")
+        except Exception:
+            pass
 
 
     # ═══════════════════════════════════════════════════════════

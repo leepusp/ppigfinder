@@ -25,3 +25,7 @@ __all__ = [
     "parse_genbank",
     "write_genbank",
 ]
+
+from .html_report import render_basic_report, write_basic_report
+
+__all__ += ["render_basic_report", "write_basic_report"]

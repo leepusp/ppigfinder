@@ -9,6 +9,8 @@ moved from legacy_v20.py into dedicated modules.
 
 import sys
 
+from .infrastructure.ipython_runtime import configure_ipython_qt_event_loop
+
 from .legacy_v20 import (
     QApplication,
     QT_VERSION,
@@ -17,8 +19,16 @@ from .legacy_v20 import (
     ppigFinderApp,
 )
 
+from .ui.icon_provider import set_window_icon
+from .ui.text_fallback import apply_text_fallback_to_window
+from .ui.window_manager import install_window_management
+from .ui.recent_files import install_recent_files_menu
+from .ui.file_opening import open_genome_file_into_window
+
 
 def main() -> int:
+    configure_ipython_qt_event_loop()
+
     app = QApplication(sys.argv)
     app.setApplicationName("ppigFinder")
     app.setApplicationDisplayName(
@@ -31,6 +41,12 @@ def main() -> int:
     _check_dependencies_at_startup()
 
     window = ppigFinderApp()
+
+    set_window_icon(window)
+    install_window_management(window)
+    apply_text_fallback_to_window(window)
+    install_recent_files_menu(window, lambda path: open_genome_file_into_window(window, path))
+
     window.show()
 
     return app.exec() if QT_VERSION == 6 else app.exec_()
