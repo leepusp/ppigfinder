@@ -45,6 +45,10 @@ def _safe_float(value) -> float | None:
         return None
 
 
+# Public alias used by newer parser code.
+safe_float = _safe_float
+
+
 def mean(values: list[float]) -> float | None:
     """
     Return mean of numeric values or None.
