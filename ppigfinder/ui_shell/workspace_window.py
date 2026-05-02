@@ -22,9 +22,11 @@ from ppigfinder.ui_shell.qt import (
 from ppigfinder.ui_shell.theme import APP_TITLE, shell_stylesheet
 from ppigfinder.ui_shell.branding import apply_ppigfinder_branding
 from ppigfinder.ui_shell.input_validation import validate_genome_input, summary_to_state
+from ppigfinder.ui_shell.genome_inspector_dialog import show_genome_inspector
+from ppigfinder.ui_shell.orf_results_dialog import GuidedORFResultsDialog
+from ppigfinder.ui_shell.annotation_candidates_dialog import AnnotationCandidatesDialog
 from ppigfinder.ui_shell.hpc_dialog import open_hpc_connection_dialog
-from ppigfinder.ui_shell.orf_results_dialog import show_guided_orf_results
-from ppigfinder.ui_shell.annotation_candidates_dialog import show_annotation_candidates
+from ppigfinder.ui_shell.workflow_overview_dialog import show_workflow_overview
 from ppigfinder.ui_shell.af3_pair_builder_dialog import open_af3_pair_builder_dialog
 from ppigfinder.ui_shell.guided_backend import (
     predict_orfs_from_file,
@@ -47,7 +49,7 @@ DEFAULT_ROUTES = [
 
 class WorkspaceWindow(QMainWindow):
     """
-    Future stepwise workspace window.
+    Data-driven guided workflow window.
     """
 
     def __init__(self, bridge=None, routes=None):
@@ -59,8 +61,9 @@ class WorkspaceWindow(QMainWindow):
         self.selected_inputs = {}
         self.module_pages_by_id = {}
         self.guided_orfs = []
+        self._floating_windows = []
 
-        self.setWindowTitle(f"{APP_TITLE} — Workspace")
+        self.setWindowTitle(f"{APP_TITLE} — Guided Workflow")
         self.resize(1320, 820)
         self.setStyleSheet(shell_stylesheet())
         apply_ppigfinder_branding(self)
@@ -92,28 +95,42 @@ class WorkspaceWindow(QMainWindow):
         if self.navigation.count():
             self.navigation.setCurrentRow(0)
 
+        self.statusBar().showMessage("Ready. Start by loading genome data or opening a project.")
+
     def _button_text_for_action(self, label: str) -> str:
-        label_lower = label.lower()
-
-        if label_lower.startswith("open"):
+        lower = label.lower()
+        if lower.startswith("open"):
             return "Open"
-        if label_lower.startswith("import"):
+        if lower.startswith("import"):
             return "Import"
-        if label_lower.startswith("export"):
+        if lower.startswith("export"):
             return "Export"
-        if label_lower.startswith("predict"):
+        if lower.startswith("predict"):
             return "Predict"
-        if label_lower.startswith("annotate"):
+        if lower.startswith("annotate"):
             return "Annotate"
-        if label_lower.startswith("run"):
+        if lower.startswith("run"):
             return "Run"
-        if label_lower.startswith("continue"):
+        if lower.startswith("continue"):
             return "Continue"
-
+        if lower.startswith("show"):
+            return "Show"
+        if lower.startswith("build"):
+            return "Build"
         return "Continue"
 
     def _show_message(self, title: str, message: str) -> None:
         QMessageBox.information(self, title, message)
+
+    def _remember_window(self, dialog) -> None:
+        self._floating_windows.append(dialog)
+        try:
+            dialog.destroyed.connect(lambda *_: self._cleanup_windows())
+        except Exception:
+            pass
+
+    def _cleanup_windows(self) -> None:
+        self._floating_windows = [w for w in self._floating_windows if w is not None]
 
     def _select_file(self, key: str, title: str, file_filter: str) -> bool:
         path, _ = QFileDialog.getOpenFileName(self, title, "", file_filter)
@@ -126,28 +143,28 @@ class WorkspaceWindow(QMainWindow):
         if key == "genome_file":
             summary = validate_genome_input(path)
             self.selected_inputs.update(summary_to_state(summary))
-            message = (
-                "Selected genome file:\n\n"
-                + path
-                + "\n\nValidation: "
-                + ("OK" if summary.valid else "Problem detected")
-                + "\nType: "
-                + summary.file_type
-                + "\nLength: "
-                + str(summary.total_length or "N/A")
-                + "\nGC%: "
-                + str(summary.gc_percent if summary.gc_percent is not None else "N/A")
-                + "\n\n"
-                + summary.message
-            )
-        else:
-            message = (
-                "Selected file:\n\n"
-                + path
-                + "\n\nThis file is now registered in the guided shell."
-            )
 
-        self._show_message("Input selected", message)
+            dialog = show_genome_inspector(path, parent=self)
+            self._remember_window(dialog)
+
+            self._refresh_visualization_panels()
+
+            if summary.valid:
+                self.statusBar().showMessage(
+                    "Genome loaded and validated. Moving to Protein / ORFs.",
+                    10000,
+                )
+                self.show_route("orfs")
+            else:
+                self.statusBar().showMessage(
+                    "Genome selected, but validation found a problem.",
+                    10000,
+                )
+                self.show_route("data")
+
+            return True
+
+        self.statusBar().showMessage(f"Selected file: {path}", 10000)
         self._refresh_visualization_panels()
         return True
 
@@ -158,14 +175,7 @@ class WorkspaceWindow(QMainWindow):
             return False
 
         self.selected_inputs[key] = path
-
-        message = (
-            "Selected folder:\n\n"
-            + path
-            + "\n\nThis folder is now registered in the guided shell."
-        )
-
-        self._show_message("Folder selected", message)
+        self.statusBar().showMessage(f"Selected folder: {path}", 10000)
         self._refresh_visualization_panels()
         return True
 
@@ -206,16 +216,15 @@ class WorkspaceWindow(QMainWindow):
 
         self._refresh_visualization_panels()
 
-        self._show_message(
-            "ORF prediction",
-            (
-                "Guided ORF prediction completed.\n\n"
-                + f"ORFs found: {summary.orf_count}\n"
-                + f"Longest ORF: {summary.longest_orf_aa} aa\n"
-                + f"Shortest ORF: {summary.shortest_orf_aa} aa\n\n"
-                + "This is the guided shell lightweight ORF scan. Full Pyrodigal/hybrid integration will be connected progressively."
-            ),
+        dialog = GuidedORFResultsDialog(self.guided_orfs, parent=self)
+        dialog.show()
+        self._remember_window(dialog)
+
+        self.statusBar().showMessage(
+            f"ORF prediction completed: {summary.orf_count} ORFs. Moving to Annotation.",
+            12000,
         )
+        self.show_route("annotation")
 
     def _show_guided_orfs(self) -> None:
         if not self.guided_orfs:
@@ -225,7 +234,9 @@ class WorkspaceWindow(QMainWindow):
             )
             return
 
-        show_guided_orf_results(self.guided_orfs, parent=self)
+        dialog = GuidedORFResultsDialog(self.guided_orfs, parent=self)
+        dialog.show()
+        self._remember_window(dialog)
 
     def _export_guided_orfs_fasta(self) -> None:
         if not self.guided_orfs:
@@ -246,38 +257,34 @@ class WorkspaceWindow(QMainWindow):
             return
 
         write_orfs_fasta(path, self.guided_orfs)
-
-        self._show_message(
-            "Export ORF FASTA",
-            "Guided ORF protein FASTA exported:\n\n" + path,
-        )
+        self.statusBar().showMessage(f"ORF protein FASTA exported: {path}", 12000)
 
     def _show_annotation_candidates(self) -> None:
         if not self.guided_orfs:
             self._show_message(
                 "Annotation candidates",
-                "No ORFs are available yet. Run Predict ORFs in the Protein / ORFs module first.",
+                "No ORFs are available yet. Run Predict ORFs first.",
             )
             self.show_route("orfs")
             return
 
         self.selected_inputs["guided_annotation_candidates_count"] = len(self.guided_orfs)
         self._refresh_visualization_panels()
-        show_annotation_candidates(self.guided_orfs, parent=self)
+
+        dialog = AnnotationCandidatesDialog(self.guided_orfs, parent=self)
+        dialog.show()
+        self._remember_window(dialog)
 
     def _mark_annotation_step(self, key: str, label: str) -> None:
         self.selected_inputs[key] = True
         self._refresh_visualization_panels()
-        self._show_message(
-            label,
-            label + " was marked as selected in the guided workflow. Full execution will be connected progressively.",
-        )
+        self.statusBar().showMessage(f"{label} selected in guided workflow.", 10000)
 
     def _open_af3_pair_builder(self) -> None:
         if not self.guided_orfs:
             self._show_message(
                 "AlphaFold / PPI",
-                "No ORFs are available yet. Run Predict ORFs in the Protein / ORFs module first.",
+                "No ORFs are available yet. Run Predict ORFs first.",
             )
             self.show_route("orfs")
             return
@@ -322,15 +329,15 @@ class WorkspaceWindow(QMainWindow):
             return
 
         write_guided_summary(path, self.selected_inputs)
-
-        self._show_message(
-            "Guided summary",
-            "Guided workflow summary exported:\n\n" + path,
-        )
+        self.statusBar().showMessage(f"Guided workflow summary exported: {path}", 12000)
 
     def _handle_action(self, action_name: str) -> None:
         if action_name.startswith("route:"):
             self.show_route(action_name.split(":", 1)[1])
+            return
+
+        if action_name == "guided:workflow_map":
+            show_workflow_overview(parent=self)
             return
 
         if action_name == "select_file:genome":
@@ -347,10 +354,6 @@ class WorkspaceWindow(QMainWindow):
 
         if action_name == "select_folder:af3_results":
             self._select_folder("af3_results_folder", "Import AlphaFold/AF3 results folder")
-            return
-
-        if action_name == "guided:af3_pair_builder":
-            self._open_af3_pair_builder()
             return
 
         if action_name == "guided:predict_orfs":
@@ -379,6 +382,10 @@ class WorkspaceWindow(QMainWindow):
 
         if action_name == "guided:neighborhood":
             self._mark_annotation_step("guided_neighborhood_planned", "Neighbourhood analysis")
+            return
+
+        if action_name == "guided:af3_pair_builder":
+            self._open_af3_pair_builder()
             return
 
         if action_name == "guided:hpc_connection":
@@ -431,20 +438,20 @@ class WorkspaceWindow(QMainWindow):
     def _actions_for_route(self, route_id: str) -> list[dict]:
         if route_id == "overview":
             return [
+                self._action("Show workflow map", "Review the complete data-driven ppigFinder workflow.", "guided:workflow_map"),
                 self._action("Start with Data / Project", "Begin by adding genome data, opening a project or importing a project snapshot.", "route:data"),
             ]
 
         if route_id == "data":
             return [
-                self._action("Open genome file", "Insert the main nucleotide dataset for a new bacterial genome analysis.", "select_file:genome"),
-                self._action("Open project", "Resume a previous ppigFinder session with genome data, ORFs, annotations and analysis state.", "select_file:project"),
-                self._action("Import Project Snapshot v3", "Load a portable JSON snapshot for reproducible analysis or continuation.", "select_file:snapshot"),
-                self._action("Continue to Protein / ORFs", "Move to ORF prediction after adding or restoring input data.", "route:orfs"),
+                self._action("Open genome file", "Load and validate the main nucleotide dataset. The workflow will automatically move to ORF Discovery if valid.", "select_file:genome"),
+                self._action("Open project", "Resume a previous ppigFinder session.", "select_file:project"),
+                self._action("Import Project Snapshot v3", "Load a portable JSON snapshot for reproducible analysis.", "select_file:snapshot"),
             ]
 
         if route_id == "genome":
             return [
-                self._action("Review genome metadata", "Inspect the selected genome metadata captured by the guided shell.", "info:Genome metadata is summarized in the module status panel."),
+                self._action("Open genome file", "Replace or load a genome file and inspect its metadata.", "select_file:genome"),
                 self._action("Continue to Protein / ORFs", "Proceed to ORF prediction and protein sequence generation.", "route:orfs"),
             ]
 
@@ -452,13 +459,13 @@ class WorkspaceWindow(QMainWindow):
             return [
                 self._action("Predict ORFs", "Run a lightweight six-frame ORF scan inside the guided shell.", "guided:predict_orfs"),
                 self._action("Review guided ORF table", "Inspect guided ORF coordinates, strand, frame and protein previews.", "guided:review_orfs"),
-                self._action("Export ORF FASTA", "Export guided ORF protein sequences for downstream analysis.", "guided:export_orfs_fasta"),
+                self._action("Export ORF FASTA", "Export guided ORF protein sequences.", "guided:export_orfs_fasta"),
                 self._action("Continue to Annotation", "Move to BLAST, HMM/domain and neighbourhood analysis.", "route:annotation"),
             ]
 
         if route_id == "annotation":
             return [
-                self._action("Review candidate ORFs", "Inspect guided ORFs as candidates for BLAST, HMM/domain and neighbourhood analysis.", "guided:annotation_candidates"),
+                self._action("Review candidate ORFs", "Inspect guided ORFs as candidates for annotation and PPI analysis.", "guided:annotation_candidates"),
                 self._action("Run BLAST", "Mark BLAST as selected in the guided flow.", "guided:blast"),
                 self._action("Annotate HMM", "Mark HMM/domain annotation as selected in the guided flow.", "guided:hmm"),
                 self._action("Neighbourhood analysis", "Mark neighbourhood analysis as selected in the guided flow.", "guided:neighborhood"),
@@ -468,7 +475,7 @@ class WorkspaceWindow(QMainWindow):
         if route_id == "alphafold":
             return [
                 self._action("Build AF3 candidate pairs", "Generate adjacent ORF candidate pairs and optionally export AlphaFold Server JSON.", "guided:af3_pair_builder"),
-                self._action("Import AF3 results", "Import AlphaFold 3 output folders and extract interaction metrics.", "select_folder:af3_results"),
+                self._action("Import AF3 results", "Import AlphaFold 3 output folders.", "select_folder:af3_results"),
                 self._action("Continue to DaVinci / HPC", "Optionally prepare server execution before reporting.", "route:hpc"),
             ]
 
@@ -483,7 +490,7 @@ class WorkspaceWindow(QMainWindow):
             return [
                 self._action("Export guided summary", "Export the current guided shell state as a Markdown summary.", "guided:summary"),
                 self._action("Export Project Snapshot v3", "Project Snapshot export will be connected after full guided state synchronization.", "info:Project Snapshot export will be connected after guided state synchronization."),
-                self._action("Open full current interface", "Advanced option: open the complete current interface after reviewing the guided workflow.", "open_legacy_interface"),
+                self._action("Open full current interface", "Advanced option: open the complete current interface.", "open_legacy_interface"),
             ]
 
         return []
