@@ -34,3 +34,8 @@ After loading and inspecting the genome, proceed to Protein / ORFs.
 ## Automatic guided loading
 
 In the guided shell, selecting a genome file triggers immediate validation and metadata extraction. A genome inspection window opens with the loaded file, organism/header information, sequence preview, length, GC content and validation status. If the file is valid, the workflow automatically advances to Protein / ORFs.
+
+
+## Numbered sequence preview
+
+The guided genome inspector displays sequence previews with coordinate numbering and fixed-width formatting. This makes the loaded nucleotide sequence easier to inspect, similar to genome database views. The inspector also exposes the next workflow actions, including moving to Protein / ORFs or starting ORF prediction directly.
