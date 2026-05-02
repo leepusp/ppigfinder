@@ -52,6 +52,12 @@ QFrame#Card:hover {
     border: 1px solid #90a4ae;
 }
 
+QFrame#VisualizationPlaceholder {
+    background: #f8fbfc;
+    border: 1px dashed #90a4ae;
+    border-radius: 12px;
+}
+
 QLabel#CardTitle {
     font-size: 14px;
     font-weight: 700;
@@ -60,6 +66,33 @@ QLabel#CardTitle {
 
 QLabel#CardDescription {
     color: #607d8b;
+}
+
+QLabel#MetricValue {
+    font-size: 18px;
+    font-weight: 700;
+    color: #1b3a4b;
+}
+
+QLabel#FlowStep {
+    background: #e8f0f4;
+    color: #455a64;
+    border-radius: 10px;
+    padding: 8px 10px;
+}
+
+QLabel#FlowStepActive {
+    background: #1b3a4b;
+    color: #ffffff;
+    border-radius: 10px;
+    padding: 8px 10px;
+    font-weight: 700;
+}
+
+QLabel#FlowArrow {
+    color: #607d8b;
+    font-weight: 700;
+    padding: 8px 0;
 }
 
 QPushButton {
