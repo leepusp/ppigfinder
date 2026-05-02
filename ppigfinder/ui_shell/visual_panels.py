@@ -154,12 +154,12 @@ class ModuleVisualizationPanel(QScrollArea):
 
         if route == "data":
             genome_file = state.get("genome_file", "No genome file loaded")
-            project_file = state.get("project_file", "No project file loaded")
-            snapshot_file = state.get("snapshot_file", "No snapshot loaded")
+            protein_file = state.get("protein_query_file", "No protein query loaded")
+            hmm_file = state.get("hmm_profile_file", "No HMM profile loaded")
 
             self.card1.set_content("Genome file", str(genome_file), "Main nucleotide input")
-            self.card2.set_content("Project", str(project_file), "Previously saved ppigFinder session")
-            self.card3.set_content("Snapshot", str(snapshot_file), "Portable workflow state")
+            self.card2.set_content("Protein query", str(protein_file), "BLAST query input")
+            self.card3.set_content("HMM profiles", str(hmm_file), "Domain annotation input")
             self.card4.set_content(
                 "Next step",
                 state.next_recommended_step().capitalize(),
@@ -227,8 +227,8 @@ class ModuleVisualizationPanel(QScrollArea):
 
         if route == "annotation":
             candidate_count = state.get("guided_orf_count", 0)
-            blast = "Selected" if state.get("guided_blast_planned") else "Pending"
-            hmm = "Selected" if state.get("guided_hmm_planned") else "Pending"
+            blast = "Selected" if state.get("guided_blast_planned") else ("Query loaded" if state.get("protein_query_file") else "Pending")
+            hmm = "Selected" if state.get("guided_hmm_planned") else ("Profiles loaded" if state.get("hmm_profile_file") else "Pending")
             neigh = "Selected" if state.get("guided_neighborhood_planned") else "Pending"
 
             self.card1.set_content("BLAST", blast, "Protein similarity search")

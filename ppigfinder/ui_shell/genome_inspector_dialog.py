@@ -2,8 +2,8 @@
 """
 Genome inspector dialog for the experimental guided UI shell.
 
-This window opens after selecting a genome file and keeps the loaded data
-visible while the workflow advances to ORF prediction.
+Shows metadata, workflow options and an aligned coordinate-based sequence
+preview after a genome file is loaded.
 """
 
 from __future__ import annotations
@@ -22,7 +22,6 @@ try:
         QTableWidget,
         QTableWidgetItem,
         QHeaderView,
-        QPlainTextEdit,
         QSplitter,
         QWidget,
         QPushButton,
@@ -41,7 +40,6 @@ except Exception:
         QTableWidget,
         QTableWidgetItem,
         QHeaderView,
-        QPlainTextEdit,
         QSplitter,
         QWidget,
         QPushButton,
@@ -114,38 +112,11 @@ def _organism_from_genbank(text: str) -> str:
     return "N/A"
 
 
-def _format_numbered_sequence(sequence: str, line_width: int = 60, block_size: int = 10) -> str:
-    """
-    Format sequence like database/genome views:
-
-            1  AGCTTTTCAT TCTGACTGCA ...  60
-           61  ...
-    """
-    if not sequence:
-        return "No sequence preview available."
-
-    sequence = re.sub(r"[^A-Za-z]", "", sequence).upper()
-
-    lines = []
-    ruler_blocks = []
-    for start in range(1, line_width + 1, block_size):
-        end = min(start + block_size - 1, line_width)
-        ruler_blocks.append(f"{start:>2}-{end:<2}")
-
-    lines.append(" " * 12 + " ".join(f"{block:^10}" for block in ruler_blocks))
-    lines.append(" " * 12 + "-" * (line_width + (line_width // block_size) - 1))
-
-    for i in range(0, len(sequence), line_width):
-        chunk = sequence[i:i + line_width]
-        grouped = " ".join(
-            chunk[j:j + block_size]
-            for j in range(0, len(chunk), block_size)
-        )
-        start_pos = i + 1
-        end_pos = i + len(chunk)
-        lines.append(f"{start_pos:>10}  {grouped:<{line_width + 8}}  {end_pos:>10}")
-
-    return "\n".join(lines)
+def _group_sequence(sequence: str, block_size: int = 10) -> str:
+    return " ".join(
+        sequence[i:i + block_size]
+        for i in range(0, len(sequence), block_size)
+    )
 
 
 def inspect_genome_file(path: str) -> dict:
@@ -210,7 +181,7 @@ class SummaryCard(QFrame):
 
 class GenomeInspectorDialog(QDialog):
     """
-    Genome data inspector with metadata, numbered sequence and next workflow actions.
+    Genome data inspector with metadata, coordinate-based sequence table and next workflow actions.
     """
 
     def __init__(self, inspection: dict, parent=None):
@@ -221,8 +192,8 @@ class GenomeInspectorDialog(QDialog):
 
         self.setWindowTitle("Genome data loaded")
         self.setWindowFlags(_window_flags())
-        self.resize(1180, 820)
-        self.setMinimumSize(940, 640)
+        self.resize(1220, 820)
+        self.setMinimumSize(980, 640)
         self.setSizeGripEnabled(True)
         apply_ppigfinder_branding(self)
 
@@ -236,52 +207,19 @@ class GenomeInspectorDialog(QDialog):
 
         subtitle = QLabel(
             "The selected genome was registered in the guided workflow. "
-            "Review the metadata and sequence preview below, then continue with ORF prediction."
+            "Review metadata and the coordinate-aligned sequence preview, then continue with ORF prediction or add annotation inputs."
         )
         subtitle.setWordWrap(True)
         root.addWidget(subtitle)
 
-        # Summary cards
         cards = QGridLayout()
         cards.setHorizontalSpacing(10)
         cards.setVerticalSpacing(10)
 
-        cards.addWidget(
-            SummaryCard(
-                "Input type",
-                str(self.inspection.get("file_type", "N/A")),
-                "Detected file format",
-            ),
-            0,
-            0,
-        )
-        cards.addWidget(
-            SummaryCard(
-                "Total length",
-                f"{int(self.inspection.get('total_length') or 0):,} bp",
-                "Nucleotide length",
-            ),
-            0,
-            1,
-        )
-        cards.addWidget(
-            SummaryCard(
-                "GC%",
-                str(self.inspection.get("gc_percent") if self.inspection.get("gc_percent") is not None else "N/A"),
-                "Genome composition",
-            ),
-            0,
-            2,
-        )
-        cards.addWidget(
-            SummaryCard(
-                "Validation",
-                "Valid" if self.inspection.get("valid") else "Problem",
-                self.inspection.get("message", ""),
-            ),
-            0,
-            3,
-        )
+        cards.addWidget(SummaryCard("Input type", str(self.inspection.get("file_type", "N/A")), "Detected file format"), 0, 0)
+        cards.addWidget(SummaryCard("Total length", f"{int(self.inspection.get('total_length') or 0):,} bp", "Nucleotide length"), 0, 1)
+        cards.addWidget(SummaryCard("GC%", str(self.inspection.get("gc_percent") if self.inspection.get("gc_percent") is not None else "N/A"), "Genome composition"), 0, 2)
+        cards.addWidget(SummaryCard("Validation", "Valid" if self.inspection.get("valid") else "Problem", self.inspection.get("message", "")), 0, 3)
 
         root.addLayout(cards)
 
@@ -322,8 +260,8 @@ class GenomeInspectorDialog(QDialog):
         actions_layout.addWidget(actions_title)
 
         hint = QLabel(
-            "Because a valid genome is loaded, the next recommended step is ORF prediction. "
-            "You can either move to the ORF module or run the prediction now."
+            "A valid genome enables ORF prediction. You may also add protein query input for BLAST "
+            "or HMM profiles for domain annotation before/after ORF prediction."
         )
         hint.setWordWrap(True)
         actions_layout.addWidget(hint)
@@ -335,6 +273,14 @@ class GenomeInspectorDialog(QDialog):
         btn_predict = QPushButton("Predict ORFs now")
         btn_predict.clicked.connect(self._predict_orfs_now)
         actions_layout.addWidget(btn_predict)
+
+        btn_query = QPushButton("Add protein query for BLAST")
+        btn_query.clicked.connect(self._add_protein_query)
+        actions_layout.addWidget(btn_query)
+
+        btn_hmm = QPushButton("Add HMM profiles")
+        btn_hmm.clicked.connect(self._add_hmm_profiles)
+        actions_layout.addWidget(btn_hmm)
 
         btn_data = QPushButton("Return to Data / Project")
         btn_data.clicked.connect(self._go_to_data)
@@ -351,23 +297,27 @@ class GenomeInspectorDialog(QDialog):
         sequence_layout = QVBoxLayout(sequence_widget)
         sequence_layout.setContentsMargins(0, 0, 0, 0)
 
-        sequence_title = QLabel("Numbered sequence preview")
+        sequence_title = QLabel("Coordinate sequence preview")
         sequence_title.setObjectName("SectionSubTitle")
         sequence_layout.addWidget(sequence_title)
 
-        self.preview = QPlainTextEdit()
-        self.preview.setReadOnly(True)
-        self.preview.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap if QT6 else QPlainTextEdit.NoWrap)
+        self.sequence_table = QTableWidget(0, 3)
+        self.sequence_table.setHorizontalHeaderLabels(["Start", "Sequence", "End"])
+        self.sequence_table.setAlternatingRowColors(True)
+
+        seq_header = self.sequence_table.horizontalHeader()
+        try:
+            seq_header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents if QT6 else QHeaderView.ResizeToContents)
+            seq_header.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch if QT6 else QHeaderView.Stretch)
+            seq_header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents if QT6 else QHeaderView.ResizeToContents)
+        except Exception:
+            pass
 
         font = QFont("Courier New")
         font.setPointSize(10)
-        self.preview.setFont(font)
+        self.sequence_table.setFont(font)
 
-        self.preview.setPlainText(
-            _format_numbered_sequence(self.inspection.get("sequence_preview", ""))
-        )
-
-        sequence_layout.addWidget(self.preview)
+        sequence_layout.addWidget(self.sequence_table)
 
         splitter.addWidget(upper)
         splitter.addWidget(sequence_widget)
@@ -377,6 +327,7 @@ class GenomeInspectorDialog(QDialog):
         root.addWidget(splitter, 1)
 
         self._populate_metadata()
+        self._populate_sequence_table()
 
     def _populate_metadata(self) -> None:
         rows = [
@@ -399,12 +350,28 @@ class GenomeInspectorDialog(QDialog):
         self.table.setRowCount(len(rows))
 
         for row, (field, value) in enumerate(rows):
-            field_item = QTableWidgetItem(field)
-            value_item = QTableWidgetItem(str(value))
-            self.table.setItem(row, 0, field_item)
-            self.table.setItem(row, 1, value_item)
+            self.table.setItem(row, 0, QTableWidgetItem(field))
+            self.table.setItem(row, 1, QTableWidgetItem(str(value)))
 
         self.table.resizeRowsToContents()
+
+    def _populate_sequence_table(self) -> None:
+        sequence = re.sub(r"[^A-Za-z]", "", self.inspection.get("sequence_preview", "")).upper()
+        width = 60
+        rows = []
+
+        for i in range(0, len(sequence), width):
+            chunk = sequence[i:i + width]
+            rows.append((i + 1, _group_sequence(chunk), i + len(chunk)))
+
+        self.sequence_table.setRowCount(len(rows))
+
+        for row, (start, grouped, end) in enumerate(rows):
+            self.sequence_table.setItem(row, 0, QTableWidgetItem(str(start)))
+            self.sequence_table.setItem(row, 1, QTableWidgetItem(grouped))
+            self.sequence_table.setItem(row, 2, QTableWidgetItem(str(end)))
+
+        self.sequence_table.resizeRowsToContents()
 
     def _go_to_orfs(self) -> None:
         if hasattr(self.workflow_parent, "show_route"):
@@ -417,6 +384,22 @@ class GenomeInspectorDialog(QDialog):
     def _predict_orfs_now(self) -> None:
         if hasattr(self.workflow_parent, "_predict_guided_orfs"):
             self.workflow_parent._predict_guided_orfs()
+
+    def _add_protein_query(self) -> None:
+        if hasattr(self.workflow_parent, "_select_file"):
+            self.workflow_parent._select_file(
+                "protein_query_file",
+                "Open protein query FASTA",
+                "Protein FASTA (*.faa *.fa *.fasta *.txt);;All files (*)",
+            )
+
+    def _add_hmm_profiles(self) -> None:
+        if hasattr(self.workflow_parent, "_select_file"):
+            self.workflow_parent._select_file(
+                "hmm_profile_file",
+                "Open HMM profile file",
+                "HMM profiles (*.hmm);;All files (*)",
+            )
 
 
 def show_genome_inspector(path: str, parent=None) -> GenomeInspectorDialog:

@@ -197,6 +197,18 @@ class WorkspaceWindow(QMainWindow):
                 "Open genome file",
                 "Genome files (*.fasta *.fa *.fna *.gb *.gbk *.dna);;All files (*)",
             )
+        elif choice == "protein":
+            self._select_file(
+                "protein_query_file",
+                "Open protein query FASTA",
+                "Protein FASTA (*.faa *.fa *.fasta *.txt);;All files (*)",
+            )
+        elif choice == "hmm":
+            self._select_file(
+                "hmm_profile_file",
+                "Open HMM profile file",
+                "HMM profiles (*.hmm);;All files (*)",
+            )
         elif choice == "project":
             self._select_file(
                 "project_file",
@@ -208,6 +220,11 @@ class WorkspaceWindow(QMainWindow):
                 "snapshot_file",
                 "Import Project Snapshot",
                 "Snapshot (*.json *.ppigfinder.json);;All files (*)",
+            )
+        elif choice == "af3_results":
+            self._select_folder(
+                "af3_results_folder",
+                "Import AF3 results folder",
             )
 
     # --------------------------------------------------------
@@ -242,6 +259,22 @@ class WorkspaceWindow(QMainWindow):
             self.statusBar().showMessage("Snapshot selected. Snapshot import service will be connected progressively.", 10000)
             self._refresh_pages()
             self.show_route("reports")
+            return True
+
+        if key == "protein_query_file":
+            self.workflow_state.set_flag("protein_query_loaded", True)
+            self.workflow_state.add_event("data", "load_protein_query", path)
+            self.statusBar().showMessage("Protein query loaded. It will be available for BLAST after ORF prediction.", 10000)
+            self._refresh_pages()
+            self.show_route("annotation")
+            return True
+
+        if key == "hmm_profile_file":
+            self.workflow_state.set_flag("hmm_profile_loaded", True)
+            self.workflow_state.add_event("data", "load_hmm_profile", path)
+            self.statusBar().showMessage("HMM profile loaded. It will be available for domain annotation after ORF prediction.", 10000)
+            self._refresh_pages()
+            self.show_route("annotation")
             return True
 
         self._refresh_pages()
