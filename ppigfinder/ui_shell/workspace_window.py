@@ -579,6 +579,20 @@ class WorkspaceWindow(QMainWindow):
         except Exception as exc:
             self._show_message("Reports", f"Could not export guided summary:\n\n{exc}")
 
+    def _open_visual_dashboard(self) -> None:
+        try:
+            open_visual_dashboard = self._safe_import(
+                "ppigfinder.ui_shell.visual_dashboard_dialog",
+                "open_visual_dashboard",
+            )
+            open_visual_dashboard(
+                state=self.workflow_state,
+                orfs=self.guided_orfs,
+                parent=self,
+            )
+        except Exception as exc:
+            self._show_message("Visual dashboard", f"Could not open visual dashboard:\n\n{exc}")
+
     def _open_workflow_map(self) -> None:
         try:
             show_workflow_overview = self._safe_import(
@@ -636,6 +650,7 @@ class WorkspaceWindow(QMainWindow):
         if route_id == "overview":
             return [
                 self._action("Add input data", "Choose an input file or AF3 results folder and let ppigFinder route it into the workflow.", self._open_initial_data_dialog),
+                self._action("Show visual dashboard", "Open an illustrated view of inputs, operations, outputs and generated ORF summaries.", self._open_visual_dashboard),
                 self._action("Show workflow map", "Review the complete guided workflow and step dependencies.", self._open_workflow_map),
                 self._action("Start with Data / Project", "Go to the input/status page.", lambda: self.show_route("data")),
             ]
@@ -654,6 +669,7 @@ class WorkspaceWindow(QMainWindow):
         if route_id == "orfs":
             return [
                 self._action("Predict ORFs", "Run guided ORF prediction and automatically advance to Annotation.", self._predict_guided_orfs),
+                self._action("Show visual dashboard", "View the ORF map, ORF length distribution and downstream workflow illustration.", self._open_visual_dashboard),
                 self._action("Review guided ORF table", "Inspect ORFs already generated in the guided workflow.", self._show_guided_orfs),
                 self._action("Export ORF FASTA", "Export protein sequences for predicted ORFs.", self._export_guided_orfs_fasta),
                 self._action("Continue to Annotation", "Go to annotation stage.", lambda: self.show_route("annotation")),
@@ -661,6 +677,7 @@ class WorkspaceWindow(QMainWindow):
 
         if route_id == "annotation":
             return [
+                self._action("Show visual dashboard", "Review the illustrated workflow status and ORF-derived downstream candidates.", self._open_visual_dashboard),
                 self._action("Review candidate ORFs", "Inspect guided ORFs as candidates for annotation and PPI analysis.", self._show_annotation_candidates),
                 self._action("Run BLAST", "Mark BLAST as part of the current annotation plan.", lambda: self._mark_annotation_step("guided_blast_planned", "BLAST")),
                 self._action("Annotate HMM", "Mark HMM/domain annotation as part of the current plan.", lambda: self._mark_annotation_step("guided_hmm_planned", "HMM/domain annotation")),
