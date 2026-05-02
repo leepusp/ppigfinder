@@ -61,17 +61,9 @@ class ShellController:
         """
         return [
             HomeAction(
-                id="open_current_interface",
-                title="Open current interface",
-                description="Open the current full ppigFinder interface.",
-                input_data="Current application",
-                output_data="Full ppigFinder workspace",
-                action_name="open_legacy_interface",
-            ),
-            HomeAction(
                 id="open_genome",
-                title="Open genome",
-                description="Start from a FASTA, GenBank or SnapGene DNA file.",
+                title="Start new analysis",
+                description="Begin by adding genome data or selecting an input file.",
                 input_data="DNA / genome sequence",
                 output_data="Genome workspace",
                 action_name="open_workspace:data",

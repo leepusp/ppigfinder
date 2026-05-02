@@ -13,7 +13,7 @@ from typing import Any
 PROJECT_SCHEMA_VERSION = 3
 
 
-@dataclass(slots=True)
+@dataclass
 class ProjectMetadata:
     app: str = "ppigFinder"
     schema_version: int = PROJECT_SCHEMA_VERSION
@@ -21,7 +21,7 @@ class ProjectMetadata:
     updated_at: str = field(default_factory=lambda: datetime.now().isoformat(timespec="seconds"))
 
 
-@dataclass(slots=True)
+@dataclass
 class ProjectState:
     metadata: ProjectMetadata = field(default_factory=ProjectMetadata)
 

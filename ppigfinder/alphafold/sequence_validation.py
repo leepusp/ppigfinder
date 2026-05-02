@@ -16,7 +16,7 @@ import re
 STANDARD_AA = set("ACDEFGHIKLMNPQRSTVWY")
 
 
-@dataclass(slots=True)
+@dataclass
 class ProteinValidationResult:
     """
     Validation result for one protein sequence.

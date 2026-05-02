@@ -15,7 +15,7 @@ import shutil
 import subprocess
 
 
-@dataclass(slots=True)
+@dataclass
 class AF3CliOptions:
     """
     Options accepted by the DaVinci AF3 wrapper.

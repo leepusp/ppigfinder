@@ -8,7 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
-@dataclass(slots=True)
+@dataclass
 class HomeAction:
     """
     One action card on the home/start screen.
@@ -22,7 +22,7 @@ class HomeAction:
     action_name: str | None = None
 
 
-@dataclass(slots=True)
+@dataclass
 class WorkspaceSection:
     """
     One section in the future workflow workspace.

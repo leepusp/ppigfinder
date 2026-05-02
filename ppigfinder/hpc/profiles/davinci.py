@@ -12,7 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
-@dataclass(slots=True)
+@dataclass
 class DaVinciAF3Profile:
     """
     Default AF3 submission options for DaVinci.

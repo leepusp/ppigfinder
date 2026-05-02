@@ -13,7 +13,7 @@ from pathlib import Path
 import re
 
 
-@dataclass(slots=True)
+@dataclass
 class GuidedORF:
     id: str
     start: int
@@ -28,7 +28,7 @@ class GuidedORF:
         return len(self.protein_sequence)
 
 
-@dataclass(slots=True)
+@dataclass
 class ORFPredictionSummary:
     source_file: str
     sequence_name: str

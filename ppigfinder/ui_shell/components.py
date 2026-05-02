@@ -46,16 +46,18 @@ class InfoCard(QFrame):
 
 class ActionCard(QFrame):
     """
-    Action card with description and a button.
+    Compact action card with description and a clear action button.
     """
 
     def __init__(self, title: str, description: str, button_text: str, callback, parent=None):
         super().__init__(parent)
         self.setObjectName("Card")
+        self.setMinimumHeight(96)
+        self.setMaximumHeight(125)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(14, 12, 14, 12)
-        layout.setSpacing(8)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(6)
 
         title_label = QLabel(title)
         title_label.setObjectName("CardTitle")
@@ -66,11 +68,16 @@ class ActionCard(QFrame):
         desc_label.setWordWrap(True)
         layout.addWidget(desc_label)
 
-        layout.addStretch(1)
+        button_row = QHBoxLayout()
+        button_row.addStretch(1)
 
         button = QPushButton(button_text)
+        button.setMinimumWidth(120)
+        button.setMaximumWidth(180)
         button.clicked.connect(callback)
-        layout.addWidget(button)
+        button_row.addWidget(button)
+
+        layout.addLayout(button_row)
 
 
 class FlowStrip(QWidget):

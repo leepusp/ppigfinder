@@ -13,7 +13,7 @@ from pathlib import Path
 import re
 
 
-@dataclass(slots=True)
+@dataclass
 class FastaRecord:
     """
     A single FASTA record.

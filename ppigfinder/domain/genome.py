@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 
-@dataclass(slots=True)
+@dataclass
 class GenomeRecord:
     """
     Loaded genome or nucleotide sequence record.

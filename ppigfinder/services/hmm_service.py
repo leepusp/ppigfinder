@@ -15,7 +15,7 @@ from typing import Any
 from ppigfinder.infrastructure.backends import BACKENDS
 
 
-@dataclass(slots=True)
+@dataclass
 class HMMSearchParams:
     """
     Parameters for HMM/domain search.
@@ -37,7 +37,7 @@ class HMMSearchParams:
         }
 
 
-@dataclass(slots=True)
+@dataclass
 class HMMSearchResult:
     """
     Result returned by HMMSearchService.

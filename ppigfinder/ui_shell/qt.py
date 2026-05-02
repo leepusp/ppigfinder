@@ -24,6 +24,7 @@ try:
         QMessageBox,
         QProgressBar,
         QSizePolicy,
+        QFileDialog,
     )
 
     QT6 = True
@@ -47,6 +48,7 @@ except Exception:
         QMessageBox,
         QProgressBar,
         QSizePolicy,
+        QFileDialog,
     )
 
     QT6 = False

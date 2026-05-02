@@ -29,7 +29,7 @@ def sanitize_job_name(name: str) -> str:
 
 
 
-@dataclass(slots=True)
+@dataclass
 class ServerProteinChain:
     """
     Protein entity for AlphaFold Server JSON.
@@ -59,7 +59,7 @@ class ServerProteinChain:
         return {"proteinChain": payload}
 
 
-@dataclass(slots=True)
+@dataclass
 class ServerJob:
     """
     One AlphaFold Server job.

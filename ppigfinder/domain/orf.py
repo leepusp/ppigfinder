@@ -8,7 +8,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 
-@dataclass(slots=True)
+@dataclass
 class DomainHit:
     """
     Conserved domain annotation assigned to an ORF.
@@ -22,7 +22,7 @@ class DomainHit:
     source: str = "unknown"
 
 
-@dataclass(slots=True)
+@dataclass
 class ORF:
     """
     Open reading frame represented in genomic coordinates.
@@ -53,7 +53,7 @@ class ORF:
         return self.end - self.start
 
 
-@dataclass(slots=True)
+@dataclass
 class ORFSet:
     """
     Collection of ORFs from the same genome or sequence record.

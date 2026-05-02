@@ -18,7 +18,7 @@ import subprocess
 from pathlib import Path
 
 
-@dataclass(slots=True)
+@dataclass
 class HPCConnectionConfig:
     host: str = "davinci.icb.usp.br"
     user: str = ""
@@ -27,7 +27,7 @@ class HPCConnectionConfig:
     key_path: str = ""
 
 
-@dataclass(slots=True)
+@dataclass
 class HPCConnectionStatus:
     profile: str
     host: str

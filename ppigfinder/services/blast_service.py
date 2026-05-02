@@ -15,7 +15,7 @@ from typing import Any
 from ppigfinder.infrastructure.backends import BACKENDS
 
 
-@dataclass(slots=True)
+@dataclass
 class BlastSearchParams:
     """
     Parameters used for protein-vs-ORF similarity search.
@@ -43,7 +43,7 @@ class BlastSearchParams:
         }
 
 
-@dataclass(slots=True)
+@dataclass
 class BlastSearchResult:
     """
     Result returned by BlastSearchService.

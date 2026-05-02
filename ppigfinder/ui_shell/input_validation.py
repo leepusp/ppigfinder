@@ -14,7 +14,7 @@ from pathlib import Path
 import re
 
 
-@dataclass(slots=True)
+@dataclass
 class GenomeInputSummary:
     path: str
     file_type: str

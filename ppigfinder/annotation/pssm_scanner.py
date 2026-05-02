@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from ppigfinder.infrastructure.parallel import parallel_map
 
 
-@dataclass(slots=True)
+@dataclass
 class PSSMScanTask:
     """
     One protein sequence to scan.
@@ -22,7 +22,7 @@ class PSSMScanTask:
     protein: str
 
 
-@dataclass(slots=True)
+@dataclass
 class PSSMScanHit:
     """
     One built-in scanner hit.

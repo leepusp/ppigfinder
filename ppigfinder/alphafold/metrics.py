@@ -13,7 +13,7 @@ from math import isnan
 from typing import Any
 
 
-@dataclass(slots=True)
+@dataclass
 class InteractionMetrics:
     """
     Summary metrics for one predicted interaction.

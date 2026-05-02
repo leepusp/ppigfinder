@@ -25,7 +25,7 @@ from ppigfinder.alphafold.metrics import (
 )
 
 
-@dataclass(slots=True)
+@dataclass
 class AF3ParsedResult:
     """
     Serializable AF3 result summary.
