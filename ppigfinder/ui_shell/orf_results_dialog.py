@@ -1434,3 +1434,236 @@ def show_guided_orf_results(orfs, parent=None) -> None:
     dialog = GuidedORFResultsDialog(orfs, parent=parent)
     dialog.showMaximized()
     dialog.exec() if hasattr(dialog, "exec") else dialog.exec_()
+
+# === guided orf results compact patch ===
+try:
+    from PyQt6.QtWidgets import QPushButton, QTableWidget, QLayout, QSplitter, QLabel
+    from PyQt6.QtCore import Qt
+except Exception:
+    from PyQt5.QtWidgets import QPushButton, QTableWidget, QLayout, QSplitter, QLabel
+    from PyQt5.QtCore import Qt
+
+
+def _ppig_recursive_compact_layouts(layout, depth=0):
+    if layout is None:
+        return
+
+    try:
+        if depth == 0:
+            layout.setContentsMargins(10, 10, 10, 10)
+            layout.setSpacing(8)
+        else:
+            layout.setContentsMargins(4, 4, 4, 4)
+            layout.setSpacing(6)
+    except Exception:
+        pass
+
+    for i in range(layout.count()):
+        item = layout.itemAt(i)
+        child_layout = item.layout()
+        child_widget = item.widget()
+
+        if child_layout is not None:
+            _ppig_recursive_compact_layouts(child_layout, depth + 1)
+        elif child_widget is not None:
+            try:
+                inner = child_widget.layout()
+            except Exception:
+                inner = None
+            if inner is not None:
+                _ppig_recursive_compact_layouts(inner, depth + 1)
+
+
+def _ppig_find_named_button(dialog, names):
+    wanted = set([n.strip().lower() for n in names])
+    for btn in dialog.findChildren(QPushButton):
+        try:
+            label = btn.text().strip().lower()
+        except Exception:
+            continue
+        if label in wanted:
+            return btn
+    return None
+
+
+def _ppig_find_main_table(dialog):
+    tables = []
+    for table in dialog.findChildren(QTableWidget):
+        try:
+            rows = table.rowCount()
+            cols = table.columnCount()
+        except Exception:
+            continue
+        score = rows * max(1, cols)
+        tables.append((score, rows, cols, table))
+
+    if not tables:
+        return None
+
+    tables.sort(key=lambda x: x[0], reverse=True)
+    return tables[0][3]
+
+
+def _ppig_focus_table_row(table, row):
+    try:
+        if row < 0 or row >= table.rowCount():
+            return
+        table.selectRow(row)
+        item = table.item(row, 0)
+        if item is not None:
+            try:
+                table.scrollToItem(item)
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+
+def _ppig_apply_candidates_mode(dialog):
+    """
+    Temporary integrated behavior:
+    - reuse the main ORF table already visible in the dialog
+    - focus the table
+    - keep the current selection or select the first row
+    """
+    table = _ppig_find_main_table(dialog)
+    if table is None:
+        return
+
+    # Re-apply filters if the dialog exposes such a method
+    for method_name in ("_apply_filters", "apply_filters", "_refresh_table", "refresh_table"):
+        method = getattr(dialog, method_name, None)
+        if callable(method):
+            try:
+                method()
+                break
+            except Exception:
+                pass
+
+    try:
+        table.setFocus()
+    except Exception:
+        pass
+
+    try:
+        current_row = table.currentRow()
+    except Exception:
+        current_row = -1
+
+    if current_row < 0 and table.rowCount() > 0:
+        _ppig_focus_table_row(table, 0)
+    elif current_row >= 0:
+        _ppig_focus_table_row(table, current_row)
+
+    # Try to give a subtle hint in a details/info widget if one exists
+    for attr_name in ("details_text", "info_text", "status_text", "notes_text"):
+        widget = getattr(dialog, attr_name, None)
+        if widget is None:
+            continue
+        message = (
+            "Candidates mode is using the main ORF table on the left. "
+            "This keeps candidate review integrated into the current dialog."
+        )
+        try:
+            if hasattr(widget, "setPlainText"):
+                widget.setPlainText(message)
+                break
+            if hasattr(widget, "setText"):
+                widget.setText(message)
+                break
+        except Exception:
+            pass
+
+
+def _ppig_compact_header_labels(dialog):
+    """
+    Reduce the oversized feel of the header area.
+    """
+    for label in dialog.findChildren(QLabel):
+        try:
+            txt = label.text().strip()
+        except Exception:
+            continue
+
+        if not txt:
+            continue
+
+        low = txt.lower()
+
+        if low.startswith("predicted orfs are available"):
+            try:
+                label.setWordWrap(True)
+                label.setMaximumHeight(36)
+            except Exception:
+                pass
+
+        if low in ("orfs predicted", "mean length", "longest orf", "strands"):
+            try:
+                label.setStyleSheet("font-weight: 600;")
+            except Exception:
+                pass
+
+
+def _ppig_tune_splitters(dialog):
+    """
+    Give more practical space distribution:
+    - left = filters + table
+    - right = map + plots + detail panels
+    """
+    try:
+        horizontal = Qt.Orientation.Horizontal
+    except Exception:
+        horizontal = Qt.Horizontal
+
+    for splitter in dialog.findChildren(QSplitter):
+        try:
+            if splitter.orientation() == horizontal:
+                splitter.setStretchFactor(0, 5)
+                splitter.setStretchFactor(1, 4)
+            else:
+                splitter.setStretchFactor(0, 4)
+                splitter.setStretchFactor(1, 3)
+        except Exception:
+            pass
+
+
+def _ppig_wire_candidates_button(dialog):
+    btn = _ppig_find_named_button(dialog, ["Candidates"])
+    if btn is None:
+        return
+
+    if getattr(btn, "_ppig_candidates_wired", False):
+        return
+
+    try:
+        btn.clicked.disconnect()
+    except Exception:
+        pass
+
+    btn.clicked.connect(lambda: _ppig_apply_candidates_mode(dialog))
+    btn._ppig_candidates_wired = True
+
+
+def _ppig_after_init(dialog):
+    try:
+        dialog.resize(1850, 940)
+    except Exception:
+        pass
+
+    try:
+        _ppig_recursive_compact_layouts(dialog.layout(), 0)
+    except Exception:
+        pass
+
+    _ppig_compact_header_labels(dialog)
+    _ppig_tune_splitters(dialog)
+    _ppig_wire_candidates_button(dialog)
+
+
+_ppig_original_init = GuidedORFResultsDialog.__init__
+
+def _ppig_patched_init(self, *args, **kwargs):
+    _ppig_original_init(self, *args, **kwargs)
+    _ppig_after_init(self)
+
+GuidedORFResultsDialog.__init__ = _ppig_patched_init
