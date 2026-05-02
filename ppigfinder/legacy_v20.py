@@ -4979,6 +4979,18 @@ except ImportError:
     from ppigfinder.ui.icon_provider import make_icon as _ui_make_icon
     from ppigfinder.ui.text_fallback import clean_ui_text as _ui_clean_text
 
+
+try:
+    from .services.blast_service import (
+        BlastSearchParams as _BlastSearchParams,
+        BlastSearchService as _BlastSearchService,
+    )
+except ImportError:
+    from ppigfinder.services.blast_service import (
+        BlastSearchParams as _BlastSearchParams,
+        BlastSearchService as _BlastSearchService,
+    )
+
 class ppigFinderApp(QMainWindow):
 
     def __init__(self):
@@ -6558,58 +6570,66 @@ class ppigFinderApp(QMainWindow):
     def run_blast(self):
         raw = self._blast_query_text.toPlainText().strip()
         if not raw:
-            QMessageBox.warning(self, "BLAST", "Paste a protein sequence first!"); return
+            QMessageBox.warning(self, "BLAST", "Paste a protein sequence first!")
+            return
+
         qp = self._parse_fasta_query(raw)
         if not qp or len(qp) < 5:
-            QMessageBox.warning(self, "BLAST", "Invalid or too short sequence!"); return
+            QMessageBox.warning(self, "BLAST", "Invalid or too short sequence!")
+            return
+
         if not self.orfs:
-            QMessageBox.warning(self, "BLAST", "Run ORF analysis first!"); return
+            QMessageBox.warning(self, "BLAST", "Run ORF analysis first!")
+            return
 
         algo = self._algo_combo.currentText()
-        thresh = self._identity_spin.value()
-        evalue = float(self._evalue_edit.text() or '0.05')
-        self._status.showMessage(f"⏳ BLAST: {len(qp)} aa vs {len(self.orfs)} ORFs...")
 
-        params = {'threshold': thresh, 'gap_open': -self.blast_gap_open,
-                  'gap_extend': -self.blast_gap_ext, 'evalue': evalue,
-                  'word_size': self.blast_word_size, 'max_targets': self.blast_max_targets,
-                  'matrix': self.blast_matrix, 'low_complexity': self.blast_low_complexity}
+        try:
+            evalue = float(self._evalue_edit.text() or "0.05")
+        except ValueError:
+            evalue = 0.05
+
+        params = _BlastSearchParams(
+            threshold=self._identity_spin.value(),
+            gap_open=-self.blast_gap_open,
+            gap_extend=-self.blast_gap_ext,
+            evalue=evalue,
+            word_size=self.blast_word_size,
+            max_targets=self.blast_max_targets,
+            matrix=self.blast_matrix,
+            low_complexity=self.blast_low_complexity,
+        )
+
+        self._status.showMessage(
+            f"BLAST: {len(qp)} aa vs {len(self.orfs)} ORFs..."
+        )
+
+        service = _BlastSearchService(self.analyzer)
 
         def work():
-            hits = None; algo_used = algo; ncbi_error = ''
-            self.analyzer._last_blast_error = ''
-            if algo.startswith("Auto"):
-                if BACKENDS.get('blast+',{}).get('available'):
-                    hits = self.analyzer.run_ncbi_blast(qp, self.orfs, params)
-                    algo_used = "NCBI BLAST+"
-                if hits is None:
-                    ncbi_error = self.analyzer._last_blast_error
-                    hits = self.analyzer.kmer_blast(qp, [o['protein'] for o in self.orfs], params)
-                    algo_used = "K-mer Filter"
-            elif algo.startswith("NCBI"):
-                hits = self.analyzer.run_ncbi_blast(qp, self.orfs, params)
-                algo_used = "NCBI BLAST+"
-                if hits is None:
-                    ncbi_error = self.analyzer._last_blast_error
-                    hits = self.analyzer.kmer_blast(qp, [o['protein'] for o in self.orfs], params)
-                    algo_used = "K-mer (fallback)"
-            elif algo.startswith("K-mer"):
-                hits = self.analyzer.kmer_blast(qp, [o['protein'] for o in self.orfs], params)
-                algo_used = "K-mer Filter"
-            else:
-                hits = self.analyzer.sw_blast(qp, [o['protein'] for o in self.orfs], params)
-                algo_used = "Smith-Waterman"
-            return (hits or [], algo_used, qp, ncbi_error)
+            return service.search(
+                query_sequence=qp,
+                orfs=self.orfs,
+                algorithm=algo,
+                params=params,
+            )
 
         def done(result):
-            hits, algo_used, query, ncbi_error = result
-            self._show_blast_results(hits, query, algo_used)
-            if ncbi_error:
+            self._show_blast_results(
+                result.hits,
+                result.query_sequence,
+                result.algorithm_used,
+            )
+
+            if result.backend_error:
                 self._status.showMessage(
-                    f"⚠ {algo_used}: {len(hits)} hits "
-                    f"(BLAST+ fell back — {ncbi_error[:80]})")
+                    f"{result.algorithm_used}: {len(result.hits)} hits "
+                    f"(fallback used — {result.backend_error[:80]})"
+                )
             else:
-                self._status.showMessage(f"✓ {algo_used}: {len(hits)} hits")
+                self._status.showMessage(
+                    f"{result.algorithm_used}: {len(result.hits)} hits"
+                )
 
         self._run_worker(work, done)
 

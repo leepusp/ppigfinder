@@ -3,6 +3,7 @@ Core domain models for ppigFinder.
 """
 
 from .genome import GenomeRecord
+from .blast import BlastHit, blast_hit_from_legacy_dict
 from .orf import ORF, ORFSet, DomainHit
 from .annotation import (
     domain_hit_from_legacy_dict,
@@ -11,6 +12,8 @@ from .annotation import (
 )
 
 __all__ = [
+    "BlastHit",
+    "blast_hit_from_legacy_dict",
     "GenomeRecord",
     "ORF",
     "ORFSet",
