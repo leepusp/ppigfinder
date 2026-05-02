@@ -41,11 +41,54 @@ except Exception:
 from ppigfinder.ui_shell.workflow_state import WORKFLOW_ORDER, WorkflowState
 
 
+def _qt_align_center():
+    return Qt.AlignmentFlag.AlignCenter if QT6 else Qt.AlignCenter
+
+
+def _qt_pointing_cursor():
+    return Qt.CursorShape.PointingHandCursor if QT6 else Qt.PointingHandCursor
+
+
 def _set_alignment(widget, alignment):
     try:
         widget.setAlignment(alignment)
     except Exception:
         pass
+
+
+def _candidate_orf_id(orf, fallback=""):
+    return str(getattr(orf, "id", fallback) or fallback)
+
+
+def _candidate_start(orf):
+    try:
+        return int(getattr(orf, "start", 0))
+    except Exception:
+        return 0
+
+
+def _candidate_end(orf):
+    try:
+        return int(getattr(orf, "end", 0))
+    except Exception:
+        return 0
+
+
+def _candidate_strand(orf):
+    return str(getattr(orf, "strand", "?") or "?")
+
+
+def _candidate_frame(orf):
+    return str(getattr(orf, "frame", "?") or "?")
+
+
+def _candidate_aa_length(orf):
+    if hasattr(orf, "aa_length"):
+        try:
+            return int(getattr(orf, "aa_length"))
+        except Exception:
+            pass
+    return len(getattr(orf, "protein_sequence", "") or "")
 
 
 class InfoCard(QFrame):
@@ -83,9 +126,7 @@ class FlowRibbonWidget(QWidget):
     """
     Clickable workflow ribbon.
 
-    Each chip behaves like a navigation control. This allows the user to click
-    Data, Genome, ORFs, Annotation, AlphaFold, HPC or Reports and jump directly
-    to the corresponding page.
+    Each chip works as a navigation shortcut to the corresponding workflow page.
     """
 
     STEP_LABELS = {
@@ -100,6 +141,7 @@ class FlowRibbonWidget(QWidget):
 
     def __init__(self, parent=None, on_route_selected=None):
         super().__init__(parent)
+
         self._buttons = {}
         self._on_route_selected = on_route_selected
 
@@ -110,7 +152,7 @@ class FlowRibbonWidget(QWidget):
         for step in WORKFLOW_ORDER[1:]:
             button = QPushButton(self.STEP_LABELS.get(step, step.capitalize()))
             button.setFlat(True)
-            button.setCursor(Qt.CursorShape.PointingHandCursor if QT6 else Qt.PointingHandCursor)
+            button.setCursor(_qt_pointing_cursor())
             button.clicked.connect(lambda _checked=False, route_id=step: self._route_clicked(route_id))
             button.setMinimumHeight(34)
 
@@ -120,7 +162,7 @@ class FlowRibbonWidget(QWidget):
             if step != WORKFLOW_ORDER[-1]:
                 arrow = QLabel("→")
                 arrow.setObjectName("FlowArrow")
-                _set_alignment(arrow, Qt.AlignmentFlag.AlignCenter if QT6 else Qt.AlignCenter)
+                _set_alignment(arrow, _qt_align_center())
                 layout.addWidget(arrow)
 
         layout.addStretch(1)
@@ -132,13 +174,81 @@ class FlowRibbonWidget(QWidget):
     def set_route_callback(self, callback) -> None:
         self._on_route_selected = callback
 
-    def _build_annotation_candidate_panel(self) -> None:
-        """
-        Embedded candidate table for the Annotation page.
+    def update_state(self, state: WorkflowState) -> None:
+        completed = state.completed_steps()
+        current = state.current_route
 
-        This avoids opening a separate dialog for the normal workflow. A separate
-        full-screen table can still be used later for deep inspection.
-        """
+        for step, button in self._buttons.items():
+            if step == current:
+                button.setStyleSheet(
+                    "QPushButton {background:#17384d;color:white;border-radius:10px;padding:6px 12px;font-weight:700;}"
+                    "QPushButton:hover {background:#1f4a63;}"
+                )
+            elif step in completed:
+                button.setStyleSheet(
+                    "QPushButton {background:#cfe3ef;color:#17384d;border-radius:10px;padding:6px 12px;font-weight:600;}"
+                    "QPushButton:hover {background:#b8d8e8;}"
+                )
+            else:
+                button.setStyleSheet(
+                    "QPushButton {background:#edf3f7;color:#60717f;border-radius:10px;padding:6px 12px;}"
+                    "QPushButton:hover {background:#ddeaf0;color:#17384d;}"
+                )
+
+
+class ModuleVisualizationPanel(QScrollArea):
+    def __init__(self, route_id: str, parent=None):
+        super().__init__(parent)
+
+        self.route_id = route_id
+        self.annotation_candidates = []
+        self.annotation_candidate_table = None
+        self.annotation_search = None
+        self.annotation_strand = None
+
+        self.setWidgetResizable(True)
+
+        self.body = QWidget()
+        self.setWidget(self.body)
+
+        self.layout_main = QVBoxLayout(self.body)
+        self.layout_main.setContentsMargins(10, 10, 10, 10)
+        self.layout_main.setSpacing(10)
+
+        self.title = QLabel("Module status")
+        self.title.setObjectName("SectionSubTitle")
+        self.layout_main.addWidget(self.title)
+
+        self.grid = QGridLayout()
+        self.grid.setHorizontalSpacing(10)
+        self.grid.setVerticalSpacing(10)
+        self.layout_main.addLayout(self.grid)
+
+        self.card1 = InfoCard()
+        self.card2 = InfoCard()
+        self.card3 = InfoCard()
+        self.card4 = InfoCard()
+
+        self.grid.addWidget(self.card1, 0, 0)
+        self.grid.addWidget(self.card2, 0, 1)
+        self.grid.addWidget(self.card3, 1, 0)
+        self.grid.addWidget(self.card4, 1, 1)
+
+        self.footer = QLabel("")
+        self.footer.setWordWrap(True)
+        self.footer.setObjectName("InfoFooter")
+        self.layout_main.addWidget(self.footer)
+
+        if self.route_id == "annotation":
+            self._build_annotation_candidate_panel()
+
+        self.layout_main.addStretch(1)
+
+    # --------------------------------------------------------
+    # Annotation candidate table
+    # --------------------------------------------------------
+
+    def _build_annotation_candidate_panel(self) -> None:
         title = QLabel("Candidate ORFs")
         title.setObjectName("SectionSubTitle")
         self.layout_main.addWidget(title)
@@ -187,7 +297,7 @@ class FlowRibbonWidget(QWidget):
         except Exception:
             pass
 
-        self.layout_main.addWidget(self.annotation_candidate_table, 2)
+        self.layout_main.addWidget(self.annotation_candidate_table, 3)
         self._refresh_annotation_candidate_table()
 
     def set_annotation_candidates(self, orfs) -> None:
@@ -226,7 +336,7 @@ class FlowRibbonWidget(QWidget):
 
         self.annotation_candidate_table.setRowCount(len(visible))
 
-        for row, orf in enumerate(visible, start=0):
+        for row, orf in enumerate(visible):
             values = [
                 str(row + 1),
                 _candidate_orf_id(orf, f"orf_{row + 1}"),
@@ -251,114 +361,12 @@ class FlowRibbonWidget(QWidget):
             else:
                 self.footer.setText(
                     f"Embedded candidate table: showing {len(visible):,} of {len(filtered):,} filtered "
-                    f"ORFs from {len(self.annotation_candidates):,} total candidates. "
-                    "Use the filters above to narrow the table."
+                    f"ORFs from {len(self.annotation_candidates):,} total candidates."
                 )
 
-    def update_state(self, state: WorkflowState) -> None:
-        completed = state.completed_steps()
-        current = state.current_route
-
-        for step, button in self._buttons.items():
-            if step == current:
-                button.setStyleSheet(
-                    "QPushButton {background:#17384d;color:white;border-radius:10px;padding:6px 12px;font-weight:700;}"
-                    "QPushButton:hover {background:#1f4a63;}"
-                )
-            elif step in completed:
-                button.setStyleSheet(
-                    "QPushButton {background:#cfe3ef;color:#17384d;border-radius:10px;padding:6px 12px;font-weight:600;}"
-                    "QPushButton:hover {background:#b8d8e8;}"
-                )
-            else:
-                button.setStyleSheet(
-                    "QPushButton {background:#edf3f7;color:#60717f;border-radius:10px;padding:6px 12px;}"
-                    "QPushButton:hover {background:#ddeaf0;color:#17384d;}"
-                )
-
-
-
-
-def _candidate_orf_id(orf, fallback=""):
-    return str(getattr(orf, "id", fallback) or fallback)
-
-
-def _candidate_start(orf):
-    try:
-        return int(getattr(orf, "start", 0))
-    except Exception:
-        return 0
-
-
-def _candidate_end(orf):
-    try:
-        return int(getattr(orf, "end", 0))
-    except Exception:
-        return 0
-
-
-def _candidate_strand(orf):
-    return str(getattr(orf, "strand", "?") or "?")
-
-
-def _candidate_frame(orf):
-    return str(getattr(orf, "frame", "?") or "?")
-
-
-def _candidate_aa_length(orf):
-    if hasattr(orf, "aa_length"):
-        try:
-            return int(getattr(orf, "aa_length"))
-        except Exception:
-            pass
-    return len(getattr(orf, "protein_sequence", "") or "")
-
-class ModuleVisualizationPanel(QScrollArea):
-    def __init__(self, route_id: str, parent=None):
-        super().__init__(parent)
-        self.route_id = route_id
-        self.setWidgetResizable(True)
-
-        self.body = QWidget()
-        self.setWidget(self.body)
-
-        self.layout_main = QVBoxLayout(self.body)
-        self.layout_main.setContentsMargins(10, 10, 10, 10)
-        self.layout_main.setSpacing(10)
-
-        self.title = QLabel("Module status")
-        self.title.setObjectName("SectionSubTitle")
-        self.layout_main.addWidget(self.title)
-
-        self.grid = QGridLayout()
-        self.grid.setHorizontalSpacing(10)
-        self.grid.setVerticalSpacing(10)
-        self.layout_main.addLayout(self.grid)
-
-        self.card1 = InfoCard()
-        self.card2 = InfoCard()
-        self.card3 = InfoCard()
-        self.card4 = InfoCard()
-
-        self.grid.addWidget(self.card1, 0, 0)
-        self.grid.addWidget(self.card2, 0, 1)
-        self.grid.addWidget(self.card3, 1, 0)
-        self.grid.addWidget(self.card4, 1, 1)
-
-        self.footer = QLabel("")
-        self.footer.setWordWrap(True)
-        self.footer.setObjectName("InfoFooter")
-        self.layout_main.addWidget(self.footer)
-
-        self.annotation_candidates = []
-        self.annotation_candidate_table = None
-        self.annotation_search = None
-        self.annotation_strand = None
-
-        if self.route_id == "annotation":
-            self._build_annotation_candidate_panel()
-
-        self.layout_main.addStretch(1)
+    # --------------------------------------------------------
+    # State rendering
+    # --------------------------------------------------------
 
     def update_state(self, state: WorkflowState) -> None:
         route = self.route_id
@@ -377,8 +385,8 @@ class ModuleVisualizationPanel(QScrollArea):
                 "Recommended route after data loading",
             )
             self.footer.setText(
-                "This panel should evolve into a richer data-entry preview with file validation, "
-                "organism metadata and input summaries."
+                "This panel summarizes recognized inputs. Use Add input data to select supported files; "
+                "ppigFinder routes them into the correct workflow step automatically."
             )
             return
 
@@ -404,8 +412,7 @@ class ModuleVisualizationPanel(QScrollArea):
                 "Proceed to ORF prediction and protein generation",
             )
             self.footer.setText(
-                "Future visual direction: genome strip preview, contig overview and coordinate-aware "
-                "mini-map inspired by bacterial genome browsers."
+                "Future visual direction: genome strip preview, contig overview and coordinate-aware mini-map."
             )
             return
 
@@ -450,10 +457,12 @@ class ModuleVisualizationPanel(QScrollArea):
                 f"{candidate_count} candidates for AF3/PPI",
                 "Prepare candidate pairs",
             )
-            self.footer.setText(
-                "Functional annotation reduces the search space and selects biologically plausible "
-                "candidates for structural interaction analysis."
-            )
+
+            if not self.annotation_candidates:
+                self.footer.setText(
+                    "Functional annotation reduces the search space and selects biologically plausible candidates. "
+                    "Use Review candidate ORFs to embed the current ORF set here."
+                )
             return
 
         if route == "alphafold":
@@ -478,8 +487,7 @@ class ModuleVisualizationPanel(QScrollArea):
                 "Depending on execution mode",
             )
             self.footer.setText(
-                "Future visual direction: pair network preview, ipTM/PAE overview and miniature "
-                "interaction confidence dashboard."
+                "Future visual direction: pair network preview, ipTM/PAE overview and miniature interaction dashboard."
             )
             return
 
@@ -505,8 +513,7 @@ class ModuleVisualizationPanel(QScrollArea):
                 "Local, SSH or cluster mode",
             )
             self.footer.setText(
-                "Future visual direction: queue cards, job submission progress and a more graphical "
-                "DaVinci cluster connector."
+                "Optional execution layer. Without server access, export AF3 JSON, reports, tables and figures."
             )
             return
 
@@ -532,12 +539,10 @@ class ModuleVisualizationPanel(QScrollArea):
                 "Finalize and share results",
             )
             self.footer.setText(
-                "Future visual direction: report templates, figure previews, export checklist and "
-                "provenance tracking."
+                "Future visual direction: report templates, figure previews, export checklist and provenance tracking."
             )
             return
 
-        # overview
         completed = state.completed_steps()
 
         self.card1.set_content("Current step", state.current_route.capitalize(), "Current guided route")
@@ -545,6 +550,5 @@ class ModuleVisualizationPanel(QScrollArea):
         self.card3.set_content("Next", state.next_recommended_step().capitalize(), "Recommended next step")
         self.card4.set_content("Events", str(len(state.events)), "Actions recorded in this session")
         self.footer.setText(
-            "This overview should evolve into a fully visual workflow dashboard with process tracking, "
-            "data dependencies and direct access to generated figures and tables."
+            "Overview dashboard with process tracking, data dependencies and direct access to generated figures and tables."
         )
