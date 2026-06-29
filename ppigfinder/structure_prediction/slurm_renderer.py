@@ -11,6 +11,7 @@ def render_array_directive(job_count: int, chunk_size: int = 1) -> str:
         raise ValueError("job_count must be positive")
 
     chunk_size = max(1, int(chunk_size))
+    chunk_size = min(chunk_size, job_count)
 
     if job_count == 1:
         return ""
