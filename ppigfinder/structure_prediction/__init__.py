@@ -127,6 +127,12 @@ __all__ = [
     "write_boltz2_backend_inputs",
     "write_boltz2_input_fasta",
     "write_boltz2_job_yaml",
+    "FoldCPInputFiles",
+    "render_foldcp_job_yaml",
+    "write_batch_foldcp_inputs",
+    "write_foldcp_backend_inputs",
+    "write_foldcp_input_fasta",
+    "write_foldcp_job_yaml",
 ]
 
 
@@ -147,4 +153,14 @@ from ppigfinder.structure_prediction.boltz2_input_writer import (
     write_boltz2_backend_inputs,
     write_boltz2_input_fasta,
     write_boltz2_job_yaml,
+)
+
+
+from ppigfinder.structure_prediction.foldcp_input_writer import (
+    FoldCPInputFiles,
+    render_foldcp_job_yaml,
+    write_batch_foldcp_inputs,
+    write_foldcp_backend_inputs,
+    write_foldcp_input_fasta,
+    write_foldcp_job_yaml,
 )
