@@ -7,12 +7,12 @@ import sys
 from pathlib import Path
 
 try:
-    from PyQt6.QtCore import Qt
-    from PyQt6.QtWidgets import QApplication, QLabel, QPushButton, QVBoxLayout, QWidget
+    from PyQt6.QtCore import Qt, QTimer
+    from PyQt6.QtWidgets import QApplication, QLabel, QProgressBar, QVBoxLayout, QWidget
     QT6 = True
 except Exception:
-    from PyQt5.QtCore import Qt
-    from PyQt5.QtWidgets import QApplication, QLabel, QPushButton, QVBoxLayout, QWidget
+    from PyQt5.QtCore import Qt, QTimer
+    from PyQt5.QtWidgets import QApplication, QLabel, QProgressBar, QVBoxLayout, QWidget
     QT6 = False
 
 
@@ -25,17 +25,19 @@ def _align_center():
 
 class PpigFinderStarter(QWidget):
     """
-    Lightweight ppigFinder starter.
+    Lightweight splash launcher for the original ppigFinder interface.
 
-    This keeps startup fast because it does not instantiate the full legacy
-    interface until the user explicitly opens it.
+    It keeps startup visually responsive and starts the full original interface
+    automatically, without requiring an intermediate button click.
     """
 
     def __init__(self):
         super().__init__()
 
-        self.setWindowTitle("ppigFinder — Start")
-        self.resize(520, 340)
+        self.child_process: subprocess.Popen | None = None
+
+        self.setWindowTitle("ppigFinder — Loading")
+        self.resize(560, 360)
 
         try:
             from ppigfinder.ui.icon_provider import set_window_icon
@@ -44,8 +46,8 @@ class PpigFinderStarter(QWidget):
             pass
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(28, 28, 28, 28)
-        layout.setSpacing(16)
+        layout.setContentsMargins(34, 34, 34, 34)
+        layout.setSpacing(14)
 
         icon = QLabel("P")
         icon.setAlignment(_align_center())
@@ -55,55 +57,63 @@ class PpigFinderStarter(QWidget):
                 background: #17384d;
                 color: white;
                 border-radius: 18px;
-                font-size: 44px;
+                font-size: 48px;
                 font-weight: 800;
-                min-width: 86px;
-                min-height: 86px;
-                max-width: 86px;
-                max-height: 86px;
+                min-width: 96px;
+                min-height: 96px;
+                max-width: 96px;
+                max-height: 96px;
             }
             """
         )
 
         title = QLabel("ppigFinder")
         title.setAlignment(_align_center())
-        title.setStyleSheet("font-size: 28px; font-weight: 800; color: #17384d;")
+        title.setStyleSheet("font-size: 30px; font-weight: 800; color: #17384d;")
 
         subtitle = QLabel("Protein-Protein Interaction Genomic Finder")
         subtitle.setAlignment(_align_center())
         subtitle.setStyleSheet("font-size: 12px; color: #60717f;")
 
-        description = QLabel(
-            "Fast launcher for the original ppigFinder interface. "
-            "The full application is loaded only after clicking Open."
-        )
-        description.setWordWrap(True)
-        description.setAlignment(_align_center())
+        self.status_label = QLabel("Loading original ppigFinder interface...")
+        self.status_label.setAlignment(_align_center())
+        self.status_label.setWordWrap(True)
+        self.status_label.setStyleSheet("font-size: 12px; color: #263238;")
 
-        open_button = QPushButton("Open original ppigFinder interface")
-        open_button.clicked.connect(self.open_original_interface)
+        self.progress = QProgressBar()
+        self.progress.setRange(0, 0)
+        self.progress.setTextVisible(False)
+        self.progress.setMaximumHeight(8)
 
+        layout.addStretch(1)
         layout.addWidget(icon, alignment=_align_center())
         layout.addWidget(title)
         layout.addWidget(subtitle)
-        layout.addWidget(description)
+        layout.addSpacing(8)
+        layout.addWidget(self.status_label)
+        layout.addWidget(self.progress)
         layout.addStretch(1)
-        layout.addWidget(open_button)
+
+        QTimer.singleShot(350, self.open_original_interface)
 
     def open_original_interface(self):
         env = os.environ.copy()
-        subprocess.Popen(
+
+        self.status_label.setText("Starting full interface...")
+
+        self.child_process = subprocess.Popen(
             [sys.executable, "main.py"],
             cwd=str(REPO_ROOT),
             env=env,
         )
-        self.close()
+
+        QTimer.singleShot(1400, self.close)
 
 
 def main() -> int:
     app = QApplication(sys.argv)
     app.setApplicationName("ppigFinder")
-    app.setApplicationDisplayName("ppigFinder — Start")
+    app.setApplicationDisplayName("ppigFinder — Loading")
 
     window = PpigFinderStarter()
     window.show()
