@@ -81,27 +81,31 @@ def _ppig_signal_window_ready() -> None:
 
 
 def main() -> int:
-    from ppigfinder.infrastructure.ipython_runtime import configure_ipython_qt_event_loop
+    with _PpigStartupTimer("import.ipython_runtime"):
+        from ppigfinder.infrastructure.ipython_runtime import configure_ipython_qt_event_loop
 
-    configure_ipython_qt_event_loop()
+    with _PpigStartupTimer("configure_ipython_qt_event_loop"):
+        configure_ipython_qt_event_loop()
 
-    from ppigfinder.legacy_v29_11_7 import (
-        QApplication,
-        QT_VERSION,
-        QTimer,
-        _setup_emoji_font,
-        _check_dependencies_at_startup,
-        ppigFinderApp,
-    )
+    with _PpigStartupTimer("import.legacy_gui"):
+        from ppigfinder.legacy_v29_11_7 import (
+            QApplication,
+            QT_VERSION,
+            QTimer,
+            _setup_emoji_font,
+            _check_dependencies_at_startup,
+            ppigFinderApp,
+        )
 
-    from ppigfinder.ui.icon_provider import set_window_icon
-    from ppigfinder.ui.text_fallback import apply_text_fallback_to_window
-    from ppigfinder.ui.window_manager import install_window_management
-    from ppigfinder.ui.toolbar import polish_toolbars
-    from ppigfinder.ui.recent_files import install_recent_files_menu
-    from ppigfinder.ui.file_opening import open_genome_file_into_window
-    from ppigfinder.ui.menu_installers import install_modular_gui_actions
-    from ppigfinder.ui.tab_compactor import compact_tab_labels
+    with _PpigStartupTimer("import.ui_helpers"):
+        from ppigfinder.ui.icon_provider import set_window_icon
+        from ppigfinder.ui.text_fallback import apply_text_fallback_to_window
+        from ppigfinder.ui.window_manager import install_window_management
+        from ppigfinder.ui.toolbar import polish_toolbars
+        from ppigfinder.ui.recent_files import install_recent_files_menu
+        from ppigfinder.ui.file_opening import open_genome_file_into_window
+        from ppigfinder.ui.menu_installers import install_modular_gui_actions
+        from ppigfinder.ui.tab_compactor import compact_tab_labels
 
     with _PpigStartupTimer("QApplication"):
         app = QApplication(sys.argv)
