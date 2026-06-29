@@ -136,8 +136,24 @@ echo "result_dir=$RESULT_DIR"
 
 case "{backend_id}" in
   af3)
-    echo "AF3 input: $INPUT_DIR/af3_input.json"
-    echo "TODO: call the validated local AF3 runner here."
+    AF3_JSON="$INPUT_DIR/af3_input.json"
+    AF3_WORKDIR="$RESULT_DIR"
+    AF3_CMD="${AF3_SCRIPT:-af3}"
+
+    echo "AF3 input: $AF3_JSON"
+    echo "AF3 workdir: $AF3_WORKDIR"
+    echo "AF3 command: $AF3_CMD"
+
+    "$AF3_CMD" \
+      --json-path "$AF3_JSON" \
+      --job-name "$JOB_ID" \
+      --workdir "$AF3_WORKDIR" \
+      --stage all \
+      --executor local \
+      --force \
+      --image "${AF3_IMAGE:-}" \
+      --model-dir "${AF3_MODEL_DIR:-}" \
+      --db-dir "${AF3_DB_DIR:-}"
     ;;
   boltz2)
     echo "Boltz-2 FASTA: $INPUT_DIR/boltz2_input.fasta"
