@@ -4,6 +4,8 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+import tempfile
+import time
 from pathlib import Path
 
 try:
@@ -27,14 +29,24 @@ class PpigFinderStarter(QWidget):
     """
     Lightweight splash launcher for the original ppigFinder interface.
 
-    It keeps startup visually responsive and starts the full original interface
-    automatically, without requiring an intermediate button click.
+    The splash stays visible until the real interface signals that its main
+    window has been shown. This avoids a visual gap between "loading finished"
+    and the actual GUI opening.
     """
 
     def __init__(self):
         super().__init__()
 
         self.child_process: subprocess.Popen | None = None
+        self.started_at = time.monotonic()
+        self.ready_file = Path(tempfile.gettempdir()) / f"ppigfinder_ready_{os.getpid()}.txt"
+
+        try:
+            self.ready_file.unlink()
+        except FileNotFoundError:
+            pass
+        except Exception:
+            pass
 
         self.setWindowTitle("ppigFinder — Loading")
         self.resize(560, 360)
@@ -94,10 +106,15 @@ class PpigFinderStarter(QWidget):
         layout.addWidget(self.progress)
         layout.addStretch(1)
 
-        QTimer.singleShot(350, self.open_original_interface)
+        QTimer.singleShot(250, self.open_original_interface)
+
+        self.poll_timer = QTimer(self)
+        self.poll_timer.timeout.connect(self._poll_ready)
+        self.poll_timer.start(150)
 
     def open_original_interface(self):
         env = os.environ.copy()
+        env["PPIG_READY_FILE"] = str(self.ready_file)
 
         self.status_label.setText("Starting full interface...")
 
@@ -107,7 +124,26 @@ class PpigFinderStarter(QWidget):
             env=env,
         )
 
-        QTimer.singleShot(1400, self.close)
+    def _poll_ready(self):
+        if self.ready_file.exists():
+            self.status_label.setText("Interface ready.")
+            self.poll_timer.stop()
+            QTimer.singleShot(250, self.close)
+            return
+
+        if self.child_process is not None and self.child_process.poll() is not None:
+            self.status_label.setText(
+                "The original interface closed before reporting readiness. "
+                "Check the terminal for errors."
+            )
+            self.poll_timer.stop()
+            QTimer.singleShot(2500, self.close)
+            return
+
+        elapsed = time.monotonic() - self.started_at
+        if elapsed > 45:
+            self.status_label.setText("Still loading the original interface...")
+            # Keep waiting; large HPC filesystems can be slow.
 
 
 def main() -> int:

@@ -65,6 +65,21 @@ class _PpigStartupTimer:
 import sys
 
 
+
+def _ppig_signal_window_ready() -> None:
+    """Signal the external splash launcher that the main window is visible."""
+    ready_file = _ppig_os.environ.get("PPIG_READY_FILE")
+    if not ready_file:
+        return
+
+    try:
+        path = _ppig_Path(ready_file)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("ready\n", encoding="utf-8")
+    except Exception:
+        pass
+
+
 def main() -> int:
     from ppigfinder.infrastructure.ipython_runtime import configure_ipython_qt_event_loop
 
@@ -109,6 +124,9 @@ def main() -> int:
 
     with _PpigStartupTimer("window.show"):
         window.show()
+
+    # Let Qt process the first paint/layout pass, then notify the splash.
+    QTimer.singleShot(100, _ppig_signal_window_ready)
 
     def post_startup_recent_files():
         with _PpigStartupTimer("post_startup.install_recent_files_menu"):
