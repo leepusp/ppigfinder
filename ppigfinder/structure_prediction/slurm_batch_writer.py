@@ -138,7 +138,7 @@ case "{backend_id}" in
   af3)
     AF3_JSON="$INPUT_DIR/af3_input.json"
     AF3_WORKDIR="$RESULT_DIR"
-    AF3_CMD="${AF3_SCRIPT:-af3}"
+    AF3_CMD="${{AF3_SCRIPT:-af3}}"
 
     echo "AF3 input: $AF3_JSON"
     echo "AF3 workdir: $AF3_WORKDIR"
@@ -151,9 +151,9 @@ case "{backend_id}" in
       --stage all \
       --executor local \
       --force \
-      --image "${AF3_IMAGE:-}" \
-      --model-dir "${AF3_MODEL_DIR:-}" \
-      --db-dir "${AF3_DB_DIR:-}"
+      --image "${{AF3_IMAGE:-}}" \
+      --model-dir "${{AF3_MODEL_DIR:-}}" \
+      --db-dir "${{AF3_DB_DIR:-}}"
     ;;
   boltz2)
     echo "Boltz-2 FASTA: $INPUT_DIR/boltz2_input.fasta"
