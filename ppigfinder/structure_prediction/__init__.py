@@ -61,6 +61,16 @@ from ppigfinder.structure_prediction.manifest_validation import (
     validate_prediction_manifest,
 )
 
+from ppigfinder.structure_prediction.input_writers import (
+    GenericInputFiles,
+    job_spec_to_dict,
+    render_targets_fasta,
+    write_batch_generic_inputs,
+    write_generic_backend_inputs,
+    write_job_spec_json,
+    write_targets_fasta,
+)
+
 __all__ = [
     "BACKENDS",
     "AF3_BACKEND",
@@ -79,6 +89,13 @@ __all__ = [
     "write_prediction_manifest",
     "plan_prediction_batch",
     "validate_prediction_manifest",
+    "write_targets_fasta",
+    "write_job_spec_json",
+    "write_generic_backend_inputs",
+    "write_batch_generic_inputs",
+    "render_targets_fasta",
+    "job_spec_to_dict",
+    "GenericInputFiles",
     "read_manifest_rows",
     "ManifestValidationResult",
     "VALID_STATUSES",
