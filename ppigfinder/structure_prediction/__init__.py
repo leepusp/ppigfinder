@@ -135,6 +135,12 @@ __all__ = [
     "write_foldcp_job_yaml",
     "PredictionBatchArtifacts",
     "write_prediction_batch_artifacts",
+    "BackendSlurmFiles",
+    "BatchSlurmScripts",
+    "DEFAULT_BACKEND_MODULE_COMMANDS",
+    "group_planned_jobs_for_slurm",
+    "write_batch_slurm_scripts",
+    "write_slurm_task_table",
 ]
 
 
@@ -171,4 +177,14 @@ from ppigfinder.structure_prediction.foldcp_input_writer import (
 from ppigfinder.structure_prediction.batch_artifacts import (
     PredictionBatchArtifacts,
     write_prediction_batch_artifacts,
+)
+
+
+from ppigfinder.structure_prediction.slurm_batch_writer import (
+    BackendSlurmFiles,
+    BatchSlurmScripts,
+    DEFAULT_BACKEND_MODULE_COMMANDS,
+    group_planned_jobs_for_slurm,
+    write_batch_slurm_scripts,
+    write_slurm_task_table,
 )
