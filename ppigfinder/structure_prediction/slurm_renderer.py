@@ -5,11 +5,24 @@ from typing import Iterable, Optional
 from ppigfinder.structure_prediction.hpc_planner import HPCResourcePlan
 
 
+def render_array_directive(job_count: int, chunk_size: int = 1) -> str:
+    if job_count <= 0:
+        raise ValueError("job_count must be positive")
+
+    chunk_size = max(1, int(chunk_size))
+
+    if job_count == 1:
+        return ""
+
+    return f"#SBATCH --array=1-{job_count}%{chunk_size}"
+
+
 def render_sbatch_header(
     plan: HPCResourcePlan,
     job_name: Optional[str] = None,
     partition: Optional[str] = None,
     gres: Optional[str] = None,
+    array_job_count: int = 1,
     output_log: str = "logs/%x_%A_%a.out",
     error_log: str = "logs/%x_%A_%a.err",
 ) -> str:
@@ -32,6 +45,13 @@ def render_sbatch_header(
     if gres:
         lines.append(f"#SBATCH --gres={gres}")
 
+    array_directive = render_array_directive(
+        job_count=array_job_count,
+        chunk_size=plan.array_chunk_size,
+    )
+    if array_directive:
+        lines.append(array_directive)
+
     lines.extend(
         [
             "",
@@ -45,18 +65,6 @@ def render_sbatch_header(
     return "\n".join(lines)
 
 
-def render_array_directive(job_count: int, chunk_size: int = 1) -> str:
-    if job_count <= 0:
-        raise ValueError("job_count must be positive")
-
-    chunk_size = max(1, int(chunk_size))
-
-    if job_count == 1:
-        return "# Single job: no Slurm array directive required."
-
-    return f"#SBATCH --array=1-{job_count}%{chunk_size}"
-
-
 def render_submission_preview(
     plans: Iterable[HPCResourcePlan],
     backend_module_command: str,
@@ -68,20 +76,15 @@ def render_submission_preview(
         raise ValueError("at least one plan is required")
 
     first = plans[0]
+
     header = render_sbatch_header(
         first,
         job_name=f"ppig_{first.backend_id}",
         gres=gres,
-    )
-
-    array_line = render_array_directive(
-        job_count=job_count,
-        chunk_size=first.array_chunk_size,
+        array_job_count=job_count,
     )
 
     body = [
-        array_line,
-        "",
         "# Load backend environment here.",
         backend_module_command,
         "",
