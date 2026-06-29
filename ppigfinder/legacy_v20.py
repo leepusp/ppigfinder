@@ -574,8 +574,16 @@ class _LazyFigureCanvas:
 plt = _LazyPyplot()
 FigureCanvas = _LazyFigureCanvas() if MATPLOTLIB_AVAILABLE else None
 
+
+
+def _ppig_missing_optional_dependency(name: str, install_hint: str = ""):
+    msg = f"Optional dependency '{name}' is not available."
+    if install_hint:
+        msg += f" Install with: {install_hint}"
+    raise ImportError(msg)
+
 # Lazy numpy loader.
-NUMPY_AVAILABLE = _importlib_util.find_spec("numpy") is not None
+NUMPY_AVAILABLE = True  # optimistic lazy check; do not probe numpy during startup
 
 
 class _LazyNumpy:
@@ -598,7 +606,7 @@ np = _LazyNumpy() if NUMPY_AVAILABLE else None  # type: ignore[assignment]
 # Analysis tab (connected-component labeling + morphological closing).
 # It is OPTIONAL — a pure-numpy BFS fallback is used when it's missing.
 # Lazy scipy.ndimage loader.
-SCIPY_NDIMAGE_AVAILABLE = _importlib_util.find_spec("scipy.ndimage") is not None
+SCIPY_NDIMAGE_AVAILABLE = True  # optimistic lazy check; do not import scipy during startup
 
 
 class _LazyScipyNdimage:
@@ -607,7 +615,13 @@ class _LazyScipyNdimage:
 
     def _load(self):
         if self._mod is None:
-            import scipy.ndimage as _mod
+            try:
+
+                import scipy.ndimage as _mod
+
+            except ImportError:
+
+                _ppig_missing_optional_dependency("scipy.ndimage", "pip install scipy")
             self._mod = _mod
         return self._mod
 
