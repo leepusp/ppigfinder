@@ -54,6 +54,13 @@ from ppigfinder.structure_prediction.batch_builder import (
     plan_prediction_batch,
 )
 
+from ppigfinder.structure_prediction.manifest_validation import (
+    VALID_STATUSES,
+    ManifestValidationResult,
+    read_manifest_rows,
+    validate_prediction_manifest,
+)
+
 __all__ = [
     "BACKENDS",
     "AF3_BACKEND",
@@ -71,6 +78,10 @@ __all__ = [
     "resolve_slurm_overrides",
     "write_prediction_manifest",
     "plan_prediction_batch",
+    "validate_prediction_manifest",
+    "read_manifest_rows",
+    "ManifestValidationResult",
+    "VALID_STATUSES",
     "build_multibackend_jobs",
     "PredictionBatchPlan",
     "PlannedPredictionJob",
