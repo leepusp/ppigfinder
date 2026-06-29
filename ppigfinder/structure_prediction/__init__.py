@@ -19,6 +19,18 @@ from ppigfinder.structure_prediction.hpc_planner import (
     plan_hpc_resources,
 )
 
+from ppigfinder.structure_prediction.output_layout import (
+    PredictionOutputLayout,
+    build_prediction_output_layout,
+    safe_job_name,
+)
+
+from ppigfinder.structure_prediction.slurm_renderer import (
+    render_array_directive,
+    render_sbatch_header,
+    render_submission_preview,
+)
+
 __all__ = [
     "BACKENDS",
     "AF3_BACKEND",
@@ -32,4 +44,10 @@ __all__ = [
     "partition_targets_by_token_budget",
     "HPCResourcePlan",
     "plan_hpc_resources",
+    "render_submission_preview",
+    "render_sbatch_header",
+    "render_array_directive",
+    "safe_job_name",
+    "build_prediction_output_layout",
+    "PredictionOutputLayout",
 ]
