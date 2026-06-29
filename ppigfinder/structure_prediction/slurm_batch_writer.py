@@ -140,20 +140,32 @@ case "{backend_id}" in
     AF3_WORKDIR="$RESULT_DIR"
     AF3_CMD="${{AF3_SCRIPT:-af3}}"
 
+    AF3_ARGS=(
+      --json-path "$AF3_JSON"
+      --job-name "$JOB_ID"
+      --workdir "$AF3_WORKDIR"
+      --stage all
+      --executor local
+      --force
+    )
+
+    if [ -n "${{AF3_IMAGE:-}}" ]; then
+      AF3_ARGS+=(--image "$AF3_IMAGE")
+    fi
+
+    if [ -n "${{AF3_MODEL_DIR:-}}" ]; then
+      AF3_ARGS+=(--model-dir "$AF3_MODEL_DIR")
+    fi
+
+    if [ -n "${{AF3_DB_DIR:-}}" ]; then
+      AF3_ARGS+=(--db-dir "$AF3_DB_DIR")
+    fi
+
     echo "AF3 input: $AF3_JSON"
     echo "AF3 workdir: $AF3_WORKDIR"
     echo "AF3 command: $AF3_CMD"
 
-    "$AF3_CMD" \
-      --json-path "$AF3_JSON" \
-      --job-name "$JOB_ID" \
-      --workdir "$AF3_WORKDIR" \
-      --stage all \
-      --executor local \
-      --force \
-      --image "${{AF3_IMAGE:-}}" \
-      --model-dir "${{AF3_MODEL_DIR:-}}" \
-      --db-dir "${{AF3_DB_DIR:-}}"
+    "$AF3_CMD" "${{AF3_ARGS[@]}}"
     ;;
   boltz2)
     echo "Boltz-2 FASTA: $INPUT_DIR/boltz2_input.fasta"
