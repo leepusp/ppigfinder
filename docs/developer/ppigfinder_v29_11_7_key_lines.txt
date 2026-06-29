@@ -1,0 +1,1925 @@
+15:(BLASTp) and Hidden Markov Model (HMM) profile scanning, visualises them
+16:on an interactive genomic map, and generates AlphaFold 3 (AF3) batch jobs
+18:remote HPC cluster (SLURM, PBS, LSF) directly from the GUI via SSH/SFTP.
+22:  • ORF prediction: Pyrodigal (recommended), 6-frame start/stop scan,
+24:  • BLASTp homology search against all predicted ORFs (local BLAST+ or
+26:  • HMM profile search using HMMER3 or a built-in PSSM scanner
+33:      – ORF arrows coloured PARTIALLY by HMM domain segments
+39:      – HMM Edit Color dialog with wider hex input, live preview swatch,
+41:      – Export → Genome Map → PDF (vector) produces a true vector
+42:        PDF that fills the page (was the Export Map PDF toolbar button)
+44:  • AlphaFold 3 job builder: AF3 JSON / ColabFold FASTA export, with
+51:  • HPC server integration: SSH/SFTP upload and submission to SLURM,
+53:  • AF3 table results (Interaction Results tab):
+78:        set (any loaded HMM profile, all annotated ORFs, or none)
+83:      – SVG / PNG export on every sub-view
+87:  • Ctrl+Shift+P → instant PDF screenshot of the whole window, saved to
+90:    English UI, export to GenBank, SnapGene .dna, PDF, TSV
+111:                          [1] Larralde, M. (2022). Pyrodigal: Python bindings
+112:                          and interface to Prodigal. J. Open Source Softw.,
+114:                          [2] Hyatt, D. et al. (2010). Prodigal: prokaryotic
+119:    NCBI BLAST+  >= 2.12  https://ftp.ncbi.nlm.nih.gov/blast/executables/
+122:                          [3] Camacho, C. et al. (2009). BLAST+: architecture
+126:    HMMER3       >= 3.3   http://hmmer.org
+129:                          [4] Eddy, S.R. (2011). Accelerated Profile HMM
+133:    paramiko     >= 2.9   pip install paramiko
+135:                          https://www.paramiko.org
+137:  AlphaFold 3 structural prediction (external service / local install):
+140:                          AlphaFold 3. Nature, 630, 493-500.
+145:  [1] Larralde, M. (2022). Pyrodigal: Python bindings and interface to
+146:      Prodigal, an efficient method for gene prediction in prokaryotes.
+151:      & Hauser, L.J. (2010). Prodigal: prokaryotic gene recognition and
+157:      Bealer, K., & Madden, T.L. (2009). BLAST+: architecture and
+161:  [4] Eddy, S.R. (2011). Accelerated Profile HMM Searches.
+167:      of biomolecular interactions with AlphaFold 3.
+181:      AlphaFold-Multimer. bioRxiv 2021.10.04.463034.
+187:      structure prediction with AlphaFold. Nature, 596, 583-589.
+198:       of protein-protein interactions using AlphaFold2. Nature Communications,
+230:  introduces two focal metrics extracted directly from AF3 summary JSONs:
+232:      A value < 4 Å indicates that AF3 predicts at least one contact point
+243:  pip install pyrodigal paramiko                # optional recommended
+251:  Output : FASTA, GenBank, SnapGene .dna, PDF/EPS, TSV, JSON (AF3),
+293:  v2.9.11.7 (2026) — Right-click on HMM profile table
+294:    • Right-clicking a row of the "Loaded HMM Profiles" table opens a
+297:        - 🔮 Submit N hit ORFs to AlphaFold 3... sub-menu containing
+298:            ➕ Add N hit ORFs to AF3 list
+302:      The AF3 sub-menu is disabled with an explanatory tooltip when the
+307:  v2.9.11.6 (2026) — Clickable HMM profile table
+308:    • HMM panel: clicking a row of the "Loaded HMM Profiles" table
+311:      HTML anchor name="hmm_<sanitised_name>"; the row-click handler
+321:          Evans 2022 for ipTM, Abramson 2024 for AF3 chain-pair
+337:    • New toolbar button "📂 Load AF3 results directory" placed
+340:      button on the AF3 table results tab — after loading, switches
+341:      to the AF3 table results tab.
+342:    • Terminology unified: every UI mention of "Load AF3 results
+343:      folder" was renamed to "Load AF3 results directory" so the
+344:      three access points (toolbar, File menu, AF3 tab) match.
+346:  v2.9.11.3 (2026) — UI restructure: File → Load AF3, new Export menu
+347:    • New File → "📂 Load AF3 results directory..." action; the previous
+348:      access point on the AF3 table results tab still works.
+350:      every existing export function (Genome Map PDF, ORF table TSV /
+351:      FASTA, full report, PPI Map SVG / TSV, PPI Analysis SVG / PNG,
+352:      AF3 results TSV / anchor FASTA / motifs TSV, full-window
+353:      Ctrl+Shift+P PDF screenshot) under a single entry point.
+354:    • The "Export Map PDF" button on the Genome toolbar was removed.
+356:      → PDF (vector).
+360:    • ORF table right-click — "📂 Open AF3 prediction folder" entry
+363:    • PPI Analysis scatter / correlative dot context menu — "Open AF3
+369:  v2.9.11.1 (2026) — Open AF3 prediction folder from PPI Analysis
+371:    • AF3 table right-click: multi-row "Open all N folders" entry.
+372:    • PPI Analysis dot right-click: "Open AF3 prediction folder" with
+387:      with QColorDialog, expanded 28-swatch HMM palette, partial domain
+388:      colouring of ORF arrows, vector Export Map PDF.
+397:    • HMM Edit Color dialog now offers:
+403:  v2.9.9.3 (2026) — Genome Map partial colouring + vector PDF + Correlative graph
+404:    • Genome Map: ORF arrows are now coloured PARTIALLY by HMM domains.
+409:    • Export Map PDF now produces a TRUE VECTOR PDF that fills the page
+416:      combinations.  Dots are still coloured by HMM profile.
+417:    • HMM Edit Color palette expanded from 10 to 28 swatches
+423:    • Top-bar button "Results" renamed to "AF3 table results".
+448:    • Positive set for ROC enrichment chosen from any loaded HMM profile.
+464:  v2.9.6 (2026) — Direct panel buttons + script-folder PDF screenshot
+472:    • Ctrl+Shift+P captures the whole window and saves it as a vector PDF
+476:  v2.9.2 (2026) — Custom AF3 sequence entries (protein / RNA / DNA)
+487:    • NEW "✨ Customize new sequence" button in the AlphaFold selection bar.
+492:    • NEW right-click "✏️ Edit sequence for AF3 job" on any selection row.
+501:    • RNA/DNA are exported to AF3 JSON only (proteinChain / rnaSequence /
+507:  v2.9.1 (2026) — consolidated build: token-limited AF3 fragmentation + PAE-min interface regions
+509:      AlphaFold job builder. Disabled by default.
+510:    • When enabled, AF3 pair jobs whose combined residue count exceeds the
+518:      coordinates while keeping AF3 JSON payloads valid.
+519:    • This feature is independent from AF3 JSON Group Config, which only
+520:      controls how many jobs are packed into each SLURM/batch JSON file.
+530:      the real ORF dicts so Pfam/HMM domain boxes actually render; and made
+536:    • NEW toolbar button "Annotate HMM (Pfam A)" between Translate genome
+537:      and Annotate HMM. Loads a full Pfam-A.hmm library (or .hmm.gz)
+546:    • Correctly parses the hmmscan --domtblout layout (target = HMM model,
+548:      by the per-profile HMM tab.
+549:    • Threshold added in Parameters -> HMM Parameters: Pfam gathering
+552:    • Requires HMMER3 on PATH (or via WSL on Windows); the built-in PSSM
+556:      "Search Pfam-A (selected)" button in the HMM panel. Uses hmmsearch
+558:      hmmscan has no -A option; shows the colored HMM/Match/Protein
+559:      alignment in the HMM results panel (does not pollute the Loaded HMM
+562:      button is renamed "Annotate all ORFs HMM".
+567:      right-panel view (Genome, BLAST query/results, DNA, Protein, Domains,
+568:      Neighborhood, HMM, AlphaFold, Submit AF3 via Server, Interaction
+573:  v2.8.1 (2026) — Performance mode for large AF3 interactomes
+589:      DaVinci-format summary (*_summary_confidences.json) and an AF3
+610:      motifs (A[res X-Y] × B[res W-Z]) from each AF3 pair.
+623:    • UI: second toolbar row in the AlphaFold Analysis tab with
+640:  v1.15 (2026) — AlphaFold Analysis tab: bug fixes + AF3-server support
+648:      _NumericItem subclass with numeric __lt__.
+649:    • Bug: pLDDT extraction missed the AF3 server's per-atom layout.
+650:      AF3 server output stores 'atom_plddts' (per-atom, 9132 values
+664:    — AF3 server output support —
+695:    — AF3 tab Mode dropdown —
+696:    • Removed 'HMM Hits vs Each Other', 'Hit vs All Selected ORFs' and
+706:      empty). Emits 3-chain AF3 jobs with the Hit and every unordered
+719:  v1.11 (2026) — AF3 large-batch OOM fix + Download JSONs button
+721:      >50 jobs (configurable via _AF3_PARTITION_SIZE), preventing OOM
+728:    • Table rows updated per-partition with individual SLURM IDs
+741:  v1.09 (2026) — Pyrodigal parameters in ORF Analysis Parameters
+754:    • AF3 selection table, EVC state, Pyrodigal params persisted
+755:    • AF3 jobs validated; AF3 analysis dir handled gracefully
+761:  v1.03 (2026) — DaVinci cluster integration & SLURM defaults
+762:    • SLURM Array anti-OOM export (batches + run_array.sh)
+767:    • 'Add All ORFs' button with size/HMM filter dialog
+769:    • SLURM array anti-OOM export
+772:    • Generic HPC server tab (SSH/SFTP, SLURM/PBS/LSF support)
+773:    • AF3 results analysis tab (PAE heatmap, pLDDT, ipTM scoring)
+775:    • Scheduler selector (SLURM / PBS / LSF / None)
+849:_AF3_ANALYSIS_TABLE_COLUMN_WIDTHS = [
+872:        Qt, QTimer, QThread, pyqtSignal, QObject,
+906:        Qt, QTimer, QThread, pyqtSignal, QObject,
+939:    import paramiko
+976:# scipy.ndimage is used by the motif detection in the AlphaFold
+992:def detect_backends():
+995:    When running as a PyInstaller bundle, external tools (BLAST+, HMMER3) may
+1063:# Pyrodigal detection (Python module, not external tool)
+1074:    ("matplotlib", "matplotlib", "Required for AF3 plots and exports"),
+1077:    ("paramiko", "paramiko", "Optional SSH/SFTP support for HPC submission"),
+1078:    ("scipy", "scipy", "Optional faster AF3 motif detection"),
+1079:    ("ijson", "ijson", "Optional streaming parser for large AF3 JSON files"),
+1083:def _package_status(import_name: str, distribution_name: str):
+1097:def build_system_check_report() -> dict:
+1111:            ('blast+', 'BLAST+', 'Optional homology search backend'),
+1112:            ('hmmer3', 'HMMER3', 'HMM search backend; required for Pfam-A annotation'),
+1113:            ('pyrodigal', 'Pyrodigal', 'Recommended ORF prediction backend')):
+1139:            "BLAST+ was not found. BLAST annotation will use the slower built-in fallback.")
+1142:            "HMMER3 was not found. Per-profile HMM uses the lower-sensitivity "
+1148:            "Pyrodigal was not found. Automatic ORF scanning still works, but Pyrodigal/Hybrid modes are disabled.")
+1163:def format_system_check_report(report: dict, plain: bool = False) -> str:
+1221:def _snapgene_read_packets(data: bytes):
+1240:def parse_snapgene_dna(filepath: str) -> dict:
+1329:def _sg_packet(pkt_type: int, payload: bytes) -> bytes:
+1334:def write_snapgene_dna(filepath: str, sequence: str, features: list,
+1419:def parse_genbank(filepath: str) -> dict:
+1559:def write_genbank(filepath: str, sequence: str, orfs: list,
+1585:    def _loc(start, end, strand):
+1592:    def _wrap_qual(key, val, indent=21):
+1624:            lines.append(_wrap_qual('note', f"HMM domains: {domains}"))
+1648:class AdvancedORFAnalyzer:
+1665:    # Domains come from HMM search and user reference DB only (no regex false positives)
+1666:    DOMAIN_SIGNATURES = {}  # Empty — user builds via HMM profiles
+1719:    def translate(self, dna_seq, translation_table=11):
+1733:    def _translate_pyrodigal_gene(self, gene, dna_sub, translation_table=11):
+1734:        """Prefer Pyrodigal's table-aware translation, fallback locally."""
+1749:    def reverse_complement(self, seq):
+1753:    def gc_content(self, seq):
+1757:    def find_orfs(self, dna_sequence, min_aa=30, start_codons=None):
+1795:    def find_orfs_pyrodigal(self, dna_sequence, meta=True, min_aa=30,
+1798:        Find ORFs using Pyrodigal (Python binding for Prodigal gene caller).
+1800:        Pyrodigal uses dynamic programming on GC-content, RBS motifs, and
+1818:                "Pyrodigal not installed.\n\n"
+1846:            # Pyrodigal uses 1-based coordinates
+1867:            # Pyrodigal confidence score (0-100)
+1900:    def find_orfs_hybrid(self, dna_sequence,
+1903:                         # --- Pyrodigal params ---
+1908:        Hybrid gene finder: Pyrodigal as primary caller + 6-frame ORF
+1913:        1. Run Pyrodigal on the full sequence → primary ORF set.
+1915:           that falls inside at least one Pyrodigal ORF (both strands).
+1917:           any Pyrodigal prediction).
+1927:        Pyrodigal predictions  → source = 'pyrodigal'
+1933:        # ── Step 1: Pyrodigal ────────────────────────────────────────
+1943:        # Optional post-prediction start-codon filter for Pyrodigal ORFs
+1953:        # Pyrodigal ORF, regardless of strand.
+1996:    def classify_domains(self, protein_seq):
+2006:    def analyze_neighborhood(self, orfs, target_idx, window_kb=15.0):
+2054:    def calc_evalue(self, score, query_len, db_size):
+2063:    def _blosum_score(self, a, b):
+2070:    def kmer_blast(self, query, subjects, params=None):
+2071:        """BLAST rápido: k-mer index + diagonal filter + banded SW."""
+2202:    # ═══════ METHOD 2: NCBI BLAST+ (EXTERNAL) ═══════
+2204:    def run_ncbi_blast(self, query_protein, orfs, params=None):
+2205:        """Run NCBI BLAST+ blastp via subprocess."""
+2303:            self._last_blast_error = 'BLAST timed out after 120 s.'
+2306:            self._last_blast_error = 'blastp executable not found. Install NCBI BLAST+ or check PATH.'
+2314:    def _parse_blast_alignments(self, aln_file, hits):
+2315:        """Parse alignments from BLAST output format 0.
+2319:        leading whitespace that BLAST uses to align it under the
+2361:                # BLAST format guarantees that within one alignment block
+2378:                    # so the column slice always works even if BLAST stripped
+2435:            print(f"[BLAST alignment parser] {type(e).__name__}: {e}")
+2439:    def sw_blast(self, query, subjects, params=None):
+2526:    # ═══════ HMM SEARCH ═══════
+2528:    def hmm_scan_orfs(self, hmm_file, orfs, params=None):
+2529:        """Search HMM profile against all ORFs. Uses HMMER3 if available."""
+2548:    #   hmmsearch: target(col0)=sequence, query(col3)=HMM model
+2549:    #   hmmscan  : target(col0)=HMM model, query(col3)=sequence(ORF)
+2552:    def _resolve_pfam_executable(self, exe):
+2553:        """Return (cmd_prefix_list, use_wsl) for an HMMER3 executable.
+2556:        with HMMER installed only inside WSL still work.
+2562:    def _to_wsl_path(p):
+2568:    def pfam_prepare_library(self, lib_path, progress_cb=None, press=True):
+2609:                raise RuntimeError("hmmpress not found. Install HMMER3 (e.g. "
+2629:                    "the folder is writable, and that HMMER is installed in the "
+2630:                    "default WSL distro (the same one that runs your HMM tab).")
+2634:    def _tail(text, n=1500):
+2638:    def _hmmscan_error_detail(self, cmd, returncode, out, err, report, pressed,
+2666:                         "via WSL, check that HMMER is installed in the default "
+2671:    def pfam_library_scan(self, lib_path, orfs, params=None,
+2680:        Returns a list of hit dicts in the same shape used by the HMM tab
+2740:                raise RuntimeError("hmmscan not found. Install HMMER3 "
+2761:            # Parse hmmscan --domtblout (target = HMM model, query = ORF) --
+2811:    def pfam_scan_with_alignments(self, lib_path, orf_items, params=None,
+2816:        query (a multi-model HMM file) and the selected ORFs are the target
+2819:        HMM results panel exactly like individually-added profiles. It reads
+2826:        Returns hit dicts (HMM-tab shape) with aln_hmm / aln_target /
+2893:                raise RuntimeError("hmmsearch not found. Install HMMER3.")
+2979:    def _hmmer3_search(self, hmm_file, orfs, params=None):
+2980:        """Chama hmmsearch do HMMER3. Usa --domtblout + -A para coordenadas e alinhamentos."""
+3007:                def to_wsl_path(p):
+3077:                                'match_region': f"HMM:{hmm_from}-{hmm_to}/{qlen}  Prot:{ali_from}-{ali_to}/{tlen}",
+3118:                        h['aln_hmm']    = ''        # HMM consensus não disponível sem -A
+3134:            self._last_hmm_error = 'hmmsearch executable not found. Install HMMER3 or check PATH.'
+3142:    def _parse_stockholm_aln(self, sto_file: str) -> dict:
+3178:            # Identify the HMM query (not an ORF)
+3187:            # Build midline by comparing HMM consensus vs target
+3210:    def _pssm_scan(self, hmm_file, orfs, params=None):
+3211:        """PSSM scan derived from the HMM file (fallback when HMMER3 is unavailable)."""
+3216:        if not pssm: return [{'error': 'Failed to parse the HMM file'}]
+3251:    def _parse_hmm_to_pssm(self, hmm_file):
+3252:        """Extract PSSM from HMMER3 Match states. Reads AA order from the file header."""
+3256:            if 'HMMER3' not in content: return None, None
+3262:                # Parse AA order from HMM header line
+3263:                if line.strip().startswith('HMM') and not line.strip().startswith('HMMER'):
+3283:                                # HMMER3: scores are -ln(prob/null), lower=better match
+3293:    def generate_alphafold_input(self, orfs, indices):
+3302:    def score_candidate(self, orf, neighborhood):
+3331:        'load_hmm':         '📎 Load HMM',
+3336:        'save_af3':         '💾 AlphaFold3',
+3340:        'export_map_pdf':   '🖼️ Export Map as PDF',
+3343:        'blast_params':     '🔬 BLAST Parameters...',
+3344:        'hmm_params':       '🧬 HMM Parameters...',
+3354:        'btn_pyrodigal':    '🧪 Pyrodigal',
+3357:        'desc_hybrid':      'Pyrodigal (primary) + Automatic ORF scanner (gap-filler) — fills unannotated regions',
+3358:        'desc_pyrodigal':   'Gene prediction using Pyrodigal (Prodigal successor) - ML-based prokaryotic gene caller',
+3360:        'btn_annotate_hmm': '🏷️ Annotate all ORFs HMM',
+3361:        'btn_annotate_hmm_pfam': '🏷️ Annotate HMM (Pfam A)',
+3365:                         'Requires HMMER3. Can take minutes to hours.'),
+3366:        'btn_export_pdf':   '🖼️ Export Map PDF',
+3379:        'blast_lbl':        '🔬 BLAST:',
+3383:        'run_blast_btn':    '🚀 Run BLASTp',
+3389:        'tab_blast_query':  '📥 BLAST Query',
+3390:        'tab_blast_res':    '📊 BLAST Results',
+3391:        'tab_hmm':          '🧬 HMM',
+3392:        'tab_af3':          '🔮 AlphaFold',
+3403:        'tip_hmm':          'Apply HMM search results to label ORFs in the table and genome map',
+3404:        'tip_pdf':          'Export the map exactly as displayed — zoom, colors and annotations — as PDF/EPS',
+3414:        'tip_blast_load':   'Load protein sequence from FASTA file for BLAST search',
+3418:        'tip_blast_run':    'Run BLAST search against all ORFs in the genome',
+3419:        'tip_blast_copy_hit': 'Copy selected BLAST hit to clipboard',
+3420:        'tip_blast_copy_all': 'Copy all BLAST results to clipboard',
+3421:        'tip_blast_save':   'Save BLAST results to TSV file',
+3422:        'tip_hmm_add':      'Add single HMM profile file for domain annotation',
+3423:        'tip_hmm_add_multi': 'Add multiple HMM profile files at once',
+3424:        'tip_hmm_search':   'Search all ORFs against loaded HMM profiles',
+3425:        'tip_af3_add_sel':  'Add currently selected ORF to AF3 prediction list',
+3426:        'tip_af3_add_hmm':  'Add all ORFs with HMM hits to AF3 prediction list',
+3427:        'tip_af3_add_all':  'Add ALL ORFs in the genome to AF3 prediction list (genome-wide interactome scan)',
+3429:        'tip_af3_remove':   'Remove selected ORFs from AF3 prediction list',  
+3430:        'tip_af3_clear_all': 'Clear all ORFs from AF3 prediction list',
+3431:        'tip_af3_generate': 'Generate AF3 jobs based on selected prediction mode',
+3433:        'tip_af3_ranking':  'Show ranking of AF3 predictions by confidence scores',
+3434:        'tip_af3_clear_jobs': 'Clear all generated AF3 jobs',
+3440:        # ── AF3 tab ──
+3443:        'af3_add_hmm':          '📋 Add HMM Hits',
+3451:        'af3_export_json':      '💾 Export AF3 JSON',
+3454:        'af3_export_slurm_array': '⚡ SLURM Array (anti-OOM)',
+3459:        'hmm_add':              '📂 Add HMM Profile',
+3464:        'hmm_profiles_frame':   '📋 Loaded HMM Profiles',
+3465:        'blast_query_title':    '🔬 BLASTp — Paste your protein query sequence',
+3470:        'blast_run':            '🚀 Run BLASTp',
+3493:        'blast_dlg_title':      '🔬 BLAST Parameters',
+3506:        'hmm_dlg_title':        '🧬 HMM Search Parameters',
+3513:        'hmm_not_found':        '❌ HMMER3 not found',
+3517:        'tip_pyrodigal':        'Predict genes using Pyrodigal (Prodigal algorithm) — more accurate gene calling',
+3518:        'pyrodigal_mode':       'Pyrodigal Mode:',
+3521:        'pyrodigal_not_avail':  'Pyrodigal not installed. Install: pip install pyrodigal',
+3522:        # BLAST Command Preview
+3523:        'blast_cmd_preview':    '⌨️ BLAST Command Preview (editable)',
+3535:def t(key: str) -> str:
+3560:context and AlphaFold-based structural prediction.
+3565:  1. Gene prediction   — find protein-coding ORFs (Pyrodigal, a
+3567:  2. Domain annotation — assign HMM/Pfam domains and BLAST hits to
+3569:  3. Interaction set   — build AlphaFold 3 / ColabFold jobs from
+3572:  4. Structure scoring — import AF3 output and rank pairs by ipTM,
+3584:                             method: Pyrodigal, Hybrid, or Automatic.
+3585:  • Annotate HMM (Pfam A)    Bulk-annotate EVERY ORF against a full
+3588:  • Annotate all ORFs HMM    Apply the manually loaded HMM profiles
+3589:                             to all ORFs (per-profile HMM tab).
+3590:  • (Export → Genome Map → PDF)  Save the genome map as a vector PDF.
+3591:                              (formerly the Export Map PDF button)
+3598:  • Parameters   ORF, BLAST and HMM/Pfam thresholds.
+3606:    Genome · BLAST query · BLAST results · DNA · Protein · Domains ·
+3607:    Neighborhood · HMM · AlphaFold · Submit AF3 · Results · PPI Map
+3615:  ppigFinder window as a vector PDF. The file is saved silently into a
+3618:  filename like "<genome>_YYYYMMDD_HHMMSS.pdf". The status bar shows
+3626:                          size, GC%, HMM hit, score, source and an
+3627:                          AF3 column. Right-click for actions.
+3632:  Genome, BLAST query, BLAST results, DNA, Protein, Domains,
+3633:  Neighborhood, HMM, AlphaFold, Submit AF3 via Server, Interaction
+3643:  • Pyrodigal  ML-based prokaryotic gene caller (recommended).
+3644:  • Hybrid     Pyrodigal first, then a 6-frame gap-filler for
+3645:               regions Pyrodigal left unannotated.
+3652:STAGE 2 — DOMAIN ANNOTATION (HMM / Pfam / BLAST)
+3655:PER-PROFILE HMM (HMM right-panel view)
+3656:  Load one or more .hmm profiles ("Add HMM Profile" / "Add Multiple
+3657:  Profiles"), then "Search All ORFs". Hits populate the HMM column
+3658:  and the colored alignment view. Uses HMMER3 if available, otherwise
+3661:BULK Pfam-A ANNOTATION  (toolbar: "Annotate HMM (Pfam A)")
+3665:    2. Click "Annotate HMM (Pfam A)" and select that file.
+3672:  Requires HMMER3 (native or via WSL on Windows). Set the threshold in
+3673:  Parameters → HMM Parameters: the Pfam gathering cutoff (--cut_ga,
+3679:  (selected)" in the HMM panel. This runs hmmsearch (Pfam-A as query,
+3681:  the colored HMM/Match/Protein alignment in the HMM results panel.
+3685:BLAST
+3686:  Configure and run blastp in the BLAST views to add homology
+3687:  evidence. Uses BLAST+ if installed, otherwise a built-in k-mer
+3691:STAGE 3 — BUILDING ALPHAFOLD JOBS  (AlphaFold view)
+3695:  Add entries with: Add Selected ORF, Add HMM Hits, Add All ORFs
+3696:  (with a size/HMM filter dialog), or Customize new sequence. The Type
+3704:  • Right-click any row → "Edit sequence for AF3 job" to trim/replace
+3709:    and in the Custom complex builder. RNA/DNA are exported to AF3
+3720:  • HMM Hits vs Each Other          all HMM-annotated ORFs pairwise.
+3736:  AF3 JSON Group Config, which only controls how many jobs are packed
+3737:  per batch/SLURM JSON file.
+3740:  • Export AF3 JSON         one JSON per job, or a single batch JSON.
+3745:  • SLURM array export      numbered JSON batches + a ready sbatch
+3751:Import AF3 output folders, then rank predicted pairs. Key columns:
+3781:                              (ORFs, HMM hits, AF3 jobs, custom
+3791:  BLAST+   ❌ → built-in k-mer aligner (less sensitive)
+3792:  HMMER3   ❌ → built-in PSSM scanner (per-profile only; bulk Pfam-A
+3793:                and per-selection Pfam-A search require HMMER3)
+3794:  Pyrodigal❌ → use Automatic mode instead
+3814:     status (BLAST+, HMMER3, Pyrodigal).
+3820:  2. Use the dropdown to pick Pyrodigal (recommended), Hybrid, or
+3829:  2. Toolbar → "Annotate HMM (Pfam A)" → select the file.
+3831:     take minutes to hours). Domains fill the HMM column and the map.
+3836:  2. Inspect the colored alignment in the HMM view; optionally
+3839:Option 3 — your own HMM profiles:
+3840:  1. Right panel → HMM → "Add HMM Profile" / "Add Multiple Profiles".
+3846:  1. Right panel → AlphaFold.
+3847:  2. Add ORFs (Add Selected ORF / Add HMM Hits / Add All ORFs) and/or
+3859:  6. Export: "Export AF3 JSON" (protein/RNA/DNA) or "Export ColabFold
+3869:  1. Run jobs on the AlphaFold Server, ColabFold, or your HPC (see the
+3870:     "Submit AF3 via Server" view).
+3871:  2. Right panel → Interaction Results → "Load AF3 results directory".
+3886:    direct view buttons on the menu bar (Genome / BLAST query / … /
+3889:    as a vector PDF. The file is saved silently next to the script
+3900:It needs PyQt (6 or 5), matplotlib and numpy as a minimum. Pyrodigal,
+3901:HMMER3, BLAST+ and paramiko unlock the full pipeline.
+3910:  pip install PyQt6 matplotlib numpy pyrodigal paramiko
+3911:  # plus BLAST+ and HMMER3 (see per-platform sections below)
+3920:HMMER3 (needed for Pfam-A annotation) and BLAST+ install cleanly there.
+3925:       pip install PyQt6 matplotlib numpy pyrodigal paramiko
+3929:1.2  RECOMMENDED — WSL for HMMER3 and BLAST+
+3936:  • ppigFinder auto-detects HMMER/BLAST inside the default WSL distro
+3937:    and calls them transparently (you will see "HMMER3 ✅ via WSL").
+3942:  • BLAST+: install the NCBI win64 .exe and add its bin folder to PATH.
+3943:  • HMMER3: official Windows binaries are limited; WSL is preferred.
+3944:    Without HMMER3 the per-profile HMM tab still works via the built-in
+3962:       pip install PyQt6 matplotlib numpy pyrodigal paramiko
+3965:       pip install PyQt6 matplotlib numpy pyrodigal paramiko)
+3972:       pip install paramiko
+3976:  HMMER3 and BLAST+ on PATH are detected automatically
+3977:  ("HMMER3 ✅", "BLAST+ ✅").
+3984:       pip install PyQt6 matplotlib numpy pyrodigal paramiko
+3994:  pyrodigal      STRONGLY  high-quality ORF prediction (Pyrodigal &
+3996:  HMMER3         RECOMMENDED  per-profile + bulk Pfam-A annotation
+3998:  BLAST+         RECOMMENDED  homology evidence (blastp)
+3999:  paramiko       OPTIONAL  HPC SSH/SFTP job submission
+4005:  BLAST+    ✅  blastp x.xx.x      (or "via WSL")
+4006:  HMMER3    ✅  hmmer x.x          (or "via WSL")
+4007:  Pyrodigal ✅  x.x.x
+4010:  BLAST+   ❌ → built-in k-mer aligner is used (less sensitive)
+4011:  HMMER3   ❌ → built-in PSSM scanner (per-profile only; bulk Pfam-A
+4013:  Pyrodigal❌ → use Automatic ORF mode
+4024:Pyrodigal fails to build on Windows (compiler error)
+4029:  → Ensure HMMER3 is installed (conda install -c bioconda hmmer, or in
+4036:    only. Use Export AF3 JSON for nucleic-acid jobs.
+4054:class AnalysisWorker(QThread):
+4060:    def __init__(self, fn, *args, **kwargs):
+4066:    def run(self):
+4078:class GenomeMapWidget(QWidget):
+4083:    def __init__(self, parent=None):
+4099:    def set_data(self, dna_length, orfs, hmm_profiles=None, dna_sequence=""):
+4113:    def set_zoom(self, level, anchor_x: float | None = None):
+4131:    def _clamp_pan(self):
+4139:    def wheelEvent(self, event):
+4155:    def mousePressEvent(self, event):
+4168:    def mouseReleaseEvent(self, event):
+4171:    def mouseMoveEvent(self, event):
+4180:    def resizeEvent(self, event):
+4186:    def paintEvent(self, event):
+4208:        # Build HMM color map AND per-ORF hit list (v29.9.3 partial colouring)
+4263:        def _fmt_bp(v):
+4406:                #   - if no HMM hits at all, we fall back to the primary
+4407:                #     HMM colour (legacy v29.7 behaviour) so users still
+4499:class _PpiAnalysisCanvas(QWidget):
+4512:    def __init__(self, parent=None):
+4532:    def _draw_axes(self, painter, w, h, x_min, x_max, y_min, y_max, margin=70):
+4597:    def export_svg(self, path):
+4614:    def export_png(self, path, scale=4):
+4631:    def paintEvent(self, ev):
+4638:    def _hit_test(self, x, y, radius=10):
+4653:    def mousePressEvent(self, ev):
+4683:    def mouseMoveEvent(self, ev):
+4714:class _PpiScatterWidget(_PpiAnalysisCanvas):
+4716:    def __init__(self, parent=None):
+4726:    def set_data(self, points, profiles, metric, threshold=None):
+4741:    def set_data_generic(self, points, profiles, y_label, threshold=None):
+4752:    def paint(self, painter, w, h):
+4756:                             "No data. Load AF3 results then click Refresh.")
+4803:        def _draw_shape(p_paint, cx, cy, r, _shape):
+4858:class _PpiHistWidget(_PpiAnalysisCanvas):
+4859:    def __init__(self, parent=None):
+4868:    def set_data(self, values, metric, threshold=None):
+4877:    def paint(self, painter, w, h):
+4910:class _PpiRocWidget(_PpiAnalysisCanvas):
+4911:    """Generic ROC: positive set chosen by the user from any HMM profile."""
+4912:    def __init__(self, parent=None):
+4921:    def set_data(self, ranked, positives, positive_label="(none)"):
+4936:    def paint(self, painter, w, h):
+4961:class _Ppi2DScatterWidget(_PpiAnalysisCanvas):
+4969:    def __init__(self, parent=None):
+4973:        self._title   = 'Correlative graph (coloured by HMM)'
+4978:    def set_data(self, points, profiles):
+4987:    def set_data_generic(self, points, profiles, x_label, y_label,
+4997:    def paint(self, painter, w, h):
+5046:        def _draw_shape(p_paint, cx, cy, r, _shape):
+5115:class _PpiNeighDensityWidget(_PpiAnalysisCanvas):
+5116:    def __init__(self, parent=None):
+5124:    def set_data(self, density, dna_length):
+5129:    def paint(self, painter, w, h):
+5150:class _PpiDomainHeatmapWidget(_PpiAnalysisCanvas):
+5159:    def __init__(self, parent=None):
+5166:    def set_data(self, matrix, labels):
+5176:    def paint(self, painter, w, h):
+5180:                             "No HMM-pair data. Are there HMM hits and HIGH arcs?")
+5236:class _PpiArcMapWidget(QWidget):
+5254:    def __init__(self, parent=None):
+5287:    def set_data(self, dna_length, orfs, hmm_profiles, arcs):
+5297:    def _genomic_to_x(self, pos, w):
+5308:    def _x_to_genomic(self, x, w):
+5320:    def _arc_colour(arc):
+5332:    def _orf_colour(orf_idx, orfs, hmm_profiles):
+5333:        """Return fill and border colours for an ORF based on HMM hits."""
+5336:        # Check if this ORF has an HMM hit
+5346:    def paintEvent(self, event):
+5361:                             "Load a genome and AF3 results, then click Refresh")
+5538:    def _arc_hit(self, pos):
+5551:    def _orf_hit(self, pos):
+5559:    def mouseMoveEvent(self, event):
+5577:    def mousePressEvent(self, event):
+5601:    def mouseReleaseEvent(self, event):
+5608:    def wheelEvent(self, event):
+5629:class _OrfNumericItem(QTableWidgetItem):
+5638:    def __init__(self, text: str):
+5643:    def _numeric_key(text: str) -> float:
+5661:    def __lt__(self, other: 'QTableWidgetItem') -> bool:
+5686:class WindowManager:
+5697:    def __init__(self, main_window: QMainWindow,
+5706:    def _available_screen_rect(self):
+5719:    def apply_default_size(self, width_pct=0.85, height_pct=0.90,
+5732:    def apply_relative(self, width_pct, height_pct, center=True):
+5747:    def apply_fixed(self, w, h, center=True):
+5755:    def apply_maximized(self):
+5758:    def apply_fullscreen(self):
+5761:    def center_on_screen(self):
+5768:    def save_geometry(self):
+5777:    def restore_geometry(self):
+5790:    def register_subwindow(self, key, widget, rel_w=0.6, rel_h=0.7,
+5808:    def open_custom_size_dialog(self):
+5825:class CustomSizeDialog(QDialog):
+5828:    def __init__(self, parent, mgr):
+5912:    def _on_preset_changed(self, idx):
+5925:    def _update_pixel_preview(self):
+5931:    def _apply_special(self, mode):
+5935:    def get_result(self):
+5962:class _DetachedTabWindow(QDialog):
+5970:    def __init__(self, content_widget, tab_label, tab_icon=None,
+5985:        if tab_icon is not None:
+5987:                self.setWindowIcon(tab_icon)
+5993:        self.tab_icon = tab_icon
+6050:    def closeEvent(self, event):
+6060:class DetachableTabWidget(QTabWidget):
+6067:    def __init__(self, parent=None):
+6082:    def _on_tab_double_clicked(self, idx):
+6087:    def mouseDoubleClickEvent(self, event):
+6102:    def addTab(self, widget, *args, **kwargs):
+6113:    def enable_body_double_click_detach(self):
+6127:    def eventFilter(self, obj, event):
+6145:    def _on_tab_context_menu(self, pos):
+6173:    def detach_tab(self, idx):
+6181:        icon = self.tabIcon(idx)
+6201:        win = _DetachedTabWindow(widget, label, icon,
+6212:    def _on_detached_closed(self, win):
+6228:                                      win.tab_icon, win.tab_label)
+6239:# FLEXIBLE AF3 SERVER SUBMISSION — Customisable command builder
+6248:AF3_DEFAULT_PROFILES = [
+6252:    # server-specific built-ins (SLURM, sbatch, PBS, LSF, ...) were
+6257:        "description": "Empty starter.  Type your AF3 / scheduler "
+6263:            "# Type the command(s) to run AF3 on YOUR server.\n"
+6274:    # Standard AlphaFold 3 reference command, documented by Google
+6277:    # (model_dir, db_dir and the AF3 install path) — everything else
+6279:    # default starter; for a Docker / Singularity / SLURM wrapper the
+6284:        "name":        "AlphaFold 3 — Standard local run",
+6286:                        "DeepMind AlphaFold 3 repository "
+6290:                        "Docker / Singularity / SLURM as needed."),
+6293:            "# AlphaFold 3 — standard local invocation.\n"
+6315:class AF3CommandBuilder:
+6316:    """Pure-logic AF3 command template resolver."""
+6325:    def detect_placeholders(template):
+6336:    def auto_context(prefix="af3_batch", parent_dir="~/af3_predictions",
+6356:    def resolve(template, context, computed=None):
+6362:                    ctx[key] = AF3CommandBuilder._resolve_computed(src, ctx)
+6365:        def _sub(m):
+6372:    def _resolve_computed(src, context):
+6391:        return AF3CommandBuilder.resolve(src, context, computed=None)
+6394:    def shell_quote_context(context):
+6397:        for key in AF3CommandBuilder.RUNTIME_SHELL_FIELDS:
+6403:class AF3ProfileManager:
+6404:    """Loads / saves AF3 server profiles to ~/.ppigfinder/af3_server_profiles.json"""
+6406:    def __init__(self, config_path=None):
+6418:    def load(self):
+6449:                    print(f"[AF3ProfileManager] backup error: {_e}")
+6456:                    print(f"[AF3ProfileManager] truncate error: {_e}")
+6477:            print(f"[AF3ProfileManager] v2.5 migration error: {_e}")
+6479:        # Built-ins are always rebuilt from AF3_DEFAULT_PROFILES
+6480:        self.profiles = [_copy.deepcopy(p) for p in AF3_DEFAULT_PROFILES]
+6493:                print(f"[AF3ProfileManager] load error: {e}")
+6519:        def _is_legacy(prof):
+6545:    def clear_user_profiles(self):
+6558:    def save(self):
+6564:            print(f"[AF3ProfileManager] save error: {e}")
+6566:    def get(self, profile_id):
+6572:    def names(self):
+6579:    def add_or_update(self, profile):
+6593:    def delete(self, profile_id):
+6601:    def duplicate(self, profile_id, new_name):
+6616:class FlexibleAF3SubmitWidget(QGroupBox):
+6618:    Replaces the legacy "AF3 Advanced Options" group with a fully
+6625:    def __init__(self, parent=None, profile_manager=None):
+6626:        super().__init__("⌨  AF3 Server Submission — Terminal & Profiles",
+6631:            "Type the command to run AlphaFold3 (or any scheduler) on YOUR "
+6638:        self.mgr = profile_manager or AF3ProfileManager()
+6647:    def _build_ui(self):
+6788:            "$ Type your AF3 / scheduler command here…\n"
+6825:    def _refresh_profile_combo(self):
+6832:    def _on_profile_changed(self, idx):
+6839:    def _load_profile(self, profile_id):
+6858:        detected = AF3CommandBuilder.detect_placeholders(prof.get('template', ''))
+6870:    def _build_param_widgets(self, params, read_only):
+6898:    def _on_template_changed(self):
+6904:        detected = AF3CommandBuilder.detect_placeholders(new_template)
+6919:    def _refresh_preview(self, *_):
+6923:        ctx = AF3CommandBuilder.auto_context(
+6930:        cmd = AF3CommandBuilder.resolve(template, ctx, computed)
+6934:    def _on_new_profile(self):
+6953:    def _on_duplicate_profile(self):
+6973:    def _on_save_profile(self):
+6990:    def _on_delete_profile(self):
+7012:    def _on_import_profile(self):
+7014:            self, "Import AF3 server profile", "", "JSON (*.json)")
+7034:    def _on_export_profile(self):
+7052:    def _on_reset_profiles(self):
+7083:    def _on_popout(self):
+7118:        dlg.setWindowTitle("⌨  AF3 Server Submission — Terminal & Profiles")
+7133:            "<b>📌 Detached AF3 Builder</b> &nbsp; "
+7136:            "Submit AF3 tab)</span>")
+7154:        def _on_dlg_close(event):
+7165:                print(f"[AF3 popout] re-dock error: {e}")
+7176:    def build_command(self, context):
+7185:        return AF3CommandBuilder.resolve(template, ctx, computed)
+7187:    def current_profile_summary(self):
+7192:        return f"# AF3 profile: {prof['name']}"
+7194:    def get_state(self):
+7203:    def set_state(self, state):
+7220:                detected = AF3CommandBuilder.detect_placeholders(tmpl)
+7233:# END of helper classes.  Main app class follows.
+7237:class ppigFinderApp(QMainWindow):
+7239:    def __init__(self):
+7265:        # HMM
+7299:        # AlphaFold3
+7301:        # Custom AF3 sequence entries (v2.9.2): user-supplied protein/RNA/DNA
+7307:        # Pyrodigal parameters (persisted across runs)
+7318:        # AF3 token-limited fragmentation (v2.9.1)
+7319:        # Orthogonal to AF3 JSON Group Config: this splits oversized
+7332:        self._ssh_client = None
+7336:        self._hpc_poll_timer = QTimer()
+7341:        # AF3 Analysis (v2)
+7346:        # BLAST params (stored as plain values, no tkinter vars)
+7357:        # HMM params
+7392:                QTimer.singleShot(_delay, self._remove_panels_menu_action)
+7394:                QTimer.singleShot(_delay, self._build_top_right_panel_buttons)
+7436:    def _setup_ui(self):
+7460:    def _apply_accessible_ui_defaults(self):
+7550:    def _prepare_table(self, table, compact=False):
+7565:    def _create_menus(self):
+7580:        # v29.11.3 — quick access to "Load AF3 results directory".  The
+7581:        # handler is shared with the button on the AF3 table results tab
+7584:        fm.addAction("📂 Load AF3 results directory...",
+7617:        em.addAction("🗺️ Genome Map → PDF (vector)...",
+7634:        em.addAction("🧬 Genomic PPI Map → SVG...",
+7640:        em.addAction("🔬 PPI Analysis — current view → SVG...",
+7645:        # AF3 results
+7646:        em.addAction("📈 AF3 results table → TSV...",
+7648:        em.addAction("📈 AF3 motifs → TSV...",
+7650:        em.addAction("📈 AF3 interface anchor windows → FASTA...",
+7654:        em.addAction("🖼️ Whole window → PDF screenshot (Ctrl+Shift+P)",
+7682:    def _build_window_menu(self):
+7725:        def _toggle_fs():
+7746:        # ── P+S shortcut: instant vectorized PDF figure export ────────────
+7759:    def _remove_panels_menu_action(self):
+7805:    def _build_panels_menu(self):
+7809:    def _core_right_panel_indices_for_top_buttons(self):
+7841:    def _compact_right_panel_label(self, label):
+7845:            "blast query":          "BLAST Q",
+7846:            "blast results":        "BLAST R",
+7848:            "submit af3 via server":"Submit AF3",
+7849:            "interaction results":  "AF3 table results",
+7850:            "results":              "AF3 table results",
+7858:    def _build_top_right_panel_buttons(self):
+7926:    def _refresh_top_right_panel_button_state(self):
+7938:    def _panel_tooltip_for(self, full_label):
+7946:            "genome":             "Genome view — linear coordinate map of every predicted ORF with HMM/Pfam annotations and strand orientation. Primary entry point after loading a FASTA file.",
+7947:            "blast query":        "BLAST query — paste or load a query protein and run BLASTp against any UniProt / RefSeq / custom database.",
+7948:            "blast results":      "BLAST results — tabular hits from the most recent BLASTp run, with E-value, identity and alignment.",
+7951:            "domains":            "Domains — per-ORF list of every HMM/Pfam profile hit found across the genome.",
+7953:            "hmm":                "HMM profile manager — load, search and visualise Pfam-A or custom HMM libraries against every predicted ORF.",
+7954:            "alphafold":          "AlphaFold job builder — organise selected ORFs into AlphaFold 3 batch jobs across seven interaction modes (Pairs, All-vs-All, Genomic Interactome, HMM Hits vs Each Other, Neighbours Interactome, etc.). Supports protein, RNA and DNA chains.",
+7955:            "submit af3":         "Submit AF3 — send the generated batch JSON to a remote HPC cluster (SLURM / PBS / LSF) or to the AlphaFold Server.",
+7956:            "interaction results":"AF3 table results — per-pair AlphaFold 3 prediction summary with PAE_min, cp_ipTM, contact maps and connected-component motif detection.",
+7957:            "results":            "AF3 table results — per-pair AlphaFold 3 prediction summary with PAE_min, cp_ipTM, contact maps and connected-component motif detection.",
+7971:    def _apply_top_menu_tooltips(self):
+7987:                tip = "File operations: open FASTA, load HMM, save/open project, export ORFs/figures, quit."
+7993:                        child.setToolTip("Load one or more HMM profile files for domain annotation.")
+7997:                        child.setToolTip("Save the current project (annotations, HMM library, AF3 results).")
+8005:                        child.setToolTip("Export the current main view as a vector PDF or raster image.")
+8011:                tip = "Configure analysis parameters: ORF prediction, BLAST+, and HMMER3 search."
+8015:                        child.setToolTip("Configure ORF prediction (start codons, min length, Pyrodigal vs six-frame, hybrid mode).")
+8017:                        child.setToolTip("Configure BLASTp parameters (E-value, word size, max targets, threads).")
+8019:                        child.setToolTip("Configure HMMER3 parameters (E-value, score thresholds, domain inclusion).")
+8033:                        child.setToolTip("Run diagnostics on external dependencies (BLAST+, HMMER3, Pyrodigal).")
+8051:    def _switch_right_view_by_index(self, idx):
+8057:    def closeEvent(self, event):
+8071:    def _create_toolbar(self):
+8082:        # v29.11.4 — Quick access to "Load AF3 results directory" alongside
+8084:        # button on the AF3 table results tab (delegates to
+8086:        # and then switches to the AF3 table results tab).
+8087:        self._btn_load_af3 = QPushButton("📂 Load AF3 results directory")
+8090:            "Load an AlphaFold 3 results directory (same as "
+8091:            "File → Load AF3 results directory, or the button on the "
+8092:            "AF3 table results tab).")
+8099:        # Pyrodigal option — runs directly with current _pyro_params
+8104:        # Hybrid option — Pyrodigal primary + 6-frame gap-filler
+8123:        # "Translate genome" and the per-profile "Annotate HMM".
+8134:        # v29.11.3 — "Export Map PDF" button removed; the function is now
+8135:        # reached from the new Export menu (Export → Genome Map → PDF).
+8158:        lbl = QLabel(f"  BLAST+{blast_st}  HMMER3{hmmer_st}  Pyrodigal{pyrod_st}")
+8164:    def _create_statusbar(self):
+8170:    def _create_central(self):
+8194:    def _init_filter_vars(self):
+8201:        # BLAST config
+8205:            algo_choices.append("NCBI BLAST+ (external)")
+8213:    def _create_center_panel(self):
+8323:                'HMM','Score','Source','Obs',
+8324:                'AF3','Partner','ipTM','PAE_inter',
+8405:    def _create_right_navigation_bar(self):
+8435:        action_menu.addAction("AlphaFold jobs",
+8436:                              lambda: self._switch_right_view_by_label("AlphaFold"))
+8451:    def _create_right_panel(self):
+8478:        # Tab 1: BLAST Query
+8480:        # Tab 2: BLAST Results
+8490:        # Tab 7: HMM
+8492:        # Tab 8: AlphaFold
+8496:        # Tab 10: AF3 Analysis (v2) — after Server
+8520:    def _right_view_label(self, idx):
+8523:        for icon in ("📊", "🖥", "🧬", "📈", "🔗", "🧪", "🌐", "📋", "🔬"):
+8524:            text = text.replace(icon, "")
+8526:        if "BLAST Query" in text:
+8527:            return "BLAST query"
+8528:        if "BLAST Results" in text:
+8529:            return "BLAST results"
+8536:    def _sync_right_view_selector(self):
+8556:    def _on_right_view_combo_changed(self, idx):
+8563:    def _on_right_tab_changed(self, idx):
+8576:    def _switch_right_view_by_label(self, label):
+8585:    def _detach_current_right_view(self):
+8590:    def _redock_detached_right_views(self):
+8600:    def _create_genome_tab(self):
+8623:            f"  BLAST+     {blast_ok}  {BACKENDS.get('blast+',{}).get('version','')}\n"
+8624:            f"  HMMER3     {hmmer_ok}  {BACKENDS.get('hmmer3',{}).get('version','')}\n"
+8625:            f"  Pyrodigal  {pyrod_ok}  {BACKENDS.get('pyrodigal',{}).get('version','')}")
+8634:    def _create_blast_query_tab(self):
+8711:    def _create_blast_results_tab(self):
+8736:            "<p style='color:#667085'>Run a BLAST search to see ranked ORF hits here.</p>")
+8740:    def _create_dna_tab(self):
+8754:    def _create_protein_tab(self):
+8768:    def _create_domains_tab(self):
+8775:            "Domain annotations appear here after HMM analysis or ORF selection.")
+8779:    def _create_neighborhood_tab(self):
+8801:    def _create_hmm_tab(self):
+8810:        for text, slot in [("Add HMM Profile", self._add_hmm_profile),
+8817:            if text == "Add HMM Profile":
+8840:        self._hmm_status_label = QLabel("No HMM profiles loaded")
+8848:        # ── Top: Loaded HMM Profiles table ──
+8849:        profiles_group = QGroupBox("📋 Loaded HMM Profiles")
+8863:        # menu with "Edit profile" + "Submit N hit ORFs to AF3..." sub-menu.
+8880:        # ── Bottom: HMM search results ──
+8891:            "<p style='color:#667085'>Add one or more HMM profiles, then search all ORFs to populate this view.</p>")
+8899:    def _update_hmm_profile_table(self):
+8900:        """Refresh the HMM profiles table from self.hmm_profiles."""
+8915:            f"{len(self.hmm_profiles)} HMM profile(s) loaded"
+8916:            if self.hmm_profiles else "No HMM profiles loaded")
+8920:    # v29.11.6 — HMM profile click → scroll the search-results browser
+8922:    def _hmm_profile_anchor_name(self, profile_name: str) -> str:
+8923:        """Return the HTML anchor name used to mark a profile's
+8924:        section in the HMM search-results browser.  Sanitises the
+8932:    def _on_hmm_profile_row_click(self, row: int):
+8933:        """Scroll the HMM search-results browser to the section for
+8978:    def _on_hmm_profile_right_click(self, pos):
+8979:        """v29.11.7 — focused context menu on the HMM profile table.
+8983:          (2) 🔮 Submit N hit ORFs to AlphaFold 3 → sub-menu
+8984:        The AF3 sub-menu is disabled with an explanatory tooltip when
+9021:        # ── (2) AF3 sub-menu ───────────────────────────────────────
+9029:            "to AlphaFold 3...")
+9038:                "to AF3 list",
+9042:                "Append every hit ORF to the AlphaFold 3 batch list "
+9052:                    "Generate every unordered pairwise AF3 job among the "
+9065:                "For each hit ORF, generate AF3 jobs against its genomic "
+9067:                "the AF3 'Neighbors per side' spinbox.")
+9076:                "For each hit ORF, generate an AF3 homodimer job.")
+9085:    def _af3_quick_homodimer_many(self, orf_indices):
+9110:    def _remove_hmm_profile(self):
+9111:        """Remove selected HMM profile."""
+9118:    def _edit_hmm_profile(self):
+9119:        """Edit color and function of selected HMM profile."""
+9122:            QMessageBox.information(self, "HMM", "Select a profile in the table first.")
+9161:        def _update_preview(new_text=None):
+9177:        def _open_picker():
+9185:            picked = _QCD.getColor(start, dlg, "Choose HMM colour")
+9231:    def _create_af3_tab(self):
+9276:            "to immediately create an AF3 pairwise prediction job for those ORFs.\n"
+9293:            "RNA/DNA are exported to AF3 JSON only (skipped by ColabFold).")
+9309:        self._af3_sel_table.setHorizontalHeaderLabels(['ORF', 'Position', 'Size(aa)', 'HMM', 'Note', 'Type'])
+9371:        # Restored 'All vs All (Selected ORFs)', 'HMM Hits vs Each Other',
+9373:        _AF3_MODES = [
+9377:            "HMM Hits vs Each Other",
+9382:        self._af3_mode_combo.addItems(_AF3_MODES)
+9392:        #    readable when the AlphaFold tab is docked in a narrow side panel.
+9404:        self._AF3_MODE_DESCS = {
+9420:                "Scales as N×(N-1)/2 — use with caution for large lists. Best after HMM filtering.",
+9422:            "HMM Hits vs Each Other":
+9423:                "🟤  <b>HMM Hits vs Each Other</b><br>"
+9424:                "Pairs every ORF with an HMM hit against every other ORF with an HMM hit in the selection list.<br>"
+9444:                "Maximum coverage — high job count. Use size / HMM filters to manage scale.<br>"
+9460:        def _update_mode_desc(idx):
+9461:            txt = self._AF3_MODE_DESCS.get(
+9474:        def _update_job_preview():
+9486:            elif mode.startswith("HMM Hits"):
+9539:                    "Configure optional token-limited fragmentation of oversized AF3 jobs.\n"
+9540:                    "This is independent from AF3 JSON Group Config: it splits individual\n"
+9558:        # AF3 JSON export menu button (individual vs batch)
+9565:        _slurm_act.setToolTip('Export JSONs in numbered batches + one SLURM array script. '
+9566:                              'Submit with: sbatch run_array.sh — one command, no OOM.')
+9680:    def _show_action_required(self, title: str, message: str, next_steps=None):
+9689:    def _show_operation_error(self, title: str, summary: str, details: str = ''):
+9696:    def _run_worker(self, fn, on_done, on_error=None, *args, **kwargs):
+9710:    def analyze_orfs(self):
+9726:        def work():
+9729:        def done(orfs):
+9740:    def analyze_orfs_pyrodigal(self):
+9741:        """Run Pyrodigal using current _pyro_params (set via Parameters menu)."""
+9745:                "Pyrodigal gene prediction needs a nucleotide genome sequence.",
+9748:                 "Then run Pyrodigal again."])
+9752:                "Pyrodigal is not installed",
+9753:                "Pyrodigal mode is unavailable in this Python environment. "
+9756:                 "Run Help -> System Check to confirm Pyrodigal is detected.",
+9757:                 "Use Automatic mode if you want to continue without Pyrodigal."])
+9762:            f"Running Pyrodigal — mode={mode_str}, "
+9766:        def work():
+9789:        def done(orfs):
+9799:                f"Pyrodigal: {len(orfs)} genes | "
+9805:    def analyze_orfs_hybrid(self):
+9806:        """Hybrid mode: Pyrodigal as primary caller, 6-frame scanner fills gaps."""
+9817:                "Hybrid mode requires Pyrodigal",
+9818:                "Hybrid mode uses Pyrodigal as the primary gene caller and "
+9820:                ["Install Pyrodigal with: pip install pyrodigal",
+9825:        # Collect Pyrodigal params
+9837:            f"⏳ Hybrid mode — Pyrodigal (mode={mode_str}, "
+9841:        def work():
+9847:                # Pyrodigal params
+9856:        def done(orfs):
+9870:    def classify_all_domains(self):
+9874:                "Domain annotation needs predicted ORFs before HMM hits can "
+9878:                 "Load HMM profiles and run HMM search.",
+9879:                 "Then click Annotate HMM."])
+9883:                "No HMM results available.\n\n"
+9884:                "1. Go to the HMM tab\n2. Add HMM profiles\n"
+9885:                "3. Click 'Search All ORFs'\n4. Then click 'Annotate HMM' again")
+9898:                    'description': profile_func or f"HMM: {profile_name}",
+9899:                    'system': profile_func or 'HMM hit', 'role': 'HMM',
+9910:        self._status.showMessage(f"✓ {td} HMM domains annotated")
+9915:    def annotate_pfam_library(self):
+9924:                 "Then click 'Annotate HMM (Pfam A)'."])
+9927:        # Hard requirement: HMMER3. The PSSM fallback cannot scan a full
+9931:                self, "HMMER3 required",
+9932:                "Full Pfam-A annotation needs HMMER3 (hmmpress + hmmscan), "
+9936:                "  (or, on Windows, install HMMER inside WSL)\n\n"
+9937:                "The per-profile HMM tab still works with the built-in "
+9946:            "HMM library (*.hmm *.hmm.gz *.gz);;All files (*)")
+10006:            def _on_cancel():
+10019:        self._pfam_timer = QTimer(self)
+10021:        def _tick():
+10034:        def work():
+10040:        def cleanup():
+10048:        def done(hits):
+10055:        def on_error(msg):
+10066:    def _apply_pfam_hits(self, hits):
+10114:            "Domains now appear in the ORF table HMM column and on the "
+10120:    # Pfam-A (selected)" button in the HMM panel. Unlike the whole-genome
+10121:    # button, this keeps alignments and shows them in the HMM results panel
+10123:    # Loaded HMM Profiles list.
+10124:    def _pfam_search_orf_selection(self):
+10125:        """HMM-panel button: search the ORFs selected in the central table."""
+10139:    def _pfam_search_selection(self, orf_indices):
+10146:                self, "HMMER3 required",
+10147:                "Pfam-A search needs HMMER3 (hmmscan). Install it and restart:\n"
+10149:                "  (or install HMMER inside WSL on Windows).")
+10157:                start_dir, "HMM library (*.hmm *.hmm.gz *.gz);;All files (*)")
+10170:        def work():
+10175:        def done(hits):
+10181:            # Annotate the searched ORFs in the table (HMM column / map),
+10184:            # Show in the HMM text results panel WITH alignments (option b:
+10185:            # does NOT touch the Loaded HMM Profiles list).
+10187:            self._switch_right_view_by_label("HMM")
+10192:        def on_error(msg):
+10200:    def _merge_pfam_sel_into_annotation(self, hits, orf_indices):
+10232:    def _pfam_alignment_html(self, hits, title):
+10233:        """Build the colored HMM/Match/Protein alignment HTML for a hit list."""
+10235:        method = "HMMER3" + (" (via WSL)" if BACKENDS.get('hmmer3', {}).get('wsl') else "")
+10264:                            f"   HMM {hmm_reg}   Prot {prot_reg}")
+10282:                        html.append(f"\n│  <span style='color:#424242;'>HMM  {h_pos:>5}  </span>"
+10302:    def _render_pfam_selection_results(self, hits, title):
+10303:        """Show per-selection Pfam-A results (with alignments) in HMM panel."""
+10306:    def _archive_pfam_selection_to_tab(self):
+10340:    # BLAST
+10343:    def _build_blast_cmd_string(self):
+10359:            cmd += '\n\n# ⚠️  NCBI BLAST+ not detected — will use built-in Python algorithm'
+10362:    def _refresh_blast_cmd_preview(self):
+10366:    def _run_custom_blast_cmd(self):
+10369:    def run_blast(self):
+10374:                "BLAST search needs a protein query sequence.",
+10375:                ["Paste a raw amino-acid sequence or FASTA protein sequence in the BLAST Query tab.",
+10377:                 "Click Run BLASTp again."])
+10383:                "The BLAST query does not look like a valid protein sequence.",
+10391:                "BLAST searches the protein products predicted from the loaded genome.",
+10394:                 "Then run BLASTp again."])
+10400:        self._status.showMessage(f"⏳ BLAST: {len(qp)} aa vs {len(self.orfs)} ORFs...")
+10407:        def work():
+10413:                    algo_used = "NCBI BLAST+"
+10420:                algo_used = "NCBI BLAST+"
+10433:        def done(result):
+10439:                    f"(BLAST+ fell back — {ncbi_error[:80]})")
+10445:    def _show_blast_results(self, hits, query_protein, algo_used):
+10446:        """Display BLAST results with colored HTML alignments."""
+10454:        html.append(f"<b style='color:#1A237E;'>BLASTp — {algo_used}</b>")
+10550:    def _color_aln_html(self, seq, mid):
+10565:    def _color_mid_html(self, mid):
+10577:    def _parse_fasta_query(self, raw):
+10596:    def _validate_genome_sequence(self, seq: str, source_name: str = ''):
+10616:    def load_fasta(self):
+10646:                "AF3 job generation from scientifically invalid input.",
+10656:    def load_multi_fasta(self):
+10659:    def load_snapgene(self):
+10670:    def load_genbank(self):
+10680:    def _on_sequence_loaded(self, filepath):
+10687:    def load_hmm(self):
+10688:        f, _ = QFileDialog.getOpenFileName(self, "Load HMM",
+10689:            "", "HMM (*.hmm);;All (*)")
+10692:    def _add_hmm_file(self, filepath):
+10700:    def save_fasta(self):
+10726:    def _orf_table_headers(self):
+10732:    def _orf_table_rows_tsv(self, row_indices):
+10745:    def _orf_table_copy_selection(self):
+10757:    def _orf_table_copy_rows(self, all_rows=False):
+10767:    def _export_orf_table(self, fmt='tsv', include_seqs=False, annotated_only=False):
+10802:            'Source', 'Score', 'HMM_domains', 'HMM_evalue',
+10805:            'AF3_done', 'AF3_partner', 'ipTM', 'PAE_inter', 'Contact_region',
+10816:                    # HMM info
+10820:                    # AF3 info from analysis results
+10873:    def _export_orf_fasta(self, aa=True):
+10928:    def save_report_tsv(self):
+10963:    def _build_manifest(self, proj_dir=None):
+10965:        proj_dir: Path — if given, HMM/genome file paths are relative to it.
+10966:        Heavy AF3 arrays (pae_matrix, contact_probs, plddt_arr, token_res_ids)
+10970:        # HMM manifest
+10981:        # AF3 result score JSONs list
+10989:        # AF3 Analysis results
+11021:        # BLAST state
+11091:                # ── AF3 selection table ────────────────────────────────
+11133:            # ── HMM ─────────────────────────────────────────────
+11136:            # ── AlphaFold jobs ──────────────────────────────────
+11141:            # ── AlphaFold analysis ──────────────────────────────
+11144:            # ── BLAST ────────────────────────────────────────────
+11155:    def save_project(self):
+11157:        Includes ORFs, HMM hits, AF3 jobs and AF3 result metadata.
+11171:        # Cap blast HTML to avoid bloating the file
+11180:        def _bg_write():
+11215:            f"({len(self.orfs)} ORFs, {len(self.hmm_profiles)} HMM, "
+11216:            f"{n_af3} AF3 results, {kb:.0f} KB)")
+11222:            f"  HMM profiles: {len(self.hmm_profiles)}\n"
+11223:            f"  AF3 jobs:     {len(self.af3_jobs)}\n"
+11224:            f"  AF3 analysis: {n_af3} result(s) — metadata only\n"
+11230:    def save_project_as(self):
+11238:                results/              ← AF3 score JSONs
+11239:                blast/                ← BLAST query sequence
+11240:                af3_predictions/      ← full AF3 output folders (PAE, model.cif…)
+11281:        def _step(pct, msg):
+11303:        # 2. HMM profiles
+11304:        if not _step(12, "Copying HMM profiles..."): return
+11313:        # 3. AF3 result score JSONs
+11314:        if not _step(18, "Saving AF3 score files..."): return
+11332:        # 4. BLAST query
+11343:        # 5. AF3 prediction folders — the big one
+11354:            if not _step(pct, f"Copying AF3 folder {i+1}/{n_af3}: {name}"):
+11389:        def _do_write():
+11419:            f"({len(copied_jobs)} AF3 folders, {total_kb:.0f} KB total)")
+11425:            f"  hmm/              — {len(self.hmm_profiles)} HMM profile(s)\n"
+11426:            f"  results/          — AF3 score JSONs\n"
+11427:            f"  blast/            — BLAST query\n"
+11430:            f"  project.json      — lightweight manifest (AF3 arrays reloaded from folders)\n\n"
+11434:    def load_project(self):
+11560:        # ── 3. AF3 jobs ────────────────────────────────────────
+11568:        # ── Restore custom AF3 sequence entries (v2.9.2) ──────
+11571:        # ── Restore AF3 selection table (Bug 1 fix) ──────────
+11594:        # ── HMM profiles ──────────────────────────────────────
+11617:        # ── Re-inject HMM domains into ORFs (Bug 4 fix) ──────
+11630:                            'description': hit.get('profile_function', f'HMM: {pn}'),
+11631:                            'system':      hit.get('profile_function', 'HMM hit'),
+11632:                            'role':        'HMM',
+11639:        # ── AF3 result JSONs ──────────────────────────────────
+11662:        # ── BLAST ─────────────────────────────────────────────
+11669:            print(f"[load_project] BLAST state restore: {e}")
+11671:        # ── AF3 Analysis results (v2) ─────────────────────────
+11702:        # Full-copy projects may store AF3 analysis in lightweight form to avoid
+11717:                        print(f"[load_project] AF3 table populate: {e}")
+11721:                    print(f"[load_project] AF3 table populate: {e}")
+11724:                        f'\u26a0 AF3 analysis dir not found: {af3_dir} '
+11727:            # Repopulate the AF3 Analysis table
+11731:                print(f"[load_project] AF3 table populate: {e}")
+11820:        # Refresh Genomic PPI Map if AF3 results are loaded
+11837:            f"{n_hmm_hits} HMM hits | "
+11838:            f"{len(self.af3_jobs)} AF3 jobs ({n_af3_sel} sel) | "
+11839:            f"{n_af3a} AF3 analyses | "
+11848:            f'  HMM profiles:    {len(self.hmm_profiles)} ({n_hmm_hits} hits)',
+11849:            f'  HMM hits_all:    {len(self.hmm_hits_all)}',
+11850:            f'  AF3 selecionados:{n_af3_sel} ORFs na fila',
+11851:            f'  AF3 jobs:        {len(self.af3_jobs)}',
+11852:            f'  AF3 analyses:    {n_af3a} (com PAE/pLDDT)',
+11859:    def _script_run_directory(self):
+11860:        """Directory used for automatic print/PDF exports.
+11877:    def export_map_pdf(self):
+11878:        """Export genome map as PDF or PNG."""
+11886:            "PDF vectorized (*.pdf);;SVG vectorized (*.svg);;PNG Image (*.png);;All (*)")
+11909:                    # Make the PDF page landscape with the genome map
+11936:                        print(f"[ppigFinder] PDF page setup: {_pe}")
+11995:    def export_vector_figure(self, fmt=None, silent=True):
+12031:                "PDF vectorized (*.pdf);;"
+12032:                "SVG vectorized (*.svg);;"
+12052:            # ── PDF (vectorized) ─────────────────────────────────────────
+12090:                    # scale painter so window fits exactly on the PDF page
+12101:                    # PrintSupport not available — fall back to SVG
+12104:                    # fall through to SVG branch below
+12109:            # ── SVG (vectorized) ─────────────────────────────────────────
+12143:    def _export_svg_figure(self, f, w, h):
+12144:        """Render main window to SVG file."""
+12168:    def _figure_saved_msg(self, f, w, h, silent):
+12181:    def export_genbank(self):
+12189:    def export_snapgene(self):
+12206:    def _update_orfs_list(self):
+12217:        # Build lookup: orf_name → list of AF3 analysis results
+12244:            # AF3 columns — find best result for this ORF
+12298:                # Color AF3 columns by quality
+12344:    def _on_orf_note_changed(self, item):
+12360:    def _update_info(self):
+12372:    def _update_map(self):
+12381:    def _set_zoom(self, level):
+12386:    def _on_map_zoom_changed(self, level):
+12390:    def filter_orfs(self):
+12412:    def _on_text_orf_click(self, url):
+12413:        """Handle clicks on ORF links in BLAST/HMM results."""
+12422:    def _on_legend_click(self):
+12437:    def _update_hits_legend(self):
+12441:        # Collect all annotated ORFs (HMM + custom colored)
+12444:        # HMM hits
+12453:        # Custom colored ORFs (without HMM)
+12481:    def _on_orf_table_select(self):
+12496:    def _on_map_orf_click(self, idx):
+12501:    def _parse_orf_idx_from_text(text: str) -> int:
+12518:    def _show_orf_details(self, orf):
+12533:    def search_orf_in_map(self):
+12549:    def _select_and_center_orf(self, idx):
+12609:    def _on_orf_right_click(self, pos):
+12614:          (Ctrl+click), the multi-selection is preserved and the AF3 submenu
+12660:            # v29.11.2 — Open AF3 prediction folder, disabled if none exist
+12663:                f"📂 Open AF3 prediction folder"
+12669:                    "No AF3 prediction loaded contains this ORF.\n"
+12670:                    "Load AF3 results from the AF3 table results tab first.")
+12674:        # B) AlphaFold 3 prediction actions — adapt to selection size
+12680:            af3_sub = menu.addMenu("🔮 AlphaFold 3…")
+12682:                f"➕ Add ORF{orf_idx+1} to AF3 list",
+12697:            # v29.11.2 — Open AF3 prediction folders for every selected ORF
+12710:                def _open_multi(_dirs=list(_job_dirs_seen)):
+12713:                            self, "Open AF3 prediction folders",
+12727:                    f"📂 Open {len(_job_dirs_seen)} AF3 prediction folder"
+12751:                f"➕ Add {n_orfs} ORFs to AF3 list",
+12762:            # HMM sub-mode: only shown when ≥2 ORFs have HMM hits
+12767:                    f"🧬 Predict {len(hmm_orfs)} HMM hits vs each other",
+12773:                f"➕ Add {n_orfs} ORFs to AF3 list (no generate)",
+12808:    # ORF-table → AF3  helper methods  (added v2.0)
+12811:    def _switch_to_af3_tab(self):
+12812:        """Switch the right-panel tab widget to the AlphaFold prediction tab."""
+12816:    def _orf_table_resolve_sel_indices(self, sel_rows: list) -> list:
+12829:    def _orf_table_avg_residues(self, orf_indices: list) -> int:
+12837:    def _orf_table_af3_suggest_mode(self, orf_indices: list) -> str:
+12838:        """Heuristically suggest the best AF3 mode for a given set of ORFs."""
+12849:        # Check if ORFs all have HMM hits
+12856:            return "HMM Hits vs Each Other — all selected ORFs have domain annotations"
+12859:    def _orf_table_af3_add_multi(self, orf_indices: list, switch_tab: bool = True):
+12860:        """Add a list of ORF indices to the AF3 selection table.
+12861:        Silently skips duplicates. Optionally switches to the AF3 tab."""
+12891:        self._status.showMessage(f"✓ {added} ORF(s) added to AF3 list")
+12895:    def _orf_table_af3_predict_allvsall(self, orf_indices: list, label: str = "selected"):
+12896:        """Add ORFs to AF3 list, generate all-vs-all pairwise jobs, switch tab."""
+12898:            QMessageBox.warning(self, "AF3", "Run ORF analysis first!")
+12940:            f"→ AlphaFold tab")
+12942:    def _orf_table_af3_quick_neighbors(self, orf_indices: list):
+12943:        """Add ORFs to AF3 list, generate Pairs-vs-Neighbor jobs, switch tab."""
+12945:            QMessageBox.warning(self, "AF3", "Run ORF analysis first!")
+12992:            f"✓ {added} neighbor jobs from {len(orf_indices)} ORF(s), N={n_nb} → AlphaFold tab")
+12994:    def _orf_table_af3_quick_homodimer(self, orf_idx: int):
+12995:        """Add one ORF to AF3 list and generate its homodimer job, switch tab."""
+13023:        self._status.showMessage(f"✓ Homodimer job added for {hn} → AlphaFold tab")
+13025:    def _annotate_orf(self, orf, orf_idx):
+13069:    def _color_orf(self, orf, orf_idx):
+13115:    def _copy_to_clipboard(self, text):
+13119:    def _paste_clipboard(self):
+13123:    def _clear_query(self):
+13126:    def _validate_query(self):
+13136:    def load_blast_query_fasta(self):
+13142:    def _copy_blast_hit(self):
+13146:    def _copy_blast_all(self):
+13149:    def _save_blast_results(self):
+13150:        f, _ = QFileDialog.getSaveFileName(self, "Save BLAST Results", "", "Text (*.txt)")
+13154:    def _analyze_neighborhood(self):
+13190:        txt += f"{'ORF':<10} {'Dist(bp)':<10} {'Strand':<7} {'Size(aa)':<9} {'HMM':<25} {'Obs'}\n"
+13236:    def _add_hmm_profile(self):
+13237:        f, _ = QFileDialog.getOpenFileName(self, "Add HMM Profile", "", "HMM (*.hmm)")
+13240:    def _add_hmm_multi(self):
+13241:        files, _ = QFileDialog.getOpenFileNames(self, "Add Multiple HMM Profiles",
+13242:            "", "HMM files (*.hmm);;All files (*)")
+13246:            self._status.showMessage(f"✓ {len(self.hmm_profiles)} HMM profile(s) loaded")
+13248:    def _add_hmm_from_folder(self):
+13250:        d = QFileDialog.getExistingDirectory(self, "Select folder with HMM profiles")
+13255:            QMessageBox.information(self, "HMM",
+13262:        self._status.showMessage(f"✓ {len(self.hmm_profiles)} HMM profile(s) loaded")
+13264:    def _hmm_search_all(self):
+13266:            QMessageBox.warning(self, "HMM", "Run ORF analysis first!"); return
+13268:            QMessageBox.warning(self, "HMM", "Add HMM profiles first!"); return
+13269:        self._status.showMessage("⏳ Running HMM search...")
+13272:        def work():
+13290:        def done(result):
+13295:            self._status.showMessage(f"✓ HMM search: {len(all_hits)} hits")
+13299:    def _show_hmm_results(self, errors=None):
+13300:        """Display HMM results with colored alignments in HTML."""
+13301:        method = "HMMER3" if BACKENDS.get('hmmer3', {}).get('available') else "PSSM (built-in)"
+13307:        html.append(f"<b style='color:#0D47A1;'>HMM SEARCH — {method}{wsl_tag}</b>")
+13322:            # v29.11.6 — anchor so the HMM table can scroll to this section
+13334:                             f"{'E-value':<12} {'HMM region':<18} {'Protein region'}</b>")
+13375:                            # HMM consensus line
+13384:                            html.append(f"\n│  <span style='color:#424242;'>HMM    {h_pos:>5}  </span>"
+13420:    # ═══════ AF3 METHODS ═══════
+13423:    # CUSTOM AF3 SEQUENCE ENTRIES (v2.9.2)
+13431:    def _af3_clean_seq(self, raw):
+13444:    def _af3_validate_seq(self, seq, seq_type):
+13471:    def _af3_custom_dialog(self, preset=None):
+13477:        dlg.setWindowTitle("Custom AF3 sequence"
+13478:                           if not preset else "Edit AF3 job sequence")
+13483:            "Define a sequence to use directly in an AlphaFold 3 job. This does "
+13485:            "<b>RNA/DNA are exported to AF3 JSON only</b> (skipped by ColabFold).")
+13513:        def _refresh(*_):
+13521:                             + (" — RNA/DNA: AF3 JSON only" if st != 'protein' else ""))
+13551:    def _af3_add_custom_sequence(self):
+13566:    def _af3_add_custom_row(self, entry):
+13592:    def _af3_find_custom_entry(self, entry_id):
+13598:    def _af3_edit_row_sequence(self, row):
+13599:        """Edit the sequence used for a row's AF3 job.
+13649:    def _af3_resolve_entry_sequence(self, ident):
+13665:    def _af3_seq_block(self, seq_type, sequence, count=1):
+13666:        """Build the AF3 JSON sequence block for a given type."""
+13673:    def _af3_add_selected(self):
+13675:            QMessageBox.information(self, "AF3", "Select an ORF from the table first."); return
+13678:    def _af3_add_orf_by_index(self, orf_idx):
+13683:                self._status.showMessage(f"ORF{orf_idx+1} already in AF3 list"); return
+13692:    def _af3_add_hmm_hits(self):
+13694:            QMessageBox.information(self, "AF3", "No HMM hits. Run HMM search first."); return
+13712:        self._status.showMessage(f"✓ {added} HMM hits added")
+13714:    def _af3_add_all_orfs(self):
+13715:        """Add ALL predicted ORFs in the genome to the AF3 selection list.
+13718:        for pair-wise structural interaction prediction with AlphaFold 3.
+13736:            "All will be added to the AF3 selection list for genome-wide<br>"
+13758:        # HMM-only checkbox
+13759:        hmm_only_cb = QCheckBox("Only ORFs with HMM / BLAST annotation")
+13761:            "When checked, only ORFs that have at least one HMM hit or BLAST "
+13771:        def _update_count():
+13836:                # Collect HMM annotations for display
+13870:    def _af3_remove_orf(self):
+13875:    def _af3_clear_all(self):
+13881:    def _af3_show_job_size_config(self):
+13882:        """Configure optional token-limited fragmentation of individual AF3 jobs.
+13884:        This is intentionally orthogonal to the AF3 JSON Group Config used in
+13890:        dlg.setWindowTitle("AF3 Job Size Configuration")
+13896:            "<b>Token-limited AF3 job fragmentation</b><br>"
+13904:            "<b>AF3 JSON Group Config</b>. Group Config controls how many jobs "
+13905:            "are packed into each batch/SLURM JSON. This option limits the "
+13906:            "size of each individual AF3 prediction job.</span>")
+13977:            f"AF3 token fragmentation {state} — limit {self.af3_token_limit}, "
+13980:    def _af3_fragment_ranges(self, length, window, overlap):
+14002:    def _af3_name_with_fragment_ranges(self, job, a_rng, b_rng):
+14003:        """Build a safe coordinate-preserving fragmented AF3 job name."""
+14020:    def _af3_partition_pair_job(self, job):
+14021:        """Split a two-chain AF3 job into token-limited coordinate windows.
+14025:        the limit; this avoids ambiguous same-chain fragment semantics in AF3.
+14097:    def _af3_build_fragment_jobs(self, job, seq_a, seq_b, ranges_a, ranges_b, limit, warnings=None):
+14098:        """Create concrete AF3 sub-jobs from A and B coordinate windows."""
+14101:        parent = job.get('name', 'AF3_pair')
+14133:    def _af3_finalize_generated_jobs(self):
+14149:                    self, "AF3 token fragmentation — large expanded job set",
+14151:                    f"into <b>{len(expanded):,}</b> AF3 sub-jobs.<br><br>"
+14159:                    self._status.showMessage("AF3 job generation cancelled after token-fragmentation preview")
+14174:    def _af3_generate_jobs(self):
+14176:        if n_sel == 0: QMessageBox.warning(self, "AF3", "Select ORFs first!"); return
+14177:        if not self.orfs: QMessageBox.warning(self, "AF3", "Run ORF analysis first!"); return
+14217:                    f"This will generate up to <b>{estimated:,}</b> pairwise AF3 jobs<br>"
+14281:                    f"This will generate <b>{estimated:,}</b> pairwise AF3 jobs "
+14332:                    self, "AF3 — Selected vs Selected",
+14380:            def _tok_info(tok):
+14416:        # ── HMM Hits vs Each Other ───────────────────────────────────────────
+14417:        if mode.startswith("HMM Hits vs Each Other"):
+14422:                    self, "AF3 — HMM Hits vs Each Other",
+14423:                    "Need at least 2 ORFs with HMM hits in the selection list.\n"
+14424:                    "Run HMM search first, then use 'Add HMM Hits'.")
+14450:                f"✓ {len(self.af3_jobs)} jobs from {len(hmm_indices)} HMM-hit ORFs")
+14457:                    self, "AF3 — Hit vs All Selected",
+14524:        self._status.showMessage(f"✓ {len(self.af3_jobs)} AF3 jobs generated")
+14526:    def _af3_update_jobs_table(self):
+14572:    def _af3_export_json(self):
+14573:        if not self.af3_jobs: QMessageBox.warning(self,"AF3","Generate jobs first!"); return
+14588:            QMessageBox.warning(self, "AF3 Export",
+14591:            f"✓ {len(self.af3_jobs) - len(errors)} AF3 JSONs exported")
+14593:    def _af3_export_json_batch(self):
+14594:        """Export all AF3 jobs as a single batch JSON file for AlphaFold3."""
+14596:            QMessageBox.warning(self, "AF3", "Generate jobs first!")
+14602:            self, "Export AF3 Batch JSON", default_name, "JSON (*.json);;All (*)")
+14606:        # Create batch array - each job as individual AF3 format
+14614:                "version": 1  # AF3 API uses version 1 for batch
+14624:                f"✓ AF3 batch exported: {len(self.af3_jobs)} jobs → "
+14629:    def _af3_export_colabfold(self):
+14630:        if not self.af3_jobs: QMessageBox.warning(self,"AF3","Generate jobs first!"); return
+14639:            # rnaSequence/dnaSequence chain (these are AF3-JSON only).
+14666:                "skipped (ColabFold predicts proteins only). Use 'Export AF3 "
+14674:    def _af3_export_slurm_array(self):
+14675:        """Export AF3 jobs as numbered JSON batches + a ready-to-submit SLURM array script.
+14677:        One sbatch command submits all batches automatically — no manual loop needed.
+14678:        Each array task runs its own AF3 process, so RAM is fully released between batches
+14687:                run_array.sh    ← sbatch run_array.sh  (one command!)
+14691:            QMessageBox.warning(self, "SLURM Array Export", "Generate AF3 jobs first!"); return
+14695:        dlg.setWindowTitle("⚡ Export SLURM Array — anti-OOM batch splitter")
+14701:            f"<b>{n_jobs} AF3 jobs</b> will be split into batches.<br>"
+14702:            "Each batch runs as a SLURM array task — its own process,<br>"
+14703:            "RAM fully released between batches. <b>One sbatch command.</b>")
+14724:        time_edit.setToolTip("SLURM format: D-HH:MM:SS\nDaVinci: basic=3d | max50=8d | max90=15d")
+14729:        part_edit.setToolTip("DaVinci partitions:\n  basic : 72h  | 16 CPUs | 100 GB | 0 GPU\n  max50 : 8d   | 64 CPUs | 500 GB | 1 GPU  (recomendada para AF3)\n  max90 : 15d  | 110 CPUs| 1 TB   | 4 GPUs (jobs muito grandes)")
+14741:        grid.addWidget(QLabel("AF3 command on cluster:"), 6, 0)
+14745:        af3cmd_edit.setToolTip("AF3 command or path on the server")
+14757:        def _upd():
+14783:        out_dir = QFileDialog.getExistingDirectory(self, "Select output folder for SLURM array export")
+14806:            prog_dlg.setWindowTitle("SLURM Array Export")
+14840:# ppigFinder SLURM Array — {genome_safe}
+14841:# {n_jobs} AF3 jobs / {batch_size} per batch = {n_batches} array tasks
+14842:# Submit with:  sbatch run_array.sh
+14846:BATCH_DIR="{remote_base}/batches/batch_$(printf '%03d' $SLURM_ARRAY_TASK_ID)"
+14847:OUT_DIR="{remote_base}/results/batch_$(printf '%03d' $SLURM_ARRAY_TASK_ID)"
+14851:echo "[$(date)] Starting array task $SLURM_ARRAY_TASK_ID / {n_batches}"
+14857:# Run AF3 for every JSON in this batch
+14868:echo "[$(date)] Task $SLURM_ARRAY_TASK_ID complete."
+14880:    sbatch --job-name={genome_safe}_b${{i}} \
+14897:            f"✓ SLURM array: {n_jobs} jobs → {n_batches} batches × {batch_size} | "
+14898:            f"run_array.sh ready — sbatch run_array.sh to submit all at once")
+14905:            "  run_array.sh   <- sbatch run_array.sh",
+14913:            "  2. sbatch run_array.sh",
+14915:            f"O SLURM dispara os {n_batches} tasks automaticamente.",
+14918:        QMessageBox.information(self, "SLURM Array Export", _msg)
+14920:    def _af3_show_ranking(self):
+14924:            QMessageBox.information(self, "AF3 Ranking", "No results imported yet.")
+14940:        dlg.setWindowTitle(f"AF3 Ranking — {len(ranked)} result(s)")
+14958:    def _af3_clear_jobs(self):
+14967:    def _af3_rebuild_custom_rows(self, n_subunits: int | None = None):
+15024:    def _af3_add_custom_job(self):
+15027:        def _parse_orf_idx(text: str) -> int:
+15074:        # ── Build AF3 sequences list ──
+15114:    def _af3_jobs_right_click(self, pos):
+15115:        """Right-click on AF3 jobs table → enhanced context menu."""
+15159:    # AF3 selection-table helpers (NEW in v2.0)
+15162:    def _af3_sel_table_click(self, row, col):
+15163:        """Left-click a row in the AF3 selection table →
+15172:    def _af3_jobs_table_click(self, row, col):
+15173:        """Left-click a row in the AF3 jobs table →
+15182:    def _af3_update_predict_pair_btn(self):
+15184:        rows are highlighted in the AF3 selection table."""
+15194:    def _af3_predict_selected_pair(self):
+15195:        """Create AF3 pairwise jobs for the rows currently highlighted in the
+15196:        AF3 selection table via Ctrl+click (≥ 2 rows required).
+15206:            QMessageBox.warning(self, "AF3", "Run ORF analysis first!")
+15223:            QMessageBox.warning(self, "AF3", "Could not resolve ORF indices.")
+15269:    def _af3_sel_table_right_click(self, pos):
+15270:        """Right-click on the AF3 selection table → context menu."""
+15320:        # ── Edit / customize the sequence used for this AF3 job (v2.9.2) ──────
+15326:                "✏️  Edit sequence for AF3 job…",
+15333:            f"✖  Remove {n} ORF{'s' if n > 1 else ''} from AF3 list",
+15338:    def _af3_predict_single_vs_neighbors(self, orf_idx: int):
+15388:    def _af3_export_selected_jobs_json(self, rows: list):
+15409:            QMessageBox.warning(self, "AF3 Export",
+15414:    def _af3_delete_selected_jobs(self):
+15415:        """Delete selected rows from AF3 jobs table and internal list."""
+15424:    def keyPressEvent(self, event):
+15425:        """Handle Delete key for AF3 jobs table."""
+15439:    def _show_genome_map_params(self):
+15516:    def _show_ppi_plot_params(self):
+15615:        def _pick_col():
+15651:        def _restore():
+15702:    def _load_af3_results_from_menu(self):
+15703:        """File → Load AF3 results directory.  Delegate to the AF3 table
+15709:                self, "Load AF3 results",
+15710:                "The AF3 results loader is not available in this build.")
+15712:        # Switch the right panel to AF3 table results
+15714:            self._select_right_panel_by_label("AF3 table results")
+15718:    def _export_ppi_arc_map_svg(self):
+15719:        """Export the Genomic PPI Map as SVG — gentle fallback if the
+15730:            self, "Export PPI Map (SVG)",
+15734:    def _export_ppi_arc_map_tsv(self):
+15749:    def _export_ppi_analysis_svg(self):
+15750:        """Export the active PPI Analysis sub-view as SVG."""
+15760:            self, "Export PPI Analysis (SVG)",
+15763:    def _export_ppi_analysis_png(self):
+15777:    def _export_af3a_tsv(self):
+15778:        """Export the AF3 results table (TSV)."""
+15788:            self, "Export AF3 table",
+15789:            "Load AF3 results from the AF3 table results tab first.")
+15791:    def _export_af3a_motifs_tsv(self):
+15792:        """Export AF3 motif table (TSV)."""
+15802:            self, "Export AF3 motifs",
+15803:            "Load AF3 results first; motifs are computed per selected row.")
+15805:    def _export_af3a_anchor_windows(self):
+15806:        """Export AF3 interface anchor windows (FASTA)."""
+15817:            "Load AF3 results first; anchor windows depend on the "
+15820:    def _select_right_panel_by_label(self, label):
+15846:    def _show_orf_params(self):
+15847:        """Dialog for ORF analysis parameters — 6-frame scanner and Pyrodigal."""
+15877:        # ── Section 2: Pyrodigal ────────────────────────────────
+15880:        pf = QGroupBox(f"Pyrodigal {pyro_ver} (Translate genome → Pyrodigal)")
+15900:            "Single genome: trains Prodigal on the sequence (needs >= 100 kb).")
+15932:        pyro_min.setToolTip("Minimum protein length for Pyrodigal predictions.")
+15952:        # Start codons note for Pyrodigal
+15954:            "Start codons: Pyrodigal selects ATG / GTG / TTG automatically\n"
+15976:        def _toggle_filter(state):
+15998:        def _upd_info():
+16003:                info_box.setText("Pyrodigal not installed. Install: pip install pyrodigal")
+16029:            # Save Pyrodigal params
+16045:                f"Pyrodigal: mode={'meta' if self._pyro_params['meta'] else 'single'}, "
+16049:    def _show_blast_params(self):
+16062:            algo_choices.append("NCBI BLAST+ (externo)")
+16135:    def _show_hmm_params(self):
+16177:    def _show_manual(self):
+16180:    def _show_tutorial(self):
+16183:    def _show_install(self):
+16186:    def _show_system_check(self):
+16217:        def _export():
+16237:    def _show_help_dlg(self, title_key, content_key, width=720, height=560):
+16256:    def _show_help_interaction_results(self):
+16266:AF3 TABLE RESULTS (INTERACTION RESULTS) — ppigFinder v29.10
+16271:The AF3 table results tab (formerly "Interaction Results") imports
+16272:AlphaFold 3 output folders and displays ranked, annotated results for
+16274:for identifying real protein-protein interactions from large AF3
+16287:  1. Click "Load AF3 results directory" → select a folder containing one
+16288:     or more AF3 job subfolders (each must contain a
+16302:  ipTM             Interface pTM score (0–1). Measures how well AF3
+16308:  ranking_score    AF3's own combined confidence score
+16337:          → Focal domain contact confirmed by AF3 with high precision.
+16376:  min contact ≥   Minimum AF3 contact_probs value for a pixel to join
+16377:                  the core. contact_probs is AF3's internal probability
+16413:    • a schematic track: the protein backbone, any annotated Pfam/HMM
+16427:  (Annotate HMM (Pfam A) or per-selection Pfam-A search) so the domain
+16433:                        (AlphaFold-Multimer paper)
+16434:  [Abramson et al. 2024] AF3 contact_probs, ranking_score
+16447:    def _show_help_ppi_map(self):
+16462:Displays all AF3-predicted protein-protein interactions as curved
+16475:                    HMM annotation family (green = HMM hit, orange =
+16533:  Export SVG        Saves the entire arc map as a scalable vector
+16534:                    graphic (SVG) suitable for publication figures.
+16540:The Genomic PPI Map reads from the same data as the AF3 table results.
+16541:Click "Refresh" after loading new AF3 results or changing filters in
+16557:    def _show_help_ppi_analysis(self):
+16573:AF3-derived arc data displayed by the Genomic PPI Map.  The intent is
+16577:   • Scatter (per-ORF)   metric vs ORF index, dots coloured by HMM
+16580:                         population (any HMM profile, all annotated
+16595:  5. Export the visible sub-view as SVG (publication-grade vector)
+16631:   (any HMM-annotated ORF)   every ORF with at least one HMM hit
+16632:   <HMM profile name>        only ORFs hit by that specific profile
+16643:Dots remain coloured by HMM profile.  The classic "PAE_min × cp_ipTM"
+16656:   ↓ SVG    Export the visible sub-view as a scalable vector graphic
+16674:    def _show_help_references(self):
+16689:[1]  Larralde, M. (2022). Pyrodigal: Python bindings and interface to
+16690:     Prodigal. Journal of Open Source Software, 7(72), 4296.
+16692:     ► ORF prediction back-end ("Translate genome → Pyrodigal").
+16694:[2]  Hyatt, D. et al. (2010). Prodigal: prokaryotic gene recognition
+16698:     ► Underlying Prodigal algorithm (HMM + dynamic programming) on
+16699:       which Pyrodigal is based.
+16701:[3]  Camacho, C. et al. (2009). BLAST+: architecture and applications.
+16704:     ► Used by the BLAST Q / BLAST R panels (sequence search against
+16707:[4]  Eddy, S.R. (2011). Accelerated Profile HMM Searches.
+16710:     ► HMMER3 (hmmscan / hmmsearch) used by the HMM panel and the
+16711:       "Annotate HMM (Pfam A)" workflow.
+16722:     ► PAE heat-maps and pLDDT line plots in the AF3 table results
+16733:     prediction with AlphaFold. Nature, 596(7873), 583-589.
+16739:       value below ~5 Å indicates that AF3 is confident about the
+16744:     AlphaFold-Multimer. bioRxiv 2021.10.04.463034.
+16749:       dominates the ordinary pTM.  In AlphaFold-Multimer the
+16754:     biomolecular interactions with AlphaFold 3.
+16757:     ► AlphaFold 3 architecture, JSON input format and output files.
+16773:       AlphaFold tab).
+16776:     prediction of protein-protein interactions using AlphaFold2.
+16861:FOCAL METRICS (extracted directly from AF3 summary_confidences.json)
+16883:              out any contact within the sensitivity of AF3.
+16897:               no confident contact predicted at the AF3 resolution.
+16902:    were placed together, AF3 would predict the focal contact with
+16908:    and AF3 model version.  The defaults (3 Å / 8 Å / 0.50) reflect
+16930:    def _show_about(self):
+16942:            f"(Pyrodigal / 6-frame / Hybrid), HMM/BLAST annotation,\n"
+16943:            f"genomic neighbourhood analysis, and AlphaFold 3\n"
+16946:            f"  • New File → Load AF3 results directory... entry (same as the\n"
+16947:            f"    button on the AF3 table results tab)\n"
+16949:            f"    export — Genome Map PDF, ORF tables, PPI Map, PPI Analysis,\n"
+16950:            f"    AF3 results, full-window screenshot — in one place\n"
+16951:            f"  • The 'Export Map PDF' toolbar button moved to Export → Genome\n"
+16952:            f"    Map → PDF (vector); the underlying vector export is unchanged\n"
+16954:            f"    right click → focused menu with 'Open AF3 prediction folder',\n"
+16955:            f"    Pfam-A search, copy sequence, add to AF3 list\n"
+16956:            f"  • ORF table right click also exposes 'Open AF3 prediction\n"
+16962:            f"  • Ctrl+Shift+P → instant PDF screenshot of the whole window\n\n"
+16963:            f"Current session: {n_orfs:,} ORFs  |  {n_jobs:,} AF3 jobs  |  "
+16969:            f"  BLAST+     {blast_ok}\n"
+16970:            f"  HMMER3     {hmmer_ok}\n"
+16971:            f"  Pyrodigal  {pyrod_ok}\n"
+16979:    # AF3 ANALYSIS TAB  (v2)
+16982:    # v1.15 fixes (AlphaFold Analysis tab):
+16988:    #     a _NumericItem subclass with numeric __lt__.
+17003:    def _af3a_user_role():
+17010:    def _create_af3_analysis_tab(self):
+17028:        btn_load = QPushButton("📂 Load AF3 results directory")
+17074:        btn_pdf = QPushButton("📄 Export plots PDF")
+17075:        btn_pdf.setToolTip("Export all visible PAE/pLDDT plots to a PDF file")
+17136:        self._af3a_motif_core_spin.setValue(self._AF3_MOTIF_PAE_CORE)
+17146:        self._af3a_motif_ext_spin.setValue(self._AF3_MOTIF_PAE_EXT)
+17156:        self._af3a_motif_contact_spin.setValue(self._AF3_MOTIF_MIN_CONTACT)
+17166:        self._af3a_motif_size_spin.setValue(self._AF3_MOTIF_MIN_SIZE)
+17214:        # ── Explanatory info label (like AF3 mode description) ─────────
+17224:            "(AF3 <tt>summary_confidences.json</tt>). "
+17236:        def _make_hover(widget, msg):
+17238:            class _HE(QObject):
+17239:                def eventFilter(self_, obj, ev):
+17269:            "⚠ This does NOT change PAE_min or ipTM — those come from AF3 summary JSON directly. "
+17274:            "ipTM = interface pTM: measures how well AF3 predicts the relative positions of chains A and B (0–1). "
+17278:            "Reference: Evans et al. 2022 (AlphaFold-Multimer).")
+17301:            "<b>min contact ≥</b> — Minimum AF3 <tt>contact_probs</tt> score for a pixel to join the core mask. "
+17302:            "<tt>contact_probs</tt> is AF3's internal probability that two residues are in physical contact, "
+17352:        tg = QGroupBox("AF3 prediction results")
+17370:            0: "Job name — AF3 prediction folder identifier.",
+17376:                "[Evans et al. 2022, AlphaFold-Multimer]"),
+17381:            6: ("ranking_score — AF3 combined confidence metric. "
+17439:        for i, cw in enumerate(_AF3_ANALYSIS_TABLE_COLUMN_WIDTHS):
+17461:        # Keep refs to active canvases for PDF export
+17466:    # ── AF3 Analysis helpers ─────────────────────────────────────
+17468:    def _af3a_load_folder(self):
+17470:            self, "Select AF3 results folder")
+17476:    def _af3a_clear(self):
+17482:    # ── AF3 file classification (content-based) ───────────────
+17485:    # their filename, because the AF3 server sometimes writes files
+17491:    _AF3_SUMMARY_SIGNATURE_KEYS  = {'iptm', 'ptm', 'ranking_score'}
+17492:    _AF3_CONF_SIGNATURE_KEYS     = {'pae', 'atom_plddts', 'token_chain_ids'}
+17493:    _AF3_DATA_SIGNATURE_KEYS     = {'sequences', 'modelSeeds', 'dialect'}
+17497:    _AF3_MAX_JSON_SCAN_BYTES = 200 * 1024 * 1024   # 200 MB
+17500:    def _af3a_classify_json(cls, path: Path) -> str:
+17501:        """Classify an AlphaFold JSON by content, with filename hints only as
+17504:        v2.8 fix: AF3 local/DaVinci jobs may store the full PAE matrix in
+17513:          'data'         — AF3 job request / input sequence JSON
+17532:            # AF3 local output: this is the file that carries the full PAE
+17538:        if size > cls._AF3_MAX_JSON_SCAN_BYTES:
+17539:            # Very large JSONs in AF3 output folders are almost always full
+17554:                if (cls._AF3_SUMMARY_SIGNATURE_KEYS.issubset(keys)
+17564:                if cls._AF3_DATA_SIGNATURE_KEYS & keys:
+17586:            if cls._AF3_SUMMARY_SIGNATURE_KEYS.issubset(keys_seen):
+17591:            if cls._AF3_DATA_SIGNATURE_KEYS & keys_seen:
+17595:            # Without ijson, a >10 MB JSON in an AF3 output folder is more
+17601:    def _af3a_find_job_files(self, job_dir: Path) -> dict:
+17602:        """Find AF3 output files inside a job directory.
+17604:        v2.8: supports both AF3 Server-style folders
+17606:        AF3/DaVinci folders with replicate files
+17627:        def _idx(path: Path):
+17640:        def _load_small_json(path: Path):
+17650:        def _summary_score(path: Path):
+17665:            # Prefer the model already ranked first by AF3 naming (_0) when
+17707:        def _prefer_by_index(paths, ix):
+17743:    def _af3a_discover_job_dirs(self, root: Path) -> list:
+17744:        """Find AF3 job folders recursively without treating wrapper folders
+17747:        AF3 batch exports commonly use one wrapper folder containing many job
+17755:        def _dir_has_summary(path: Path) -> bool:
+17796:    def _af3a_scan_folder(self, folder: str):
+17797:        """Scan a folder tree for AF3 jobs.
+17800:          • Each candidate directory is inspected for AF3 output files
+17802:            name globs. This handles AF3 server outputs whose naming
+17819:                self, "AF3 Analysis",
+17824:        # recursively because AF3 batch downloads often put the real jobs one
+17842:                "Scanning AF3 jobs…", "Cancel",
+17844:            progress.setWindowTitle("AF3 Analysis")
+17852:        skipped = 0   # dirs that are not AF3 jobs
+17858:                    f"Scanning AF3 jobs… ({i}/{len(candidates)})")
+17865:                # Not an AF3 job folder — skip silently
+17882:                print(f"[AF3 Analysis] {job_dir.name}: {e}")
+17896:        if skipped: status += f"  ({skipped} non-AF3 dirs skipped)"
+17902:                self, "AF3 Analysis",
+17903:                "No AF3 summary JSON files were found in this folder tree.\n\n"
+17904:                "Select the folder that contains AlphaFold job result folders "
+17916:            print(f"[AF3 Analysis] validation report error: {_e}")
+17923:                self, "AF3 Analysis — partial load",
+17935:    def _af3a_seq_fingerprint(input_seqs):
+17958:    def _af3a_seq_seed_fingerprint(input_seqs, model_seeds):
+17961:        Same fingerprint AND same seeds → AF3 was re-run with the same
+17972:    def _af3a_completeness_status(files_dict, model_loaded_ok=True,
+17974:        """Classify how complete an AF3 job folder is.
+17981:                                    (AF3 likely crashed before writing)
+18000:    def _af3a_detect_truncation(input_seqs, chain_order, chain_lens):
+18003:        AF3 silently truncates inputs that exceed its token budget.
+18020:            # discrepancies are normal for terminal residues that AF3
+18031:    def _af3a_assign_duplicate_groups(self, jobs):
+18098:    def _af3a_show_validation_report(self, jobs, folder, after_scan=False):
+18215:                 '❌ Missing model.cif (AF3 likely crashed)'),
+18234:                '(AF3 token limit hit?). See tooltip on the job '
+18240:                '(paralogs / duplicate ORFs). Consider running BLAST to '
+18252:            dlg.setWindowTitle("AF3 — Validation Report")
+18269:                self, "AF3 — Validation Report",
+18272:    def _af3a_parse_job(self, job_dir: Path, sum_path: Path,
+18277:        """Parse one AF3 job. Handles any number of chains.
+18291:            (current AF3 server output), aggregates atoms → residues
+18306:        # Rich per-chain + pair data (AF3 server format)
+18314:        # Mean pLDDT: AF3 summary does not carry it; we compute it
+18372:        # The ppigFinder-generated *_data.json (v3 of the AF3 spec) holds
+18373:        # the proteinChain entries in the order they were submitted to AF3,
+18394:                    # AF3 runs vs byte-identical re-submissions in the
+18395:                    # duplicate detector).  AF3 v3 stores these at the
+18436:        #      (NEW: handles AF3 server outputs whose confidences.json
+18490:                def _chain_letter(i):
+18579:            def _find_orfs_by_seq(seq: str):
+18708:                "model.cif missing — AF3 may have crashed before saving")
+18804:                print(f"[AF3 Analysis] inter-metric: {e}")
+18842:                print(f"[AF3 Analysis] summary-only fallback: {e}")
+18884:            # otherwise fall back to class defaults.
+18887:                            else self._AF3_MOTIF_PAE_CORE)
+18890:                            else self._AF3_MOTIF_PAE_EXT)
+18893:                            else self._AF3_MOTIF_MIN_CONTACT)
+18896:                            else self._AF3_MOTIF_MIN_SIZE)
+18904:                print(f"[AF3 Analysis] motif detection failed for "
+18986:    def _af3a_derive_token_plddt(self, atom_plddts, token_chain_ids,
+18990:        In current AF3 server outputs only 'atom_plddts' is stored. To
+19025:                            # Fixed CIF layout from AF3 (verified):
+19077:    def _af3a_chains_from_cif(self, model_cif):
+19078:        """Parse {chain_id: residue_count} from an AF3 model .cif file.
+19081:        names instead of fixed token positions, so it works with both AF3
+19117:                            # mmCIF atom rows generated by AF3 do not contain
+19123:                        def _get(*names):
+19187:    # spinboxes in the AlphaFold Analysis toolbar.
+19189:    # Defaults were calibrated against real AF3 server output — a strong
+19194:    _AF3_MOTIF_PAE_CORE    = 8.0    # Å — high-confidence tier
+19195:    _AF3_MOTIF_PAE_EXT     = 15.0   # Å — extended / peripheral tier
+19196:    _AF3_MOTIF_MIN_CONTACT = 0.05   # probability, 0 disables the filter
+19197:    _AF3_MOTIF_MIN_SIZE    = 5      # residues — min dimension of a motif
+19200:    def _af3a_label_cc(mask):
+19237:    def _af3a_binary_closing(mask, iterations=2):
+19265:    def _compute_pae_hotspot(sub_AB, sub_BA, contact_AB=None, radius: int = 5) -> dict:
+19326:    def _af3a_visible_results(self):
+19327:        """Return the AF3 result dicts currently visible in the results table.
+19352:    def _af3a_resolve_orf_ref(self, ref):
+19377:    def _af3a_chain_domains(self, chain_orf, seq_len=None):
+19399:    def _af3a_chain_offset_aa(self, chain_orf, job_name=None, side=None):
+19404:          2. coordinates parsed from a fragmented AF3 job name of the form
+19430:    def _af3a_pae_color(self, value):
+19444:    def _af3a_locate_anchor_window(self, res, chain_a=None, chain_b=None, radius=None):
+19533:    def _af3a_anchor_windows_visible_results(self):
+19548:    def _af3a_build_anchor_window_table(self, parent_layout):
+19621:    def _af3a_export_anchor_windows(self):
+19656:    def _af3a_build_selected_interface_schematic(self, parent_layout, res):
+19690:        def _draw_track(y, name, length, domains, wstart, wend, anchor_pos, color, seq_text, pos_text):
+19696:            def _xpos(res):
+19729:    def _af3a_detect_motifs_one_pair(cls, pae_AB, pae_BA, contact_AB,
+19763:            The AF3 per-residue numbers for chain A / B (from
+19766:            chain) that the AF3 server shows.
+19888:            def _resnum(arr, idx):
+19927:    def _af3a_detect_motifs(cls, res: dict,
+19931:        """Detect motifs for every off-diagonal pair in one AF3 result.
+20014:    def _af3a_contact_str(mean_A, mean_B, name_A, name_B, thresh):
+20016:        def _ranges(indices, prefix):
+20052:    def _af3a_extract_orf_order_value(self, res):
+20106:    def _af3a_sort_by_orf_order(self):
+20122:    def _af3a_set_hotspot_radius(self, value):
+20125:        The AF3 table now carries the sequence window directly in columns
+20137:            print(f"[AF3 Analysis] anchor sequence refresh failed: {e}")
+20139:    def _af3a_seq_map_for_result(self, res):
+20140:        """Return chain_id -> sequence for an AF3 result, when available."""
+20161:    def _af3a_anchor_sequence_texts(self, res, radius=None):
+20166:        chain, which is the most reliable coordinate system for AF3 jobs.
+20199:    def _af3a_update_anchor_sequence_columns(self):
+20221:    def _af3a_populate_table(self):
+20231:          • Use a small numeric-aware QTableWidgetItem subclass for
+20239:        class _NumericItem(QTableWidgetItem):
+20240:            def __init__(self, text: str, value):
+20245:            def __lt__(self, other):
+20257:        def _c(v, thr_good, thr_ok, inv=False):
+20272:            def _fmt_chain(c):
+20285:            # v2.5 — Multiple badges may apply: sequence-status icon
+20288:            _seq_icon = {
+20305:            # Duplicate badge — overlays the seq icon when this row is
+20334:                              (_seq_icon, dup_badge, comp_badge,
+20387:                    '❌ model.cif missing — AF3 likely crashed before saving',
+20619:    def _af3a_table_right_click(self, pos):
+20644:                "📂  Open AF3 prediction folder",
+20649:                f"📂  Open all {n} AF3 prediction folders",
+20691:            "Select rows missing model.cif  (AF3 likely crashed)",
+20740:    def _af3a_invert_selection(self):
+20751:    def _af3a_select_high_confidence(self):
+20769:    def _af3a_select_no_chain_info(self):
+20782:    def _af3a_select_duplicates(self, role=None, sub_role=None):
+20807:    def _af3a_select_with_attribute(self, attr_name):
+20817:    def _af3a_select_completeness(self, target_status):
+20827:    def _af3a_select_seq_status(self, target_status):
+20837:    def _af3a_remove_all_true_duplicates(self):
+20867:                "This only updates the in-memory view — the AF3 result "
+20891:    def _af3a_res_for_view_row(self, view_row):
+20911:    def _af3a_copy_selected_job_names(self, view_rows):
+20920:    def _af3a_copy_selected_rows_tsv(self, view_rows):
+20937:    def _af3a_delete_selected_rows(self, view_rows):
+20942:          view.  Re-running 'Load AF3 results directory' brings them back.
+20970:                "This only updates the in-memory view — the AF3 result "
+21006:    def _af3a_unload_heavy_except(self, keep_res=None):
+21009:        This keeps memory bounded when browsing hundreds or thousands of AF3
+21031:    def _af3a_ensure_heavy_loaded(self, res: dict):
+21057:            print(f"[AF3 Analysis] lazy load failed for {res.get('job_name')}: {e}")
+21060:    def _af3a_on_select(self):
+21108:    def _open_af3_job_folder(self, job_dir):
+21109:        """v29.11.1 — cross-platform helper that opens an AF3 job directory
+21110:        in the user's file manager.  Used by the AF3 table double-click,
+21111:        the AF3 table right-click menu and the PPI Analysis dot right-click
+21118:                "This row has no AF3 job folder recorded.")
+21138:    def _af3a_on_double_click(self, row: int, _col: int):
+21139:        """Open the AF3 job folder of *row* in the OS file manager."""
+21153:    def _af3a_open_many(self, view_rows):
+21154:        """v29.11.1 — open every selected AF3 prediction folder in sequence.
+21163:                self, "Open AF3 prediction folders",
+21190:            self._status.showMessage(f"Opened {opened} AF3 folder(s)")
+21194:    def _af3a_replot_selected(self):
+21254:            print(f"[AF3 Analysis] replot threshold update: {e}")
+21257:    def _af3a_clear_plots(self):
+21275:    def _af3a_plot_job(self, res: dict):
+21623:            def _on_hover(event, _pae=pae_np_ref,
+21635:                    def _chain_of(pos):
+21645:                    # available (restarts at 1 per chain, matching AF3
+21700:            def _pae_right_click(event, _fig=fig, _name=job_name_ref):
+21765:            def _plddt_right_click(event, _fig=fig2,
+21782:            print(f"[AF3 Analysis] motif table build failed: {e}")
+21786:    def _af3a_canvas_context_menu(self, fig, default_name: str):
+21788:        Allows saving/exporting the figure as PNG, PDF, SVG, or TIFF."""
+21800:        # ── PDF (vector) ──────────────────────────────────────────────────
+21801:        act_pdf = menu.addAction("📄  Save as PDF (vector)…")
+21802:        act_pdf.setToolTip("Scalable vector PDF — best for publications and figure editors.")
+21804:        # ── SVG (vector) ──────────────────────────────────────────────────
+21805:        act_svg = menu.addAction("📐  Save as SVG (vector)…")
+21823:        act_all_pdf = menu.addAction("📑  Export all plots to PDF…")
+21824:        act_all_pdf.setToolTip("Combine all currently visible PAE/pLDDT plots into one PDF.")
+21860:                self, "Save as PDF", f"{safe}.pdf",
+21861:                "PDF (*.pdf);;All (*)")
+21868:                    QMessageBox.critical(self, "Save PDF", str(e))
+21872:                self, "Save as SVG", f"{safe}.svg",
+21873:                "SVG (*.svg);;All (*)")
+21880:                    QMessageBox.critical(self, "Save SVG", str(e))
+21915:    def _af3a_export_pdf(self):
+21916:        """Export all active PAE/pLDDT figures to a single PDF."""
+21918:            QMessageBox.warning(self, "Export PDF",
+21923:            QMessageBox.information(self, "Export PDF",
+21927:            self, "Export plots to PDF", "",
+21928:            "PDF (*.pdf);;All (*)")
+21940:            QMessageBox.critical(self, "Export PDF",
+21943:    def _af3a_apply_filters(self):
+21987:    def _af3a_export_tsv(self):
+21988:        """Export the full AF3 Analysis results table to a TSV file."""
+21993:                "No results to export.\nLoad an AF3 results folder first.")
+21996:            self, "Export AF3 results to TSV",
+22026:        def _fmt(v, fmt='{:.4f}'):
+22137:    def _af3a_selected_result_index(self):
+22157:    def _af3a_refresh_hotspot_status(self):
+22166:    def _af3a_rerun_motifs(self):
+22176:    def _af3a_run_hotspots_selected(self):
+22182:                "Select one AF3 result row first.")
+22192:    def _af3a_visible_ranked_candidates(self, limit=None):
+22220:    def _af3a_run_hotspots_visible_top(self):
+22225:                "No AF3 results loaded.")
+22259:    def _af3a_run_hotspots_for_results(self, results, label="candidate jobs"):
+22276:            pae_core = self._AF3_MOTIF_PAE_CORE
+22277:            pae_ext = self._AF3_MOTIF_PAE_EXT
+22278:            min_ct = self._AF3_MOTIF_MIN_CONTACT
+22279:            min_sz = self._AF3_MOTIF_MIN_SIZE
+22350:    def _af3a_export_motifs_tsv(self):
+22374:        def _fmt(v, f='{:.4f}'):
+22427:    def _af3a_build_motif_table(self, res: dict):
+22472:        def _plddt_color(v):
+22522:        def _on_motif_select():
+22532:    def _af3a_highlight_motif(self, motif: dict):
+22569:    # Shows all AF3-predicted interactions as arcs drawn above a linear
+22577:    def _ppi_arc_update_legend(self):
+22583:        with 'PAE_min'.  Other legend items (HMM hit ORF / Custom / etc.)
+22617:    def _ppi_thresholds_changed(self, *_):
+22663:    def _ppi_an_on_dot_click(self, orf_idx):
+22671:    def _ppi_predictions_for_orf(self, orf_idx):
+22672:        """v29.11.2 — return every AF3 prediction (analysis-results dict)
+22686:        def _name_to_idx(name):
+22738:        def _key(r):
+22751:    def _ppi_open_af3_prediction_for_orf(self, orf_idx):
+22752:        """v29.11.1 — open the AF3 prediction folder of the strongest
+22759:                self, "Open AF3 prediction folder",
+22760:                f"ORF{orf_idx+1} does not appear in any loaded AF3 prediction.")
+22775:        dlg.setWindowTitle(f"AF3 predictions involving ORF{orf_idx+1}")
+22779:            f"ORF{orf_idx+1} appears in {len(preds)} AF3 predictions. "
+22783:        def _other_label(r, this_idx):
+22827:    def _ppi_an_on_dot_context(self, orf_idx, global_pos):
+22847:            # v29.11.1 — Open AF3 prediction folder action.  Always shown,
+22850:                f"📂 Open AF3 prediction folder"
+22856:                    "No AF3 prediction loaded for this ORF.")
+22871:                f"➕ Add ORF{orf_idx+1} to AF3 list",
+22884:                details.append(f"  HMM hits: {len(hmm_hits)}")
+22886:                details.append(f"  AF3 predictions: {n_preds}")
+22894:    def _ppi_arc_set_labels(self, checked):
+22901:    def _ppi_arc_set_bidir(self, checked):
+22908:    def _ppi_arc_set_topn(self, n):
+22916:    def _create_ppi_analysis_tab(self):
+22979:        btn_r.setToolTip("Recompute every analytical view from the current AF3 results")
+22987:        btn_svg = QPushButton("↓ SVG")
+22988:        btn_svg.setToolTip("Export the visible sub-view as a scalable SVG")
+23013:            "  (any HMM-annotated ORF) — every ORF with any domain hit\n"
+23014:            "  <HMM profile name> — only ORFs hit by that specific profile\n"
+23015:            "The choice is fully generic: any loaded HMM profile can be used.")
+23081:        # Heatmap wrapped in a QScrollArea so users can scroll when many HMMs
+23097:    def _ppi_analysis_current_widget(self):
+23102:        # return the actual heatmap widget so SVG export works.
+23107:    def _ppi_analysis_export_svg(self):
+23112:            self, "Export PPI analysis (SVG)",
+23113:            "ppi_analysis.svg", "SVG (*.svg)")
+23122:    def _ppi_analysis_export_png(self):
+23137:    def _ppi_detect_query(self, arcs):
+23169:    def _ppi_populate_posset(self, hmm_p):
+23170:        """Populate the positive-set dropdown with current HMM profiles."""
+23177:        items = ["(none)", "(any HMM-annotated ORF)"]
+23187:    def _ppi_analysis_refresh(self):
+23203:            # HMM library has changed)
+23236:            # ── ORF index → HMM profile index lookup ───────────────────
+23244:            # ── hotspot_mean_pae lookup from raw AF3 results ───────────
+23246:            # v29.11.1 — map (orf_a, orf_b) → AF3 job_dir for use by the
+23247:            # PPI Analysis dot context menu ("Open AF3 prediction folder").
+23274:            def _arc_partner_indices(a):
+23304:            def _apply_transform(x, tname):
+23326:            def _base_value(a, base, hotspot_map):
+23395:            elif pos_label == "(any HMM-annotated ORF)":
+23402:                # match a specific HMM profile name
+23427:            def _x_label_format(tname, base):
+23486:                f"{n} HMM profiles · "
+23496:    def _create_ppi_arc_map_tab(self):
+23553:        btn_refresh.setToolTip("Rebuild the arc map from current AF3 results")
+23561:        btn_svg = QPushButton("↓ Export SVG")
+23562:        btn_svg.setToolTip("Export the arc map as a scalable vector SVG file")
+23616:            "Default 3.0 Å (canonical AlphaFold value is 4.0 Å).\n"
+23671:        def _leg_line(color, dash=False):
+23679:        def _leg_rect(color, border):
+23691:            (_leg_rect("#9FE1CB","#0F6E56"), "HMM hit ORF"),
+23716:    def _ppi_arc_map_refresh(self):
+23748:            def _find_orf(name, _orfs=orfs):
+23817:    def _ppi_arc_on_click(self, arc_idx: int):
+23840:    def _ppi_arc_on_orf_click(self, orf_idx: int):
+23844:    def _ppi_arc_on_hover(self, arc_idx: int):
+23860:    def _ppi_arc_map_export_svg(self):
+23861:        """Export the arc map as SVG using QSvgGenerator."""
+23868:                QMessageBox.warning(self, "SVG Export",
+23869:                    "PyQt SVG module not available. Install PyQt6-Qt6 or PyQt5-sip.")
+23872:            self, "Export PPI Arc Map as SVG", "", "SVG (*.svg)")
+23883:    def _ppi_arc_map_export_tsv(self):
+23916:    def _create_hpc_server_tab(self):
+23927:                "⚠  paramiko not installed — SSH features disabled.\n"
+23928:                "   Install with:  pip install paramiko")
+23936:        self._dv_status_icon = QLabel("⬤")
+23937:        self._dv_status_icon.setStyleSheet("color:#bbb;font-size:14px;")
+23938:        top_bar.addWidget(self._dv_status_icon)
+23966:        self._tabs.addTab(w, "🖥 Submit AF3 via Server")
+23970:    def _dv_build_connect_tab(self):
+24028:            "Command used to launch AF3 on the remote server.\n"
+24030:            "  af3_run          — wrapper that calls sbatch internally\n"
+24031:            "  sbatch run_af3.sh\n"
+24043:            "SLURM  (squeue / scancel)",
+24050:            "  SLURM  — most HPC clusters (squeue, scancel, --slurm-* flags)\n"
+24076:            "How to activate AlphaFold3 on the remote server:\n"
+24078:            "  conda        — Anaconda/Miniconda environments\n"
+24081:            "  None         — AF3 already on PATH, no activation needed")
+24129:    def _dv_build_submit_tab(self):
+24132:        # the (large) FlexibleAF3SubmitWidget can never visually
+24165:        # ── Grouped-batch row: [Load Grouped JSON | ⚙ AF3 JSON Group Config] ──
+24174:            "Groups all AF3 jobs from the current session into partitioned\n"
+24175:            "batch JSON files (size configurable via ⚙ AF3 JSON Group Config).\n"
+24176:            "Each partition is submitted as an independent SLURM job to\n"
+24178:            "Current group size: configurable — click ⚙ AF3 JSON Group Config.")
+24181:        self._dv_batch_cfg_btn = QPushButton("⚙ AF3 JSON Group Config")
+24183:            "Configure the number of AF3 jobs per partition batch.\n"
+24213:        self._dv_ts_check = QCheckBox("Add timestamp  (Prefix_YYYYMMDD_HHMMSS)")
+24271:        # ── AF3 JSON modifications (modelSeeds + templates) ────────
+24275:        json_g = QGroupBox("⚗ AF3 JSON modifications  (modelSeeds, templates)")
+24279:            "These options modify the AF3 batch JSON before upload:\n"
+24307:        # ── AF3 Server Submission — Terminal & Profiles ──────────
+24308:        # Terminal-style command editor where the user types the AF3
+24312:        self._dv_af3_widget = FlexibleAF3SubmitWidget(parent=w)
+24338:    def _dv_build_monitor_tab(self):
+24385:            "Show only jobs in the selected SLURM state.")
+24395:            "Filter by SLURM partition name (leave blank for all).")
+24403:            "Run scancel on the SLURM ID of the selected row.\n"
+24422:            ['Job name', 'SLURM ID', 'Status', 'Partition', 'Node', 'Time', 'Action'])
+24448:    def _dv_cancel_selected_job(self):
+24449:        """Run scancel <SLURM_ID> on the selected row."""
+24450:        if not self._ssh_client:
+24462:                "No valid SLURM ID for the selected row.")
+24468:            f"Cancel job  {job_name}  (SLURM {sid})?")
+24473:        def _do_cancel():
+24474:            out, err, rc = self._dv_ssh_exec(
+24489:    def _dv_export_job_history(self):
+24506:    def _dv_build_results_tab(self):
+24577:    def _dv_log(self, msg: str, pane: str = 'conn'):
+24586:    def _dv_set_connected(self, connected: bool, label: str = ''):
+24589:            self._dv_status_icon.setStyleSheet("color:#2e7d32;font-size:14px;")
+24599:            self._dv_status_icon.setStyleSheet("color:#bbb;font-size:14px;")
+24612:    def _hpc_connect(self):
+24616:                "paramiko not installed.\n\npip install paramiko")
+24629:        def _do_connect():
+24630:            client = paramiko.SSHClient()
+24631:            client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+24644:    def _dv_on_connected(self, result):
+24646:        self._ssh_client = client
+24662:    def _dv_on_connect_error(self, msg):
+24671:    def _dv_on_scheduler_changed(self, idx: int):
+24689:    def _dv_on_env_method_changed(self, idx: int):
+24702:    def _dv_build_activation_prefix(self) -> str:
+24724:    def _dv_scheduler_cmds(self) -> dict:
+24729:        SLURM = {
+24755:        return [SLURM, PBS, LSF, NONE][min(idx, 3)]
+24757:    def _dv_load_module(self):
+24760:        if not self._ssh_client:
+24777:        def _do_module():
+24782:                f'which {q_af3cmd} 2>/dev/null && echo __AF3_FOUND__; '
+24786:            out, err, rc = self._dv_ssh_exec(check_cmd, timeout=30)
+24795:    def _dv_on_module_done(self, result):
+24804:        af3_found    = '__AF3_FOUND__' in combined
+24859:    def _dv_on_module_error(self, msg):
+24868:    def _hpc_disconnect(self):
+24874:            if self._ssh_client:
+24875:                self._ssh_client.close()
+24878:        self._ssh_client = None
+24884:    def _dv_ssh_exec(self, cmd: str, timeout: int = 30):
+24886:        if not self._ssh_client:
+24888:        _, stdout, stderr = self._ssh_client.exec_command(cmd, timeout=timeout)
+24893:    def _dv_remote_child_path_ok(self, child: str, parent: str) -> bool:
+24902:        def norm_remote(p):
+24922:    def _dv_load_from_session(self):
+24923:        """Populate the submit table from AF3 jobs in the current session."""
+24926:                "No AF3 jobs in session.\n"
+24927:                "Generate jobs in the AlphaFold tab first.")
+24949:    _AF3_PARTITION_SIZE = 50   # class-level default; overridden by instance var
+24951:    def _dv_show_batch_group_config(self):
+24952:        """Show a compact dialog to configure the AF3 batch group (partition) size."""
+24953:        current = getattr(self, '_dv_partition_size', self._AF3_PARTITION_SIZE)
+24956:        dlg.setWindowTitle("AF3 JSON Group Config")
+24961:        hdr = QLabel("<b>Configure AF3 batch partition size</b>")
+24967:            "Sets how many AF3 jobs are packed into each partition JSON.\n"
+24968:            "Each partition becomes one independent SLURM job on the server.\n"
+25020:                "Groups all AF3 jobs from the current session into partitioned\n"
+25021:                "batch JSON files (size configurable via AF3 JSON Group Config).\n"
+25022:                "Each partition is submitted as an independent SLURM job to\n"
+25026:                f"Configure the number of AF3 jobs per partition batch.\n"
+25032:    def _dv_load_from_session_batch(self):
+25033:        """Build batch JSON(s) from all session AF3 jobs and stage them for
+25038:        chunk becomes an independent JSON file submitted as a separate SLURM
+25040:        Configure the group size via the AF3 JSON Group Config button.
+25044:                "No AF3 jobs in session.\n"
+25045:                "Generate jobs in the AlphaFold tab first.")
+25050:        chunk_size = getattr(self, '_dv_partition_size', self._AF3_PARTITION_SIZE)
+25052:        # ── Build AF3-format entry list ────────────────────────────
+25138:    def _dv_load_from_files(self):
+25141:            self, "Select AF3 JSON files", "",
+25183:    def _dv_clear_submit_list(self):
+25191:    def _dv_download_staged_jsons(self):
+25243:    # ── AF3 preset helper ──────────────────────────────────────
+25244:    def _dv_af3_apply_preset(self, idx: int):
+25247:        The preset selector was removed when the AF3 Advanced Options
+25248:        panel was replaced by the FlexibleAF3SubmitWidget.  This method
+25252:        return  # FlexibleAF3SubmitWidget handles profiles now
+25254:    def _dv_refresh_cmd_preview(self):
+25255:        """Rebuild the command preview using the FlexibleAF3SubmitWidget.
+25299:        def _ctx_for(json_fname, job_name):
+25315:                getattr(self, '_AF3_PARTITION_SIZE', 50))
+25317:                f"# {total_afjobs} AF3 jobs → {n_parts} partitions "
+25366:    def _dv_upload_only(self):
+25370:    def _dv_upload_and_submit(self):
+25374:    def _dv_do_upload(self, submit: bool):
+25387:        if not self._ssh_client:
+25407:        ssh = self._ssh_client
+25409:        # ── Collect AF3 advanced settings (read once, applied to all parts) ─
+25421:        # handled by self._dv_af3_widget (FlexibleAF3SubmitWidget) — the
+25429:        def _build_batch_list_for_job(job):
+25430:            """Return AF3 batch list for one pending job entry."""
+25467:        def _upload_one_partition(job, resolved_parent):
+25481:                sftp = ssh.open_sftp()
+25496:        def _submit_one(batch_fname, job_name_full):
+25497:            """Run the user-defined AF3 command for a single partition JSON.
+25499:            The command is built by the FlexibleAF3SubmitWidget — i.e. the
+25516:                    AF3CommandBuilder.shell_quote_context(ctx))
+25541:            out, err, rc = self._dv_ssh_exec(run_cmd, timeout=60)
+25543:            # Match SLURM "Submitted batch job N", "batch job N",
+25561:        def _do_upload_submit():
+25565:                home_out, _, _ = self._dv_ssh_exec("echo $HOME", timeout=5)
+25571:            sftp_chk = ssh.open_sftp()
+25576:                    self._dv_ssh_exec(
+25654:    def _dv_on_upload_done(self, results):
+25657:        auto-partitioned sessions > _AF3_PARTITION_SIZE jobs).
+25681:                    f"{st}" + (f"  [SLURM {sid}]" if sid else ''),
+25687:                            st + (f" [SLURM {sid}]" if sid else '')))
+25702:                f"SLURM [{id_summary}]" if slurm_ids else
+25722:            + (f"   [SLURM {slurm_id}]" if slurm_id else ''),
+25796:                def _do_delete_resubmit():
+25798:                    self._dv_ssh_exec(
+25815:                    out, err, rc = self._dv_ssh_exec(run_cmd, timeout=60)
+25828:                def _on_resubmit(res):
+25834:                        + (f"  [SLURM {sid}]" if sid else ''),
+25848:                        + (f"  SLURM {sid}" if sid else ''))
+25878:            + (f"  SLURM {slurm_id}" if slurm_id else ''))
+25882:    def _dv_update_poll_timer(self, text: str):
+25888:        if ms > 0 and self._ssh_client:
+25891:    def _hpc_poll_queue(self):
+25893:        Supports SLURM, PBS, LSF, or None based on the scheduler selector."""
+25894:        if not self._ssh_client:
+25901:        def _do_poll():
+25902:            out, err, _ = self._dv_ssh_exec(poll_cmd, timeout=15)
+25912:    def _dv_on_poll_done(self, result):
+25970:    def _dv_refresh_monitor_table(self):
+26054:    def _dv_cancel_job_by_id(self, slurm_id: str, job_name: str):
+26055:        """Cancel a specific SLURM job by ID (used from inline table button)."""
+26056:        if not self._ssh_client or not slurm_id:
+26059:            f"Cancel  {job_name}  (SLURM {slurm_id})?")
+26064:        def _do():
+26065:            return self._dv_ssh_exec(self._dv_scheduler_cmds()["cancel"].format(job_id=slurm_id), timeout=10)
+26078:    def _dv_autofill_results_path(self, job: dict):
+26094:    def _dv_browse_remote_output(self):
+26108:    def _dv_choose_local_dest(self):
+26114:    def _dv_list_remote_output(self):
+26116:        if not self._ssh_client:
+26126:        def _do_list():
+26128:            sftp = self._ssh_client.open_sftp()
+26132:                    out, _, _ = self._dv_ssh_exec("echo $HOME", timeout=5)
+26170:    def _dv_on_list_done(self, items):
+26183:    def _dv_download_results(self):
+26185:        if not self._ssh_client:
+26212:        def _do_download():
+26214:            sftp = self._ssh_client.open_sftp()
+26218:                    out, _, _ = self._dv_ssh_exec("echo $HOME", timeout=5)
+26258:    def _dv_sftp_get_dir(self, sftp, remote_dir: str, local_dir: str):
+26269:    def _dv_on_download_done(self, paths: list, auto_import: bool):
+26290:    def _dv_import_ranking_from_path(self, local_path: str) -> int:
+26291:        """Scan a local directory (or file) for AF3 result JSON files
+26308:                # AF3 result files have 'iptm' at top level or under 'summary'
+26339:def _setup_emoji_font(app):
+26397:def _apply_text_fallback():
+26410:def _check_dependencies_at_startup():
+26419:        ("paramiko",   "paramiko>=2.9",    (2, 9),  False),
+26475:def main(argv=None):
