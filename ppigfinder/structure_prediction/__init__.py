@@ -121,6 +121,12 @@ __all__ = [
     "write_af3_backend_inputs",
     "write_af3_input_json",
     "write_batch_af3_inputs",
+    "Boltz2InputFiles",
+    "render_boltz2_job_yaml",
+    "write_batch_boltz2_inputs",
+    "write_boltz2_backend_inputs",
+    "write_boltz2_input_fasta",
+    "write_boltz2_job_yaml",
 ]
 
 
@@ -131,4 +137,14 @@ from ppigfinder.structure_prediction.af3_input_writer import (
     write_af3_backend_inputs,
     write_af3_input_json,
     write_batch_af3_inputs,
+)
+
+
+from ppigfinder.structure_prediction.boltz2_input_writer import (
+    Boltz2InputFiles,
+    render_boltz2_job_yaml,
+    write_batch_boltz2_inputs,
+    write_boltz2_backend_inputs,
+    write_boltz2_input_fasta,
+    write_boltz2_job_yaml,
 )
