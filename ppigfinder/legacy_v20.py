@@ -17200,3 +17200,94 @@ if __name__ == "__main__":
     window = ppigFinderApp()
     window.show()
     sys.exit(app.exec() if QT_VERSION == 6 else app.exec_())
+
+
+# === ppigFinder optional runtime startup profiler ===
+def _ppig_enable_runtime_startup_profiler():
+    """
+    Optional constructor profiler for the legacy single-file interface.
+
+    Enabled only when:
+        PPIG_PROFILE_STARTUP=1
+
+    It wraps custom QWidget/QMainWindow/QDialog subclasses defined in this module
+    and records constructor elapsed time. This helps identify which UI component
+    makes startup slow after imports have already been optimized.
+    """
+    try:
+        import os as _os
+        import time as _time
+        from pathlib import Path as _Path
+    except Exception:
+        return
+
+    if _os.environ.get("PPIG_PROFILE_STARTUP") not in {"1", "true", "TRUE", "yes", "YES"}:
+        return
+
+    try:
+        _log_path = _Path(
+            _os.environ.get(
+                "PPIG_STARTUP_LOG",
+                "docs/developer/startup_profile/runtime_constructor_profile.tsv",
+            )
+        )
+        _log_path.parent.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        return
+
+    def _write(line: str):
+        try:
+            with _log_path.open("a", encoding="utf-8") as handle:
+                handle.write(line + "\n")
+                handle.flush()
+        except Exception:
+            pass
+
+    _write("event\tclass\telapsed_ms")
+
+    def _is_qt_widget_class(cls):
+        try:
+            names = {base.__name__ for base in cls.__mro__}
+        except Exception:
+            return False
+
+        return bool(names & {"QWidget", "QMainWindow", "QDialog", "QFrame", "QTabWidget"})
+
+    def _wrap_init(cls_name, cls):
+        old_init = getattr(cls, "__init__", None)
+
+        if old_init is None:
+            return
+
+        if getattr(old_init, "_ppig_profile_wrapped", False):
+            return
+
+        def _profiled_init(self, *args, **kwargs):
+            t0 = _time.perf_counter()
+            try:
+                return old_init(self, *args, **kwargs)
+            finally:
+                dt = (_time.perf_counter() - t0) * 1000.0
+                _write(f"init\t{cls_name}\t{dt:.3f}")
+
+        _profiled_init._ppig_profile_wrapped = True
+
+        try:
+            cls.__init__ = _profiled_init
+        except Exception:
+            pass
+
+    for _name, _obj in list(globals().items()):
+        if not isinstance(_obj, type):
+            continue
+
+        if not _is_qt_widget_class(_obj):
+            continue
+
+        _wrap_init(_name, _obj)
+
+    _write("profiler\tenabled\t0.000")
+
+
+_ppig_enable_runtime_startup_profiler()
+
