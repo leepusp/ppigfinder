@@ -31,6 +31,15 @@ from ppigfinder.structure_prediction.slurm_renderer import (
     render_submission_preview,
 )
 
+from ppigfinder.structure_prediction.cluster_profiles import (
+    DAVINCI_PROFILE,
+    PROFILES,
+    SlurmClusterProfile,
+    SlurmDirectiveOverrides,
+    get_cluster_profile,
+    resolve_slurm_overrides,
+)
+
 __all__ = [
     "BACKENDS",
     "AF3_BACKEND",
@@ -45,6 +54,12 @@ __all__ = [
     "HPCResourcePlan",
     "plan_hpc_resources",
     "render_submission_preview",
+    "resolve_slurm_overrides",
+    "get_cluster_profile",
+    "SlurmDirectiveOverrides",
+    "SlurmClusterProfile",
+    "PROFILES",
+    "DAVINCI_PROFILE",
     "render_sbatch_header",
     "render_array_directive",
     "safe_job_name",
