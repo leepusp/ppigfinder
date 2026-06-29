@@ -20,7 +20,7 @@ def _ppig_startup_profiler_enabled() -> bool:
 def _ppig_startup_log_path() -> _ppig_Path:
     return _ppig_Path(
         _ppig_os.environ.get(
-            "PPIG_STARTUP_LOG",
+            "PPIG_APP_STARTUP_LOG",
             "docs/developer/startup_profile/app_startup_phases.tsv",
         )
     )

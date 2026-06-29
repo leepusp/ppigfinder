@@ -17227,7 +17227,7 @@ def _ppig_enable_runtime_startup_profiler():
     try:
         _log_path = _Path(
             _os.environ.get(
-                "PPIG_STARTUP_LOG",
+                "PPIG_RUNTIME_STARTUP_LOG",
                 "docs/developer/startup_profile/runtime_constructor_profile.tsv",
             )
         )
