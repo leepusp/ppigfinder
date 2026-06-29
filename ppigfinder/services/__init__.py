@@ -23,3 +23,18 @@ __all__ = [
     "GenomeService",
     "ORFPredictionService",
 ]
+from ppigfinder.services.structure_prediction_service import (
+    StructuralPredictionPreparedBatch,
+    StructuralPredictionRequest,
+    make_sequence_target,
+    make_sequence_targets_from_records,
+    prepare_structural_prediction_batch,
+)
+
+__all__ = [
+    "StructuralPredictionPreparedBatch",
+    "StructuralPredictionRequest",
+    "make_sequence_target",
+    "make_sequence_targets_from_records",
+    "prepare_structural_prediction_batch",
+]
