@@ -115,4 +115,20 @@ __all__ = [
     "safe_job_name",
     "build_prediction_output_layout",
     "PredictionOutputLayout",
+    "AF3InputFiles",
+    "render_af3_job_dict",
+    "render_af3_input_json",
+    "write_af3_backend_inputs",
+    "write_af3_input_json",
+    "write_batch_af3_inputs",
 ]
+
+
+from ppigfinder.structure_prediction.af3_input_writer import (
+    AF3InputFiles,
+    render_af3_job_dict,
+    render_af3_input_json,
+    write_af3_backend_inputs,
+    write_af3_input_json,
+    write_batch_af3_inputs,
+)
