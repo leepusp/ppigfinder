@@ -40,6 +40,13 @@ from ppigfinder.structure_prediction.cluster_profiles import (
     resolve_slurm_overrides,
 )
 
+from ppigfinder.structure_prediction.job_manifest import (
+    MANIFEST_HEADER,
+    PredictionManifestRow,
+    build_manifest_row,
+    write_prediction_manifest,
+)
+
 __all__ = [
     "BACKENDS",
     "AF3_BACKEND",
@@ -55,6 +62,10 @@ __all__ = [
     "plan_hpc_resources",
     "render_submission_preview",
     "resolve_slurm_overrides",
+    "write_prediction_manifest",
+    "build_manifest_row",
+    "PredictionManifestRow",
+    "MANIFEST_HEADER",
     "get_cluster_profile",
     "SlurmDirectiveOverrides",
     "SlurmClusterProfile",
