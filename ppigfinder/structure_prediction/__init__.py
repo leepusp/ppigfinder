@@ -133,6 +133,8 @@ __all__ = [
     "write_foldcp_backend_inputs",
     "write_foldcp_input_fasta",
     "write_foldcp_job_yaml",
+    "PredictionBatchArtifacts",
+    "write_prediction_batch_artifacts",
 ]
 
 
@@ -163,4 +165,10 @@ from ppigfinder.structure_prediction.foldcp_input_writer import (
     write_foldcp_backend_inputs,
     write_foldcp_input_fasta,
     write_foldcp_job_yaml,
+)
+
+
+from ppigfinder.structure_prediction.batch_artifacts import (
+    PredictionBatchArtifacts,
+    write_prediction_batch_artifacts,
 )
