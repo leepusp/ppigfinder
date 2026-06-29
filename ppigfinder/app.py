@@ -85,7 +85,7 @@ def main() -> int:
 
     configure_ipython_qt_event_loop()
 
-    from ppigfinder.legacy_v20 import (
+    from ppigfinder.legacy_v29_11_7 import (
         QApplication,
         QT_VERSION,
         QTimer,
