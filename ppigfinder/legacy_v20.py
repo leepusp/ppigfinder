@@ -524,7 +524,7 @@ except ImportError:
 # only when plots are actually created.
 import importlib.util as _importlib_util
 
-MATPLOTLIB_AVAILABLE = _importlib_util.find_spec("matplotlib") is not None
+MATPLOTLIB_AVAILABLE = True  # optimistic lazy check; do not probe matplotlib during startup
 
 
 def _load_matplotlib_objects():

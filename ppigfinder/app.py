@@ -110,23 +110,42 @@ def main() -> int:
     with _PpigStartupTimer("window.show"):
         window.show()
 
-    def post_startup_ui_polish():
-        with _PpigStartupTimer("post_startup._check_dependencies_at_startup"):
-            _check_dependencies_at_startup()
+    def post_startup_recent_files():
         with _PpigStartupTimer("post_startup.install_recent_files_menu"):
             install_recent_files_menu(
                 window,
                 lambda path: open_genome_file_into_window(window, path),
             )
+
+    def post_startup_toolbar_polish():
         with _PpigStartupTimer("post_startup.polish_toolbars"):
             polish_toolbars(window)
+
+    def post_startup_modular_actions():
         with _PpigStartupTimer("post_startup.install_modular_gui_actions"):
             install_modular_gui_actions(window)
-        compact_tab_labels(window)
+
+    def post_startup_compact_tabs():
+        with _PpigStartupTimer("post_startup.compact_tab_labels"):
+            compact_tab_labels(window)
+
+    def post_startup_text_fallback():
         with _PpigStartupTimer("post_startup.apply_text_fallback_to_window"):
             apply_text_fallback_to_window(window)
 
-    QTimer.singleShot(100, post_startup_ui_polish)
+    def post_startup_dependency_check():
+        with _PpigStartupTimer("post_startup._check_dependencies_at_startup"):
+            _check_dependencies_at_startup()
+
+    # Keep first paint responsive: run non-critical UI polish after the window
+    # has already entered the Qt event loop. Backend checks are intentionally
+    # delayed because they may touch optional dependencies or filesystem paths.
+    QTimer.singleShot(350, post_startup_recent_files)
+    QTimer.singleShot(700, post_startup_toolbar_polish)
+    QTimer.singleShot(1000, post_startup_modular_actions)
+    QTimer.singleShot(1300, post_startup_compact_tabs)
+    QTimer.singleShot(1700, post_startup_text_fallback)
+    QTimer.singleShot(2600, post_startup_dependency_check)
 
     _ppig_startup_log("app.exec.enter", 0.0, "entering Qt event loop")
     return app.exec() if QT_VERSION == 6 else app.exec_()
