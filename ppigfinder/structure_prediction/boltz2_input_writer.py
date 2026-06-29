@@ -60,7 +60,7 @@ def render_boltz2_job_yaml(job: PredictionJobSpec) -> str:
         ]
     )
 
-    return "\\n".join(lines) + "\\n"
+    return "\n".join(lines) + "\n"
 
 
 def write_boltz2_input_fasta(
