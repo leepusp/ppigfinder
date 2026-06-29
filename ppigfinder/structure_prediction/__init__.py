@@ -47,6 +47,13 @@ from ppigfinder.structure_prediction.job_manifest import (
     write_prediction_manifest,
 )
 
+from ppigfinder.structure_prediction.batch_builder import (
+    PlannedPredictionJob,
+    PredictionBatchPlan,
+    build_multibackend_jobs,
+    plan_prediction_batch,
+)
+
 __all__ = [
     "BACKENDS",
     "AF3_BACKEND",
@@ -63,6 +70,10 @@ __all__ = [
     "render_submission_preview",
     "resolve_slurm_overrides",
     "write_prediction_manifest",
+    "plan_prediction_batch",
+    "build_multibackend_jobs",
+    "PredictionBatchPlan",
+    "PlannedPredictionJob",
     "build_manifest_row",
     "PredictionManifestRow",
     "MANIFEST_HEADER",
