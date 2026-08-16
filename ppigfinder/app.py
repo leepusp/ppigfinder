@@ -88,7 +88,7 @@ def main() -> int:
         configure_ipython_qt_event_loop()
 
     with _PpigStartupTimer("import.legacy_gui"):
-        from ppigfinder.legacy_v29_11_7 import (
+        from ppigfinder.legacy_v29_14 import (
             QApplication,
             QT_VERSION,
             QTimer,
