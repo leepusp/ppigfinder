@@ -46,3 +46,16 @@ After this step, ppigFinder should have a loaded genome or restored project stat
 ## Recommended next step
 
 After loading data, continue to **DNA / Genome** or **Protein / ORFs**.
+
+## Project folder structure
+
+When a full project is saved, ppigFinder creates a structured workspace. A typical project contains:
+
+- `genome/`: loaded genome sequence and derived genome files
+- `blast/`: BLAST databases and similarity-search outputs
+- `hmm/`: HMM profile searches and domain-annotation outputs
+- `af3_predictions/`: AlphaFold 3 job files and imported prediction results
+- `results/`: exported tables, reports and final analysis outputs
+- `project.json`: ppigFinder project state file
+
+Keep this folder structure together when moving or archiving a project.
