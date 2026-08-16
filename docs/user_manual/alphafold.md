@@ -47,7 +47,6 @@ Parsed AF3 result folders may include:
 - ipTM
 - pTM
 - ranking_score
-- cp_ipTM
 - PAE_inter
 - PAE_min
 - contact percentage
@@ -55,7 +54,7 @@ Parsed AF3 result folders may include:
 
 ## Interpretation
 
-High ipTM or cp_ipTM and low PAE_inter / PAE_min values support a more confident predicted interaction interface. These values should be interpreted as structural evidence and should ideally be combined with genomic context, annotation evidence and experimental validation.
+High ipTM together with low PAE_inter / PAE_min values supports a more confident predicted interaction interface. These values should be interpreted as structural evidence and should ideally be combined with genomic context, annotation evidence and experimental validation.
 
 ## Recommended next step
 

@@ -21461,7 +21461,7 @@ complexes that share the same architectural pattern.
             lambda: self._af3a_invert_selection())
         sel_menu.addSeparator()
         sel_menu.addAction(
-            "Select all HIGH-confidence rows  (PAE_min < 4 Å & cp_ipTM ≥ 0.5)",
+            "Select all HIGH-confidence rows  (PAE_min < 4 Å & ipTM ≥ 0.5)",
             lambda: self._af3a_select_high_confidence())
         sel_menu.addAction(
             "Select all rows with no chain info  (n_chains = 0)",
@@ -21547,7 +21547,7 @@ complexes that share the same architectural pattern.
                 self._af3a_table.selectRow(r)
 
     def _af3a_select_high_confidence(self):
-        """Select rows where the PAE_min/cp_ipTM rule flags a focal hit."""
+        """Select rows where the PAE_min/ipTM rule flags a focal hit."""
         self._af3a_table.clearSelection()
         for view_row in range(self._af3a_table.rowCount()):
             res = self._af3a_res_for_view_row(view_row)
@@ -22888,7 +22888,7 @@ complexes that share the same architectural pattern.
         self._af3a_replot_selected()
 
     def _af3a_visible_ranked_candidates(self, limit=None):
-        """Return visible rows ranked by PAE_min ascending, cp_ipTM descending.
+        """Return visible rows ranked by PAE_min ascending, ipTM descending.
 
         This implements the intended large-screen workflow:
             summary scan -> rank/filter -> user clicks Run visible/top.
@@ -22903,14 +22903,12 @@ complexes that share the same architectural pattern.
             if res is None:
                 continue
             pae_min = res.get('pae_min_inter')
-            cp_iptm = res.get('cp_iptm_inter')
             iptm = res.get('iptm')
             # rows without PAE_min go to the end, but remain eligible
             pae_rank = float(pae_min) if pae_min is not None else float('inf')
-            cp_rank = float(cp_iptm) if cp_iptm is not None else -1.0
             iptm_rank = float(iptm) if iptm is not None else -1.0
-            candidates.append((pae_rank, -cp_rank, -iptm_rank, view_row, res))
-        candidates.sort(key=lambda x: (x[0], x[1], x[2], x[3]))
+            candidates.append((pae_rank, -iptm_rank, view_row, res))
+        candidates.sort(key=lambda x: (x[0], x[1], x[2]))
         if limit is not None:
             candidates = candidates[:max(0, int(limit))]
         return [res for *_rest, res in candidates]
@@ -22941,7 +22939,7 @@ complexes that share the same architectural pattern.
                 self, "Run hotspots on visible/top candidates",
                 f"Run hotspot/motif analysis on the top {len(selected)} visible "
                 "candidate(s)?\n\n"
-                "Ranking: PAE_min ascending, then cp_ipTM descending.\n"
+                "Ranking: PAE_min ascending, then ipTM descending.\n"
                 "Only these jobs will load full PAE/contact matrices; the rest "
                 "remain summary-only.",
                 yes | no)
@@ -23505,10 +23503,8 @@ complexes that share the same architectural pattern.
                    or r.get('pae_min_inter')
                    or r.get('pae_min'))
             pae_lbl = f"PAE_min={pae:.2f} Å" if pae is not None else "PAE_min=?"
-            cp = (r.get('chain_pair_iptm')
-                  or r.get('cp_iptm_inter')
-                  or r.get('cp_iptm'))
-            cp_lbl = f"cp_ipTM={cp:.2f}" if cp is not None else ""
+            iptm = r.get('iptm')
+            cp_lbl = f"ipTM={iptm:.2f}" if iptm is not None else ""
             txt = f"{jn}   ({other_lbl},  {pae_lbl}{('   '+cp_lbl) if cp_lbl else ''})"
             it = QListWidgetItem(txt)
             it.setData(32, r.get('job_dir', ''))  # 32 = Qt::UserRole
@@ -23646,7 +23642,7 @@ complexes that share the same architectural pattern.
             "  Squared       — x²    (amplifies separation in mid-range)\n"
             "  Square root   — √x    (compresses outliers)\n"
             "  Log10         — log₁₀(x)  (use for skewed distributions)\n"
-            "  Negative log  — −log₁₀(x)  (e.g. for cp_ipTM or contact fractions)\n"
+            "  Negative log  — −log₁₀(x)  (e.g. for contact fractions)\n"
             "Safe clamps avoid 1/0, log(0), √(<0).")
         self._ppi_an_transform.currentIndexChanged.connect(self._ppi_analysis_refresh)
         tb.addWidget(self._ppi_an_transform)
@@ -23659,7 +23655,7 @@ complexes that share the same architectural pattern.
         self._ppi_an_metric.setToolTip(
             "Base metric for the per-ORF scatter view:\n"
             "  PAE_min     — minimum inter-chain PAE (Å, lower = better)\n"
-            "  cp_ipTM     — chain-pair ipTM (0..1, higher = better)\n"
+            ""
             "  HotSpotPAE  — mean PAE inside the best interaction patch (Å)\n"
             "  Contact%    — fraction of inter-chain residue pairs with PAE < 5 Å (0..1)\n"
             "  iptm        — overall ipTM (0..1, higher = better)\n"
@@ -24158,7 +24154,7 @@ complexes that share the same architectural pattern.
                     pts2d.append((xv_val, yv_val, prof_idx, label))
                     self._ppi_an_2d_orfmap.append(int(oi))
             show_high_quadrant = (
-                x_metric_name == "PAE_min" and metric == "cp_ipTM"
+                x_metric_name == "PAE_min" and metric == "iptm"
                 and x_transform_name == "Identity" and transform == "Identity"
             )
             self._ppi_an_2d.set_data_generic(
@@ -24194,7 +24190,7 @@ complexes that share the same architectural pattern.
                 f"{n} HMM profiles · "
                 f"thresholds: HIGH<{_PpiArcMapWidget._PAE_HIGH:.1f}Å "
                 f"MED<{_PpiArcMapWidget._PAE_MED:.1f}Å "
-                f"cp_ipTM≥{_PpiArcMapWidget._CP_IPTM_FOCAL:.2f}")
+                f"ipTM≥{_PpiArcMapWidget._CP_IPTM_FOCAL:.2f}")
         except Exception as e:
             self._ppi_an_status.setText(f"Refresh error: {e}")
             print(f"[ppigFinder] _ppi_analysis_refresh: {e}")
@@ -24218,13 +24214,13 @@ complexes that share the same architectural pattern.
             "All results",
             "HIGH only  (PAE_min < HIGH cutoff)",
             "HIGH + MED  (PAE_min < MED cutoff)",
-            "Focal hits  (PAE_min < HIGH & cp_ipTM ≥ cutoff)",
+            "Focal hits  (PAE_min < HIGH & ipTM ≥ cutoff)",
         ])
         self._ppi_arc_filter_combo.setToolTip(
             "Filter which interaction arcs are drawn.\n"
             "HIGH = PAE_min < 4 Å (focal domain contact confirmed)\n"
             "MED  = PAE_min 4–8 Å (possible contact, check motifs)\n"
-            "Focal = HIGH AND cp_ipTM ≥ 0.50 (strictest)")
+            "Focal = HIGH AND ipTM ≥ 0.50 (strictest)")
         self._ppi_arc_filter_combo.currentIndexChanged.connect(
             self._ppi_arc_map_refresh)
         tb.addWidget(self._ppi_arc_filter_combo)
@@ -24237,7 +24233,7 @@ complexes that share the same architectural pattern.
             "Metric used to determine arc colour:\n"
             "  PAE_min ★ — minimum inter-chain PAE (recommended)\n"
             "  ipTM      — global interface pTM score\n"
-            "  cp_ipTM ★ — chain-pair ipTM (focal, from summary JSON)\n"
+            ""
             "  Contact%  — fraction of residue pairs with PAE < 5 Å")
         self._ppi_arc_color_combo.currentIndexChanged.connect(
             self._ppi_arc_map_refresh)

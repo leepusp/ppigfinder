@@ -184,7 +184,7 @@ def classify_interaction(
     Classify interaction confidence.
 
     Conservative focal rule:
-    - HIGH: PAE_min < 4 and cp_ipTM >= 0.50
+    - HIGH: PAE_min < 4 and interface confidence >= 0.50
     - MED:  PAE_min < 8
     - LOW:  otherwise
     """
