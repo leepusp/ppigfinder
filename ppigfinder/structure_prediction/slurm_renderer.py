@@ -1,0 +1,108 @@
+from __future__ import annotations
+
+from typing import Iterable, Optional
+
+from ppigfinder.structure_prediction.hpc_planner import HPCResourcePlan
+from ppigfinder.structure_prediction.cluster_profiles import SlurmDirectiveOverrides
+
+
+def render_array_directive(job_count: int, chunk_size: int = 1) -> str:
+    if job_count <= 0:
+        raise ValueError("job_count must be positive")
+
+    chunk_size = max(1, int(chunk_size))
+    chunk_size = min(chunk_size, job_count)
+
+    if job_count == 1:
+        return ""
+
+    return f"#SBATCH --array=1-{job_count}%{chunk_size}"
+
+
+def render_sbatch_header(
+    plan: HPCResourcePlan,
+    job_name: Optional[str] = None,
+    partition: Optional[str] = None,
+    gres: Optional[str] = None,
+    overrides: Optional[SlurmDirectiveOverrides] = None,
+    array_job_count: int = 1,
+    output_log: str = "logs/%x_%A_%a.out",
+    error_log: str = "logs/%x_%A_%a.err",
+) -> str:
+    effective_job_name = job_name or plan.job_id
+    effective_partition = partition or plan.partition_hint
+    effective_gres = gres
+
+    if overrides is not None:
+        if overrides.partition:
+            effective_partition = overrides.partition
+        if overrides.gres is not None:
+            effective_gres = overrides.gres or None
+
+    lines = [
+        "#!/usr/bin/env bash",
+        f"#SBATCH --job-name={effective_job_name}",
+        f"#SBATCH --cpus-per-task={plan.cpus_per_task}",
+        f"#SBATCH --mem={plan.memory_gb}G",
+        f"#SBATCH --time={plan.time_limit}",
+        f"#SBATCH --output={output_log}",
+        f"#SBATCH --error={error_log}",
+    ]
+
+    if effective_partition and effective_partition != "review_required":
+        lines.append(f"#SBATCH --partition={effective_partition}")
+
+    if effective_gres:
+        lines.append(f"#SBATCH --gres={effective_gres}")
+
+    array_directive = render_array_directive(
+        job_count=array_job_count,
+        chunk_size=plan.array_chunk_size,
+    )
+    if array_directive:
+        lines.append(array_directive)
+
+    lines.extend(
+        [
+            "",
+            "set -euo pipefail",
+            "",
+            plan.as_sbatch_comment_block(),
+            "",
+        ]
+    )
+
+    return "\n".join(lines)
+
+
+def render_submission_preview(
+    plans: Iterable[HPCResourcePlan],
+    backend_module_command: str,
+    job_count: int,
+    gres: Optional[str] = None,
+    overrides: Optional[SlurmDirectiveOverrides] = None,
+) -> str:
+    plans = list(plans)
+    if not plans:
+        raise ValueError("at least one plan is required")
+
+    first = plans[0]
+
+    header = render_sbatch_header(
+        first,
+        job_name=f"ppig_{first.backend_id}",
+        gres=gres,
+        overrides=overrides,
+        array_job_count=job_count,
+    )
+
+    body = [
+        "# Load backend environment here.",
+        backend_module_command,
+        "",
+        "# Replace this placeholder with backend-specific execution.",
+        'echo "Running ppigFinder structural prediction task ${SLURM_ARRAY_TASK_ID:-1}"',
+        "",
+    ]
+
+    return header + "\n".join(body)

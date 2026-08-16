@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: "If you use ppigFinder in your research, please cite this software and the associated publication."
+title: "ppigFinder"
+type: software
+version: "2.9.14"
+license: MIT
+repository-code: "https://github.com/leepusp/ppigfinder"
+url: "https://github.com/leepusp/ppigfinder"
+authors:
+  - name: "ppigFinder Contributors"

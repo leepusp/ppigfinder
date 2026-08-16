@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ppigfinder"
+version = "2.9.14"
+description = "Protein-Protein Interaction Genomic Finder"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+authors = [
+    { name = "ppigFinder Contributors" }
+]
+dependencies = [
+    "numpy>=1.21",
+    "matplotlib>=3.5",
+]
+
+[project.optional-dependencies]
+interactive = ["ipython>=8"]
+gui = [
+    "PyQt6>=6.4",
+]
+recommended = [
+    "pyrodigal>=2.0",
+    "paramiko>=2.9",
+]
+dev = [
+    "pytest>=7",
+]
+
+[project.scripts]
+ppigfinder = "ppigfinder.app:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["ppigfinder*"]

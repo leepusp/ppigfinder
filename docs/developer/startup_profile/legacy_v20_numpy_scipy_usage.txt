@@ -1,0 +1,58 @@
+58:    numpy        >= 1.21  https://numpy.org
+167:       [scipy.ndimage used in motif detection (connected-component labelling)]
+191:  pip install PyQt6 matplotlib numpy            # core
+259:    • scipy.ndimage is used when available for labelling + morphology;
+260:      a pure-numpy BFS + dilate/erode fallback is used otherwise.
+577:# Lazy numpy loader.
+578:NUMPY_AVAILABLE = _importlib_util.find_spec("numpy") is not None
+587:            import numpy as _np
+597:# scipy.ndimage is used by the motif detection in the AlphaFold
+599:# It is OPTIONAL — a pure-numpy BFS fallback is used when it's missing.
+600:# Lazy scipy.ndimage loader.
+601:SCIPY_NDIMAGE_AVAILABLE = _importlib_util.find_spec("scipy.ndimage") is not None
+610:            import scipy.ndimage as _mod
+618:_scipy_ndimage = _LazyScipyNdimage() if SCIPY_NDIMAGE_AVAILABLE else None  # type: ignore[assignment]
+2220:  numpy >= 1.21      pip install numpy
+2678:  numpy             >= 1.21  REQUIRED  PAE/pLDDT plots disabled
+2726:  pip install PyQt6 matplotlib numpy
+2732:  python -c "import PyQt6; import matplotlib; import numpy; print('OK')"
+2792:  conda install -c conda-forge pyqt matplotlib numpy -y
+2903:  pip install PyQt6 matplotlib numpy
+2937:  conda install -c conda-forge pyqt matplotlib numpy -y
+2963:  pip install PyQt6 matplotlib numpy pyrodigal paramiko
+2972:  conda install -c conda-forge pyqt matplotlib numpy -y
+2997:  pip install PyQt6 matplotlib numpy
+3000:  pip install PyQt6 matplotlib numpy pyrodigal paramiko
+3003:  conda install -c conda-forge pyqt matplotlib numpy
+3024:  Fix: pip install matplotlib numpy --upgrade
+11355:     ► scipy.ndimage used for connected-component labelling and
+11484:                "   pip install matplotlib numpy")
+12203:                        mean_plddt = float(np.mean(arr))
+12253:                for _entry in _inp.get('sequences', []):
+12314:                pae_np = np.array(pae_matrix, dtype=float)
+12615:        Uses scipy.ndimage.label when available (fast C implementation),
+12616:        otherwise falls back to a pure-numpy BFS. 4-connectivity.
+12624:            labels, n = _scipy_ndimage.label(mask)
+12626:        # Pure-numpy BFS fallback
+12628:        labels = np.zeros((h, w), dtype=np.int32)
+12654:        Falls back to a simple numpy implementation if scipy missing.
+12657:            return _scipy_ndimage.binary_closing(mask, iterations=iterations)
+12752:            comp_rows, comp_cols = np.where(labels == k)
+12795:                plddt_mA = float(np.mean(plddt_A[r0:r1 + 1]))
+12797:                plddt_mB = float(np.mean(plddt_B[c0:c1 + 1]))
+12895:        pae_np = np.array(pae_matrix, dtype=float)
+12896:        contact_np = (np.array(contact_probs, dtype=float)
+12898:        plddt_np = (np.array(plddt_arr, dtype=float)
+12900:        tri_np = (np.array(token_res_ids)
+12979:        c5_A  = np.where(mean_A < 5.0)[0]
+12980:        c10_A = np.where(mean_A < 10.0)[0]
+12981:        c5_B  = np.where(mean_B < 5.0)[0]
+12982:        c10_B = np.where(mean_B < 10.0)[0]
+13296:                pae_np = np.array(res['pae_matrix'], dtype=float)
+13499:            pae_np = np.array(pae, dtype=float)
+13558:                        contact_rows = np.where(mA < thresh)[0]
+13575:                            low = np.argwhere(sub < thresh)
+13700:            plddt_np = np.array(plddt, dtype=float)
+13714:                xs  = np.arange(cum, cum + clen)
+17120:        ("numpy",      "numpy>=1.21",      (1, 21), True),
+17123:        ("scipy",      "scipy>=1.7",       (1, 7),  False),

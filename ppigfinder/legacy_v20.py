@@ -2,7 +2,7 @@
 """
 ppigFinder — Protein-Protein Interaction Genomic Finder
 ========================================================
-Version  : 2.00 — v1.14
+Version  : 2.00 — v2.0
 Released : 2026
 License  : MIT (see LICENSE section below)
 
@@ -29,8 +29,19 @@ MAIN FEATURES
   • AlphaFold 3 job builder: AF3 JSON / ColabFold FASTA export
   • HPC server integration: SSH/SFTP upload and submission to SLURM,
     PBS/Torque or LSF schedulers; job monitoring and result download
-  • AF3 results analysis: PAE heatmap (ChimeraX colour scheme), pLDDT
-    plots, ipTM/ptm scoring, inter-chain contact detection
+  • AF3 results analysis (Interaction Results tab):
+      – PAE heatmap (ChimeraX colour scheme) and pLDDT plots
+      – Global and focal inter-chain metrics: ipTM, ptm, ranking_score,
+        PAE_inter (global mean), PAE_min ★ (chain_pair_pae_min off-diag),
+        cp_ipTM ★ (chain_pair_iptm off-diag), Contact% ★ (PAE < 5 Å)
+      – Two-tier interaction motif detector: connected-component
+        segmentation of the off-diagonal PAE quadrant validated by
+        contact_probs and B↔A reciprocity (novel v1.16 algorithm)
+      – Confidence classification: HIGH (PAE_min < 4 Å & cp_ipTM ≥ 0.50),
+        MED (PAE_min 4–8 Å), LOW (PAE_min ≥ 8 Å)
+  • Genomic PPI Map tab: linear genome representation with Bezier arcs
+    connecting predicted interaction pairs, colour-coded by PAE_min;
+    zoom/pan, click-to-select, SVG/TSV export
   • Project save / load (JSON workspace), multi-language UI (EN/PT/ES/
     FR/ZH/JA), export to GenBank, SnapGene .dna, PDF, TSV
 
@@ -121,6 +132,60 @@ REFERENCES
       Array programming with NumPy. Nature, 585, 357-362.
       https://doi.org/10.1038/s41586-020-2649-2
 
+  [8] Evans, R., O'Neill, M., Pritzel, A., Antropova, N., Senior, A.,
+      Green, T., ... Hassabis, D. (2022). Protein complex prediction with
+      AlphaFold-Multimer. bioRxiv 2021.10.04.463034.
+      https://doi.org/10.1101/2021.10.04.463034
+      [ipTM metric, chain_pair_iptm, chain_pair_pae_min definitions]
+
+  [9] Jumper, J., Evans, R., Pritzel, A., Green, T., Figurnov, M.,
+      Ronneberger, O., ... Hassabis, D. (2021). Highly accurate protein
+      structure prediction with AlphaFold. Nature, 596, 583-589.
+      https://doi.org/10.1038/s41586-021-03819-2
+      [PAE (Predicted Aligned Error) metric definition]
+
+  [10] Humphreys, I.R., Pei, J., Baek, M., Krishnakumar, A., Anishchenko, I.,
+       Ovchinnikov, S., ... Baker, D. (2021). Computed structures of core
+       eukaryotic protein complexes. Science, 374, eabm4805.
+       https://doi.org/10.1126/science.abm4805
+       [ipTM-based PPI screening at proteome scale; methodology basis]
+
+  [11] Bryant, P., Pozzati, G., & Elofsson, A. (2022). Improved prediction
+       of protein-protein interactions using AlphaFold2. Nature Communications,
+       13, 1265. https://doi.org/10.1038/s41467-022-28865-w
+       [PAE inter-chain analysis for PPI confidence scoring]
+
+  [12] Mirdita, M., Schütze, K., Moriwaki, Y., Heo, L., Ovchinnikov, S.,
+       & Steinegger, M. (2022). ColabFold: making protein folding accessible
+       to all. Nature Methods, 19, 679-682.
+       https://doi.org/10.1038/s41592-022-01488-1
+       [ColabFold FASTA format; batch MSA for PPI screening]
+
+  [13] Virtanen, P., Gommers, R., Oliphant, T.E. et al. (2020). SciPy 1.0:
+       Fundamental algorithms for scientific computing in Python.
+       Nature Methods, 17, 261-272. https://doi.org/10.1038/s41592-019-0686-2
+       [scipy.ndimage used in motif detection (connected-component labelling)]
+
+  [14] Chou, T.-F., Bulfer, S.L., Weihl, C.C., Li, K., Leman, L.J., Ghadiri,
+       M.R., ... Deshaies, R.J. (2011). Specific inhibition of p97/VCP ATPase
+       and kinetic analysis demonstrate interaction between D1 and D2 ATPase
+       domains. Journal of Molecular Biology, 406(3), 432-450.
+       [Genomic co-localization as PPI evidence in bacterial operons]
+
+  METHODOLOGY NOTE — Focal Interaction Metrics (v1.18):
+  The global PAE_inter metric (mean of the entire off-diagonal PAE quadrant)
+  is diluted by disordered protein regions and does not reliably identify
+  proteins that interact through a single domain. ppigFinder v1.18+
+  introduces two focal metrics extracted directly from AF3 summary JSONs:
+    • PAE_min (chain_pair_pae_min): minimum PAE in the off-diagonal quadrant.
+      A value < 4 Å indicates that AF3 predicts at least one contact point
+      with near-atomic confidence, regardless of global disorder.
+    • cp_ipTM (chain_pair_iptm): chain-pair ipTM for the interface only,
+      removing the contribution of intra-chain folding quality.
+  Classification threshold: PAE_min < 4 Å AND cp_ipTM ≥ 0.50 = HIGH
+  confidence focal interaction (analogous to the ipTM > 0.75 criterion of
+  Evans et al. 2022 but applicable to domain-limited contacts).
+
 INSTALLATION
 ------------
   pip install PyQt6 matplotlib numpy            # core
@@ -173,6 +238,112 @@ CITATION
 
 CHANGELOG
 ---------
+
+  v2.0 (2026) — Public release
+    • Consolidated all v1.x features into stable public release.
+  v1.16 (2026) — Interaction motif detection in the off-diagonal PAE
+    • New algorithm: two-tier connected-component segmentation of the
+      off-diagonal PAE quadrants, validated by contact_probs and
+      reciprocity. Extracts biologically interpretable interaction
+      motifs (A[res X-Y] × B[res W-Z]) from each AF3 pair.
+        – Tier 1 (core):      PAE < pae_core AND contact_probs ≥ min_contact
+        – Tier 2 (extended):  PAE < pae_ext (used to grow the bbox)
+        – Morphological closing bridges 1-2 pixel gaps before labelling.
+        – Reciprocity: motif must also appear in the B↔A quadrant at
+          ≥ 50 % pixel overlap (rejects one-sided ghost motifs).
+        – Score 0-100 combining PAE confidence (35 %), size (20 %),
+          density (20 %), pLDDT (15 %), reciprocity (10 %).
+    • Per-motif metrics surfaced: residue ranges on both chains, size,
+      mean / min PAE, density, mean / max contact_probs, pLDDT A / B,
+      reciprocity overlap, combined score.
+    • scipy.ndimage is used when available for labelling + morphology;
+      a pure-numpy BFS + dilate/erode fallback is used otherwise.
+    • UI: second toolbar row in the AlphaFold Analysis tab with
+      spinboxes for core PAE, ext PAE, min contact_probs, min size,
+      'reciprocal' checkbox, Rerun button, Motifs TSV export.
+    • UI: motif table appended below PAE/pLDDT plots on row select,
+      with colour-coded score / pLDDT cells. Clicking a motif row
+      flashes a red highlight rectangle on both off-diagonal quadrants.
+    • UI: PAE heatmap overlay now draws a coloured numbered rectangle
+      (green / amber / red by score) around every detected motif in the
+      A↔B quadrant and a dashed mirror in B↔A.
+    • Validated against the uploaded ORF2601 × ORF50 example:
+        – synthetic motif at A[30-44] × B[50-69] → detected exactly
+          there with mean PAE 3.2 Å, 100 % reciprocity.
+        – real ORF2601 × ORF50 → 0 motifs (correct: chain_pair_pae_min
+          is 8.70 Å, no contiguous ≥ 5×5 region below 8 Å).
+    • Defaults calibrated from real data: pae_core=8, pae_ext=15,
+      min_contact=0.05, min_size=5.
+
+  v1.15 (2026) — AlphaFold Analysis tab: bug fixes + AF3-server support
+    — Bugs fixed —
+    • Critical: selecting a row after sorting the table loaded the
+      WRONG job into the PAE/pLDDT plots (view row index was used as a
+      data-list index). Index is now stored in UserRole on column 0
+      and retrieved via item.data(UserRole).
+    • Critical: numeric columns (ipTM, ptm, pLDDT, ranking, PAE_inter)
+      were sorted lexicographically ("100.0" < "2.5"). Fixed with a
+      _NumericItem subclass with numeric __lt__.
+    • Bug: pLDDT extraction missed the AF3 server's per-atom layout.
+      AF3 server output stores 'atom_plddts' (per-atom, 9132 values
+      for this pair) with NO 'token_plddts'. Parser now aggregates
+      atoms → residues using the atom→residue map parsed from the
+      model .cif file (whose B_iso column equals the atom pLDDT).
+      Verified against the uploaded example: 1170 tokens, 0 missing.
+    • Bug: contact markers on the PAE heatmap were drawn as a single
+      vertical stripe at the centre of each off-diagonal block.
+      Markers now appear at the actual contact residue positions in
+      both AB and BA quadrants.
+    • Bug: changing the contact threshold did not refresh the "Best
+      contact pair" cell in the table. Fixed.
+    • Bug: parse errors were silently swallowed to stdout. Failed
+      jobs are now collected and surfaced in a single dialog.
+
+    — AF3 server output support —
+    • Content-based JSON classification replaces the old filename
+      globs. Each .json in a candidate folder is probed for its top-
+      level keys and tagged as summary / confidences / data / unknown.
+    • Huge input-data JSONs (sequences + MSA, 80+ MB) are skipped by
+      size before being opened.
+    • seed-*_sample-* subfolders are recognised as per-sample details
+      of their parent job (the best model is already promoted to the
+      parent) and are no longer scanned as independent jobs.
+    • Rich summary fields now extracted: chain_iptm, chain_ptm,
+      chain_pair_iptm, chain_pair_pae_min, fraction_disordered,
+      has_clash, contact_probs.
+    • ranking_scores.csv is parsed and attached to the result; the
+      number of diffusion samples is shown in the row tooltip and in
+      the TSV export.
+
+    — UX —
+    • Filter spinboxes: min ipTM, max PAE_inter.
+    • Tooltip on row name cell shows clash, disordered %, pair PAE
+      min, per-chain ipTM, and sample count.
+    • Plot header now shows disordered %, clash status, and per-chain
+      ipTM/pTM in a second line. Per-pair line shows pair ipTM, pair
+      PAE min, and pair PAE mean alongside the contact region.
+    • TSV export expanded with pae_min_best_pair, pair_iptm_best_pair,
+      chain_iptm, chain_ptm, fraction_disordered, has_clash and
+      n_diffusion_samples.
+    • Double-click a row to open the job folder in the OS file
+      manager. High-confidence rows (ipTM > 0.75 and PAEinter < 8 Å)
+      are drawn in bold. Progress dialog for large scans. Top-scoring
+      row auto-selected after load.
+
+    — AF3 tab Mode dropdown —
+    • Removed 'HMM Hits vs Each Other', 'Hit vs All Selected ORFs' and
+      'Homodimer (Hit vs Itself)' at user request.
+    • Implemented 'Neighbors Interactome' (was silently generating 0
+      jobs). Now scans the ENTIRE genome with a sliding window of ±N
+      neighbors and deduplicates by (min,max) — produces the canonical
+      pair set { (i,j) : 1 ≤ j−i ≤ N }, whose size is N·n − N(N+1)/2.
+      Confirms before generating > 5 000 jobs. Validated against the
+      user-provided example: for genome={1..6}, N=2 yields exactly
+      (1,2),(1,3),(2,3),(2,4),(3,4),(3,5),(4,5),(4,6),(5,6).
+    • Implemented 'Trimers (Hit + 2 Neighbors)' (was also silently
+      empty). Emits 3-chain AF3 jobs with the Hit and every unordered
+      pair of distinct neighbors in the window.
+
   v1.12 (2026) — File menu cleanup + extended zoom to 1,000,000×
     • Removed from File menu: Open Multi-FASTA, Open SnapGene (.dna),
       Open GenBank (.gb/.gbk), Export as SnapGene (.dna), Export as GenBank
@@ -246,6 +417,8 @@ CHANGELOG
     • Multi-language UI (EN, PT-BR, ES, FR, ZH, JA)
 """
 
+from __future__ import annotations
+
 import sys
 import os
 import re
@@ -274,18 +447,14 @@ try:
         QCheckBox, QTextEdit, QPlainTextEdit, QTextBrowser, QTableWidget,
         QTableWidgetItem,
         QFileDialog, QMessageBox, QDialog, QDialogButtonBox,
-        QMenu, QToolBar, QScrollArea,
+        QMenu, QAction, QToolBar, QScrollArea,
         QFrame, QSizePolicy, QAbstractItemView,
         QInputDialog,
     )
     from PyQt6.QtCore import (
-        Qt, QTimer, QThread, pyqtSignal,
+        Qt, QTimer, QThread, pyqtSignal, QObject,
+        QPointF, QRectF, QSettings,
     )
-    from PyQt6.QtGui import (
-        QPainter, QPen, QBrush, QColor, QFont,
-        QPolygonF, QKeySequence, QShortcut,
-    )
-    from PyQt6.QtCore import QPointF
     QT_VERSION = 6
     # Qt6 enums
     AlignLeft = Qt.AlignmentFlag.AlignLeft
@@ -307,19 +476,24 @@ except ImportError:
         QCheckBox, QTextEdit, QPlainTextEdit, QTextBrowser, QTableWidget,
         QTableWidgetItem,
         QFileDialog, QMessageBox, QDialog, QDialogButtonBox,
-        QMenu, QToolBar, QScrollArea,
+        QMenu, QAction, QToolBar, QScrollArea,
         QFrame, QSizePolicy, QAbstractItemView,
         QInputDialog,
     )
     from PyQt5.QtCore import (
-        Qt, QTimer, QThread, pyqtSignal,
-        QPointF,
+        Qt, QTimer, QThread, pyqtSignal, QObject,
+        QPointF, QSettings,
     )
     from PyQt5.QtGui import (
-        QPainter, QPen, QBrush, QColor, QFont,
+        QPainter, QPen, QBrush, QColor, QFont, QCursor,
         QPolygonF, QKeySequence,
+        QPainterPath, QPainterPathStroker,
     )
     from PyQt5.QtWidgets import QShortcut
+    try:
+        from PyQt5.QtCore import QRectF
+    except ImportError:
+        QRectF = None
     QT_VERSION = 5
     AlignLeft = Qt.AlignLeft
     AlignRight = Qt.AlignRight
@@ -345,519 +519,171 @@ try:
 except ImportError:
     PARAMIKO_AVAILABLE = False
 
-try:
-    import matplotlib
-    if QT_VERSION == 6:
-        matplotlib.use('Qt6Agg')
-        from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
-    else:
-        matplotlib.use('Qt5Agg')
-        from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-    import matplotlib.pyplot as plt
-    MATPLOTLIB_AVAILABLE = True
-except Exception:
-    try:
-        import matplotlib
-        matplotlib.use('Agg')
-        from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
-        import matplotlib.pyplot as plt
-        MATPLOTLIB_AVAILABLE = True
-    except ImportError:
-        MATPLOTLIB_AVAILABLE = False
-        FigureCanvas = None
+# Lazy matplotlib loader.
+# Importing matplotlib can be slow on HPC/shared filesystems, so it is loaded
+# only when plots are actually created.
+import importlib.util as _importlib_util
 
-try:
-    import numpy as np
-    NUMPY_AVAILABLE = True
-except ImportError:
-    np = None  # type: ignore[assignment]
-    NUMPY_AVAILABLE = False
+MATPLOTLIB_AVAILABLE = True  # optimistic lazy check; do not probe matplotlib during startup
+
+
+def _load_matplotlib_objects():
+    import matplotlib
+
+    try:
+        if QT_VERSION == 6:
+            matplotlib.use("Qt6Agg")
+            from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as _FigureCanvas
+        else:
+            matplotlib.use("Qt5Agg")
+            from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as _FigureCanvas
+    except Exception:
+        matplotlib.use("Agg")
+        from matplotlib.backends.backend_agg import FigureCanvasAgg as _FigureCanvas
+
+    import matplotlib.pyplot as _plt
+    return _plt, _FigureCanvas
+
+
+class _LazyPyplot:
+    def __init__(self):
+        self._plt = None
+
+    def _load(self):
+        if self._plt is None:
+            self._plt, _ = _load_matplotlib_objects()
+        return self._plt
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+
+class _LazyFigureCanvas:
+    def __init__(self):
+        self._canvas_cls = None
+
+    def _load(self):
+        if self._canvas_cls is None:
+            _, self._canvas_cls = _load_matplotlib_objects()
+        return self._canvas_cls
+
+    def __call__(self, *args, **kwargs):
+        return self._load()(*args, **kwargs)
+
+
+plt = _LazyPyplot()
+FigureCanvas = _LazyFigureCanvas() if MATPLOTLIB_AVAILABLE else None
+
+
+
+def _ppig_missing_optional_dependency(name: str, install_hint: str = ""):
+    msg = f"Optional dependency '{name}' is not available."
+    if install_hint:
+        msg += f" Install with: {install_hint}"
+    raise ImportError(msg)
+
+# Lazy numpy loader.
+NUMPY_AVAILABLE = True  # optimistic lazy check; do not probe numpy during startup
+
+
+class _LazyNumpy:
+    def __init__(self):
+        self._np = None
+
+    def _load(self):
+        if self._np is None:
+            import numpy as _np
+            self._np = _np
+        return self._np
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+
+np = _LazyNumpy() if NUMPY_AVAILABLE else None  # type: ignore[assignment]
+
+# scipy.ndimage is used by the motif detection in the AlphaFold
+# Analysis tab (connected-component labeling + morphological closing).
+# It is OPTIONAL — a pure-numpy BFS fallback is used when it's missing.
+# Lazy scipy.ndimage loader.
+SCIPY_NDIMAGE_AVAILABLE = True  # optimistic lazy check; do not import scipy during startup
+
+
+class _LazyScipyNdimage:
+    def __init__(self):
+        self._mod = None
+
+    def _load(self):
+        if self._mod is None:
+            try:
+
+                import scipy.ndimage as _mod
+
+            except ImportError:
+
+                _ppig_missing_optional_dependency("scipy.ndimage", "pip install scipy")
+            self._mod = _mod
+        return self._mod
+
+    def __getattr__(self, name):
+        return getattr(self._load(), name)
+
+
+_scipy_ndimage = _LazyScipyNdimage() if SCIPY_NDIMAGE_AVAILABLE else None  # type: ignore[assignment]
 
 
 
 # ═══════════════════════════════════════════════════════════════
 # EXTERNAL BACKEND DETECTION
+# Extracted into ppigfinder.infrastructure.backends
 # ═══════════════════════════════════════════════════════════════
 
-def detect_backends():
-    """Detect installed external tools (including WSL)."""
-    backends = {}
-    for tool, cmd in [('blast+', 'blastp'), ('hmmer3', 'hmmsearch')]:
-        path = shutil.which(cmd)
-        if path:
-            try:
-                r = subprocess.run([cmd, '-version'] if tool == 'blast+' else [cmd, '-h'],
-                                   capture_output=True, text=True, timeout=5)
-                version = r.stdout.split('\n')[0] if r.stdout else 'detectado'
-                backends[tool] = {'path': path, 'version': version, 'available': True, 'wsl': False}
-            except Exception:
-                backends[tool] = {'path': path, 'version': '?', 'available': True, 'wsl': False}
-        else:
-            # Try WSL on Windows
-            wsl_found = False
-            if os.name == 'nt':
-                try:
-                    r = subprocess.run(['wsl', 'bash', '-c', f'{cmd} -h'],
-                                       capture_output=True, text=True, timeout=10)
-                    if r.returncode == 0 or 'Usage' in (r.stdout + r.stderr):
-                        backends[tool] = {'path': f'wsl bash -c {cmd}', 'version': 'via WSL',
-                                          'available': True, 'wsl': True}
-                        wsl_found = True
-                except Exception:
-                    pass
-            if not wsl_found:
-                backends[tool] = {'path': None, 'version': None, 'available': False, 'wsl': False}
-    return backends
+try:
+    from .infrastructure.backends import BACKENDS, detect_backends
+except ImportError:
+    from ppigfinder.infrastructure.backends import BACKENDS, detect_backends
 
-BACKENDS = detect_backends()
-
-# Pyrodigal detection (Python module, not external tool)
-BACKENDS['pyrodigal'] = {
-    'path': 'pyrodigal (Python module)',
-    'version': pyrodigal.__version__ if PYRODIGAL_AVAILABLE else None,
-    'available': PYRODIGAL_AVAILABLE,
-    'wsl': False,
-}
+try:
+    from .bioseq.sequence import (
+        gc_content as _bioseq_gc_content,
+        reverse_complement as _bioseq_reverse_complement,
+        translate_dna as _bioseq_translate_dna,
+    )
+except ImportError:
+    from ppigfinder.bioseq.sequence import (
+        gc_content as _bioseq_gc_content,
+        reverse_complement as _bioseq_reverse_complement,
+        translate_dna as _bioseq_translate_dna,
+    )
 
 
 # ═══════════════════════════════════════════════════════════════
-# MODULE 0: SNAPGENE (.dna) and GENBANK (.gb/.gbk) SUPPORT
-# Pure-stdlib implementation — no external dependencies
+# FILE FORMAT SUPPORT
+# Extracted from the legacy monolith into ppigfinder.io
 # ═══════════════════════════════════════════════════════════════
 
-import struct as _struct
-import io     as _io
-
-# ───────────────────────────────────────────────────────────────
-# 0-A  SNAPGENE READER (.dna)
-# ───────────────────────────────────────────────────────────────
-
-def _snapgene_read_packets(data: bytes):
-    """Iterate TLV packets from a SnapGene .dna file."""
-    buf = _io.BytesIO(data)
-    cookie = buf.read(1)
-    if cookie != b'\x09':
-        raise ValueError(
-            "File not recognised as SnapGene (.dna).\n"
-            "Check whether it is corrupted or an unsupported old version."
-        )
-    while True:
-        hdr = buf.read(5)
-        if len(hdr) < 5:
-            break
-        pkt_type = hdr[0]
-        pkt_len  = _struct.unpack('>I', hdr[1:5])[0]
-        payload  = buf.read(pkt_len)
-        yield pkt_type, payload
-
-
-def parse_snapgene_dna(filepath: str) -> dict:
-    """
-    Read a SnapGene (.dna) file and return:
-      sequence  (str)  : DNA sequence in uppercase
-      topology  (str)  : 'circular' | 'linear'
-      name      (str)  : file name without extension
-      features  (list) : [{name, type, start(0-based), end, strand(+/-), color}]
-      primers   (list) : [{name, start(0-based), end, strand(+/-)}]
-      notes     (dict) : free metadata from SnapGene
-    """
-    from xml.etree import ElementTree as ET
-
-    with open(filepath, 'rb') as fh:
-        data = fh.read()
-
-    result = {
-        'sequence': '', 'topology': 'linear',
-        'name': Path(filepath).stem,
-        'features': [], 'primers': [], 'notes': {},
-    }
-
-    for pkt_type, payload in _snapgene_read_packets(data):
-
-        if pkt_type == 0 and len(payload) >= 2:
-            flags = payload[0]
-            result['topology'] = 'circular' if (flags & 0x01) else 'linear'
-            result['sequence'] = payload[1:].decode('ascii', errors='replace').upper()
-
-        elif pkt_type == 8:
-            try:
-                xml = ET.fromstring(payload.decode('utf-8', errors='replace'))
-                for feat in xml.findall('.//Feature'):
-                    name  = feat.get('name', 'unknown')
-                    ftype = feat.get('type', 'misc_feature')
-                    color = feat.get('color', '#aaaaaa')
-                    direc = feat.get('directionality', '1')
-                    strand = '+' if direc in ('1', 'forward') else '-'
-                    for seg in feat.findall('Segment'):
-                        rng = seg.get('range', '')
-                        if '-' in rng:
-                            s, e = rng.split('-', 1)
-                            try:
-                                result['features'].append({
-                                    'name': name, 'type': ftype, 'color': color,
-                                    'start': int(s) - 1,
-                                    'end':   int(e),
-                                    'strand': strand,
-                                })
-                            except ValueError:
-                                pass
-            except ET.ParseError:
-                pass
-
-        elif pkt_type == 6:
-            try:
-                xml = ET.fromstring(payload.decode('utf-8', errors='replace'))
-                for pr in xml.findall('.//Primer'):
-                    pname   = pr.get('name', 'primer')
-                    pstrand = '+' if pr.get('templateStrand', 'sense') == 'sense' else '-'
-                    for bind in pr.findall('BindingSite'):
-                        rng = bind.get('location', '')
-                        if '-' in rng:
-                            s, e = rng.split('-', 1)
-                            try:
-                                result['primers'].append({
-                                    'name': pname,
-                                    'start': int(s) - 1, 'end': int(e),
-                                    'strand': pstrand,
-                                })
-                            except ValueError:
-                                pass
-            except ET.ParseError:
-                pass
-
-        elif pkt_type == 10:
-            try:
-                xml = ET.fromstring(payload.decode('utf-8', errors='replace'))
-                for child in xml:
-                    result['notes'][child.tag] = (child.text or '').strip()
-            except ET.ParseError:
-                pass
-
-    return result
-
-
-# ───────────────────────────────────────────────────────────────
-# 0-B  SNAPGENE WRITER (.dna)
-# ───────────────────────────────────────────────────────────────
-
-def _sg_packet(pkt_type: int, payload: bytes) -> bytes:
-    """Serialise a SnapGene TLV packet."""
-    return bytes([pkt_type]) + _struct.pack('>I', len(payload)) + payload
-
-
-def write_snapgene_dna(filepath: str, sequence: str, features: list,
-                       primers: list = None, topology: str = 'linear',
-                       name: str = '', notes: dict = None):
-    """
-    Write a SnapGene-compatible binary .dna file.
-
-    Parameters
-    ----------
-    sequence  : str   — DNA in uppercase
-    features  : list  — [{name, type, start(0-based), end, strand(+/-), color}]
-    primers   : list  — [{name, start(0-based), end, strand(+/-)}]  (optional)
-    topology  : 'linear' | 'circular'
-    name      : str   — record name (written to Notes packet)
-    notes     : dict  — additional metadata
-    """
-    from xml.etree.ElementTree import Element, SubElement, tostring as _tostr
-
-    buf = _io.BytesIO()
-    buf.write(b'\x09')   # magic cookie
-
-    # ── Packet 0: sequence ──────────────────────────────────────
-    flags = 0x01 if topology == 'circular' else 0x00
-    seq_payload = bytes([flags]) + sequence.lower().encode('ascii')
-    buf.write(_sg_packet(0, seq_payload))
-
-    # ── Packet 8: features ──────────────────────────────────────
-    if features:
-        root_xml = Element('Features')
-        for feat in features:
-            direc = '1' if feat.get('strand', '+') == '+' else '2'
-            f_el = SubElement(root_xml, 'Feature',
-                              name=feat.get('name', 'feature'),
-                              type=feat.get('type', 'misc_feature'),
-                              directionality=direc,
-                              color=feat.get('color', '#aaaaaa'),
-                              swappedSegmentNumbering='0',
-                              allowSegmentOverlaps='0')
-            # SnapGene uses 1-based closed ranges
-            s = feat['start'] + 1
-            e = feat['end']
-            SubElement(f_el, 'Segment', range=f"{s}-{e}",
-                       name=feat.get('name', ''),
-                       color=feat.get('color', '#aaaaaa'),
-                       type='standard')
-        xml_bytes = _tostr(root_xml, encoding='unicode').encode('utf-8')
-        buf.write(_sg_packet(8, xml_bytes))
-
-    # ── Packet 6: primers ───────────────────────────────────────
-    primers = primers or []
-    if primers:
-        root_xml = Element('Primers')
-        for pr in primers:
-            tpl_strand = 'sense' if pr.get('strand', '+') == '+' else 'antisense'
-            pr_el = SubElement(root_xml, 'Primer',
-                               name=pr.get('name', 'primer'),
-                               templateStrand=tpl_strand)
-            s = pr['start'] + 1
-            e = pr['end']
-            SubElement(pr_el, 'BindingSite', location=f"{s}-{e}")
-        xml_bytes = _tostr(root_xml, encoding='unicode').encode('utf-8')
-        buf.write(_sg_packet(6, xml_bytes))
-
-    # ── Packet 10: notes ────────────────────────────────────────
-    notes = notes or {}
-    if name:
-        notes.setdefault('Description', name)
-    notes.setdefault('CustomMapLabel', name or 'ORF Pipeline v20')
-    notes.setdefault('ConfirmedExperimentally', '0')
-    notes.setdefault('Created', datetime.now().strftime('%Y-%m-%d'))
-    notes.setdefault('CreatedBy', 'ORF Secretion Pipeline v20')
-    root_xml = Element('Notes')
-    for k, v in notes.items():
-        el = SubElement(root_xml, k)
-        el.text = str(v)
-    xml_bytes = _tostr(root_xml, encoding='unicode').encode('utf-8')
-    buf.write(_sg_packet(10, xml_bytes))
-
-    with open(filepath, 'wb') as fh:
-        fh.write(buf.getvalue())
-
-
-# ───────────────────────────────────────────────────────────────
-# 0-C  GENBANK READER (.gb / .gbk / .genbank)
-# ───────────────────────────────────────────────────────────────
-
-def parse_genbank(filepath: str) -> dict:
-    """
-    Pure-stdlib parser for GenBank flat files (INSDC format).
-
-    Returns the same dict as parse_snapgene_dna:
-      sequence, topology, name, features, primers (empty), notes
-    """
-    result = {
-        'sequence': '', 'topology': 'linear',
-        'name': Path(filepath).stem,
-        'features': [], 'primers': [], 'notes': {},
-    }
-
-    # Color palette by feature type (matching SnapGene defaults)
-    _TYPE_COLORS = {
-        'CDS':          '#99ccff',
-        'gene':         '#ffcc99',
-        'mRNA':         '#ff9999',
-        'rRNA':         '#ccff99',
-        'tRNA':         '#ffff99',
-        'ncRNA':        '#ff99ff',
-        'regulatory':   '#99ffff',
-        'rep_origin':   '#ff9966',
-        'misc_feature': '#cccccc',
-        'promoter':     '#ffcc00',
-        'terminator':   '#cc99ff',
-        'primer_bind':  '#ff66cc',
-    }
-
-    with open(filepath, 'r', encoding='utf-8', errors='replace') as fh:
-        content = fh.read()
-
-    # ── Split into records (multi-record support) ───────────────
-    # Use only the first record
-    record_text = content.split('//')[0]
-
-    # ── LOCUS ───────────────────────────────────────────────────
-    locus_m = re.search(r'^LOCUS\s+(\S+)\s+.*?(circular|linear)', record_text,
-                        re.MULTILINE | re.IGNORECASE)
-    if locus_m:
-        result['name']     = locus_m.group(1)
-        result['topology'] = locus_m.group(2).lower()
-
-    # ── DEFINITION / ACCESSION for notes ───────────────────────
-    for tag in ('DEFINITION', 'ACCESSION', 'VERSION', 'ORGANISM'):
-        m = re.search(rf'^{tag}\s+(.+?)(?=\n[A-Z])', record_text,
-                      re.MULTILINE | re.DOTALL)
-        if m:
-            result['notes'][tag] = ' '.join(m.group(1).split())
-
-    # ── FEATURES ────────────────────────────────────────────────
-    feat_block_m = re.search(r'^FEATURES\s+.*?\n(.*?)^(?:ORIGIN|CONTIG)',
-                              record_text, re.MULTILINE | re.DOTALL)
-    if feat_block_m:
-        feat_text = feat_block_m.group(1)
-
-        # Split into individual feature entries
-        # Each starts at col 5 with a keyword, qualifiers at col 21
-        feat_entries = re.split(r'\n(?=     \S)', feat_text)
-
-        for entry in feat_entries:
-            lines = entry.split('\n')
-            if not lines:
-                continue
-            first = lines[0].strip()
-            if not first:
-                continue
-
-            # Feature type is the first token
-            parts = first.split()
-            if not parts:
-                continue
-            ftype = parts[0]
-            loc_str = parts[1] if len(parts) > 1 else ''
-
-            # Collect remaining qualifier lines
-            for ln in lines[1:]:
-                s = ln.strip()
-                if s and not s.startswith('/'):
-                    loc_str += s   # continuation of location
-                else:
-                    break
-
-            # Parse location string → start, end, strand
-            strand = '-' if loc_str.startswith('complement') else '+'
-            # Strip complement(...) and join(...)
-            loc_clean = re.sub(r'(complement|join|order)\(', '', loc_str).rstrip(')')
-            # Grab all numeric pairs
-            ranges = re.findall(r'(\d+)\.\.(\d+)', loc_clean)
-            if not ranges:
-                # single position
-                m_single = re.search(r'(\d+)', loc_clean)
-                if m_single:
-                    pos = int(m_single.group(1))
-                    ranges = [(str(pos), str(pos))]
-
-            if not ranges:
-                continue
-
-            # For joined features keep first + last segment
-            start = int(ranges[0][0]) - 1   # 0-based
-            end   = int(ranges[-1][1])
-
-            # Collect qualifiers
-            qual_text = '\n'.join(lines[1:])
-            name_m = re.search(r'/(?:gene|locus_tag|product|label)="([^"]+)"', qual_text)
-            feat_name = name_m.group(1) if name_m else ftype
-
-            color = _TYPE_COLORS.get(ftype, '#cccccc')
-
-            if ftype == 'primer_bind':
-                result['primers'].append({
-                    'name': feat_name,
-                    'start': start, 'end': end,
-                    'strand': strand,
-                })
-            else:
-                result['features'].append({
-                    'name': feat_name,
-                    'type': ftype,
-                    'color': color,
-                    'start': start,
-                    'end':   end,
-                    'strand': strand,
-                })
-
-    # ── ORIGIN (sequence) ───────────────────────────────────────
-    origin_m = re.search(r'^ORIGIN\s*\n(.*)', record_text,
-                         re.MULTILINE | re.DOTALL)
-    if origin_m:
-        raw_seq = origin_m.group(1)
-        result['sequence'] = re.sub(r'[^a-zA-Z]', '', raw_seq).upper()
-
-    return result
-
-
-# ───────────────────────────────────────────────────────────────
-# 0-D  GENBANK WRITER (.gb)
-# ───────────────────────────────────────────────────────────────
-
-def write_genbank(filepath: str, sequence: str, orfs: list,
-                  sg_features: list = None, name: str = 'sequence',
-                  topology: str = 'linear'):
-    """
-    Write a GenBank flat-file (.gb) containing:
-      - CDS features for each analysed ORF
-      - misc_feature for each imported SnapGene feature (if any)
-    """
-    sl = len(sequence)
-    now = datetime.now().strftime('%d-%b-%Y').upper()
-    topo_str = 'circular' if topology == 'circular' else 'linear  '
-    mol = 'DNA'
-
-    lines = []
-
-    # ── LOCUS ──────────────────────────────────────────────────
-    lines.append(f"LOCUS       {name[:16]:<16} {sl:>9} bp    {mol}     {topo_str} {now}")
-    lines.append(f"DEFINITION  {name} — exported by ORF Secretion Pipeline v20.")
-    lines.append( "ACCESSION   .")
-    lines.append( "VERSION     .")
-    lines.append( "KEYWORDS    .")
-    lines.append( "SOURCE      .")
-    lines.append( "  ORGANISM  .")
-    lines.append( "            .")
-    lines.append( "FEATURES             Location/Qualifiers")
-
-    def _loc(start, end, strand):
-        """Format a GenBank location string (1-based, closed)."""
-        s = start + 1
-        e = end
-        loc = f"{s}..{e}"
-        return f"complement({loc})" if strand == '-' else loc
-
-    def _wrap_qual(key, val, indent=21):
-        """Wrap a qualifier value at col 80."""
-        prefix = ' ' * indent
-        full = f'{prefix}/{key}="{val}"'
-        out = []
-        while len(full) > 79:
-            out.append(full[:79])
-            full = prefix + full[79:]
-        out.append(full)
-        return '\n'.join(out)
-
-    feat_indent = '     '
-
-    # ── SnapGene features (preserved from original file) ────────
-    for feat in (sg_features or []):
-        ftype = feat.get('type', 'misc_feature')
-        lines.append(f"{feat_indent}{ftype:<16}{_loc(feat['start'], feat['end'], feat.get('strand', '+'))}")
-        lines.append(_wrap_qual('label', feat.get('name', ftype)))
-        lines.append(_wrap_qual('note', f"Imported from SnapGene; color: {feat.get('color','#aaaaaa')}"))
-
-    # ── ORFs as CDS ─────────────────────────────────────────────
-    for i, orf in enumerate(orfs):
-        loc = _loc(orf['start'], orf['end'], orf['strand'])
-        lines.append(f"{feat_indent}{'CDS':<16}{loc}")
-        gene_name = orf.get('gene_name') or f"orf{i+1}"
-        lines.append(_wrap_qual('gene', gene_name))
-        prot = orf['protein'].rstrip('*')
-        lines.append(_wrap_qual('product',
-            orf.get('putative_function') or orf.get('observation') or 'hypothetical protein'))
-        lines.append(_wrap_qual('protein_id', f"ORF{i+1}"))
-        domains = '; '.join(d['domain'] for d in orf.get('domains', []))
-        if domains:
-            lines.append(_wrap_qual('note', f"HMM domains: {domains}"))
-        # Translate qualifier — wrap at 60 aa per line inside the qualifier
-        prot_chunks = [prot[j:j+60] for j in range(0, len(prot), 60)]
-        lines.append(f"{'':21}/translation=\"{prot_chunks[0]}")
-        for chunk in prot_chunks[1:]:
-            lines.append(f"{'':21}{chunk}")
-        lines[-1] += '"'
-
-    # ── ORIGIN ──────────────────────────────────────────────────
-    lines.append("ORIGIN")
-    seq_lc = sequence.lower()
-    for pos in range(0, sl, 60):
-        chunk = seq_lc[pos:pos+60]
-        # Split into groups of 10
-        groups = ' '.join(chunk[i:i+10] for i in range(0, len(chunk), 10))
-        lines.append(f"{pos+1:>9} {groups}")
-    lines.append("//")
-
-    with open(filepath, 'w', encoding='utf-8') as fh:
-        fh.write('\n'.join(lines) + '\n')
+try:
+    from .io.snapgene import parse_snapgene_dna, write_snapgene_dna
+    from .io.genbank import parse_genbank, write_genbank
+except ImportError:
+    from ppigfinder.io.snapgene import parse_snapgene_dna, write_snapgene_dna
+    from ppigfinder.io.genbank import parse_genbank, write_genbank
 
 
 
+
+try:
+    from .bioseq.orf_finder import (
+        find_orfs as _bioseq_find_orfs,
+        find_orfs_pyrodigal as _bioseq_find_orfs_pyrodigal,
+        find_orfs_hybrid as _bioseq_find_orfs_hybrid,
+    )
+except ImportError:
+    from ppigfinder.bioseq.orf_finder import (
+        find_orfs as _bioseq_find_orfs,
+        find_orfs_pyrodigal as _bioseq_find_orfs_pyrodigal,
+        find_orfs_hybrid as _bioseq_find_orfs_hybrid,
+    )
 
 class AdvancedORFAnalyzer:
 
@@ -923,261 +749,48 @@ class AdvancedORFAnalyzer:
     KA_K = 0.041
 
     def translate(self, dna_seq):
-        dna_seq = dna_seq.upper()
-        protein = []
-        for i in range(0, len(dna_seq), 3):
-            codon = dna_seq[i:i+3]
-            if len(codon) == 3:
-                aa = self.CODON_TABLE.get(codon, 'X')
-                protein.append(aa)
-                if aa == '*': break
-        return ''.join(protein)
+        return _bioseq_translate_dna(dna_seq)
 
     def reverse_complement(self, seq):
-        comp = {'A':'T','T':'A','G':'C','C':'G','a':'t','t':'a','g':'c','c':'g'}
-        return ''.join(comp.get(b, 'N') for b in reversed(seq))
+        return _bioseq_reverse_complement(seq)
 
     def gc_content(self, seq):
-        seq = seq.upper()
-        return (seq.count('G') + seq.count('C')) / len(seq) * 100 if seq else 0
+        return _bioseq_gc_content(seq)
 
     def find_orfs(self, dna_sequence, min_aa=30, start_codons=None):
-        if start_codons is None: start_codons = {'ATG','GTG','TTG'}
-        stop_codons = {'TAA','TAG','TGA'}
-        min_len = min_aa * 3
-        orfs = []
-        for frame in range(3):
-            for strand_seq, strand_name in [(dna_sequence, '+'),
-                                            (self.reverse_complement(dna_sequence), '-')]:
-                i = frame
-                while i < len(strand_seq) - 2:
-                    codon = strand_seq[i:i+3]
-                    if codon in start_codons:
-                        j = i + 3
-                        while j < len(strand_seq):
-                            if strand_seq[j:j+3] in stop_codons:
-                                length = j + 3 - i
-                                if length >= min_len:
-                                    dna = strand_seq[i:j+3]
-                                    protein = self.translate(dna)
-                                    orfs.append({
-                                        'frame': frame + (3 if strand_name == '-' else 0),
-                                        'strand': strand_name,
-                                        'start': i if strand_name == '+' else len(dna_sequence) - (j + 3),
-                                        'end': j + 3 if strand_name == '+' else len(dna_sequence) - i,
-                                        'dna': dna, 'protein': protein, 'length': length,
-                                        'gc': self.gc_content(dna),
-                                        'domains': [],
-                                        'neighborhood': [], 'candidate_score': 0.0,
-                                        'source': '6frame',
-                                    })
-                                i = j; break
-                            j += 3
-                    i += 3
-        # Sort by genomic start position 5'→3' so ORF numbers increase from
-        # the molecule origin toward the end (lower number = closer to 5')
-        orfs.sort(key=lambda x: x['start'])
-        return orfs
+        return _bioseq_find_orfs(
+            dna_sequence,
+            min_aa=min_aa,
+            start_codons=start_codons,
+        )
 
     def find_orfs_pyrodigal(self, dna_sequence, meta=True, min_aa=30,
                             closed_ends=False, translation_table=11, mask=False):
-        """
-        Find ORFs using Pyrodigal (Python binding for Prodigal gene caller).
-
-        Pyrodigal uses dynamic programming on GC-content, RBS motifs, and
-        coding potential to predict real protein-coding genes — much more
-        accurate than simple start→stop scanning.
-
-        Parameters
-        ----------
-        dna_sequence : str — DNA sequence (uppercase)
-        meta : bool — True for metagenomic mode (no training needed),
-                      False for single-genome mode (trains on the sequence)
-        min_aa : int — minimum protein length in amino acids
-        closed_ends : bool — allow genes to run off edges of the sequence
-
-        Returns
-        -------
-        list of ORF dicts (same format as find_orfs)
-        """
-        if not PYRODIGAL_AVAILABLE:
-            raise ImportError(
-                "Pyrodigal not installed.\n\n"
-                "Install with:\n"
-                "  pip install pyrodigal\n\n"
-                "Or use conda:\n"
-                "  conda install -c bioconda pyrodigal"
-            )
-
-        orfs = []
-        seq = dna_sequence.upper()
-
-        if meta:
-            # Metagenomic mode — uses pre-trained models, no training needed
-            gene_finder = pyrodigal.GeneFinder(
-                meta=True, closed=closed_ends,
-                min_gene=min_aa * 3, mask=mask)
-        else:
-            # Single-genome mode — trains on the input sequence
-            gene_finder = pyrodigal.GeneFinder(
-                meta=False, closed=closed_ends,
-                min_gene=min_aa * 3, mask=mask)
-            gene_finder.train(
-                seq.encode() if isinstance(seq, str) else seq,
-                translation_table=translation_table)
-
-        # Run gene prediction
-        genes = gene_finder.find_genes(seq.encode() if isinstance(seq, str) else seq)
-
-        for gene in genes:
-            # Pyrodigal uses 1-based coordinates
-            start_0 = gene.begin - 1   # convert to 0-based
-            end_0 = gene.end           # end is already exclusive-like in our format
-            strand = '+' if gene.strand == 1 else '-'
-
-            # Calculate frame (0-based)
-            if strand == '+':
-                frame = start_0 % 3
-            else:
-                frame = (len(seq) - end_0) % 3 + 3  # frames 3,4,5 for minus strand
-
-            # Extract DNA subsequence
-            if strand == '+':
-                dna_sub = seq[start_0:end_0]
-            else:
-                dna_sub = self.reverse_complement(seq[start_0:end_0])
-
-            protein = self.translate(dna_sub)
-            gc = self.gc_content(dna_sub)
-
-            # Pyrodigal confidence score (0-100)
-            try:
-                cscore = gene.confidence()
-            except (AttributeError, TypeError):
-                cscore = gene.cscore if hasattr(gene, 'cscore') else 0.0
-
-            # RBS motif if available
-            try:
-                rbs_motif = gene.rbs_motif
-            except AttributeError:
-                rbs_motif = None
-
-            orfs.append({
-                'frame': frame,
-                'strand': strand,
-                'start': start_0,
-                'end': end_0,
-                'dna': dna_sub,
-                'protein': protein,
-                'length': end_0 - start_0,
-                'gc': gc,
-                'domains': [],
-                'neighborhood': [],
-                'candidate_score': 0.0,
-                'source': 'pyrodigal',
-                'pyrodigal_score': round(cscore, 2) if cscore else 0.0,
-                'rbs_motif': rbs_motif or '',
-                'partial': getattr(gene, 'partial_begin', False) or getattr(gene, 'partial_end', False),
-            })
-
-        orfs.sort(key=lambda x: x['start'])
-        return orfs
+        return _bioseq_find_orfs_pyrodigal(
+            dna_sequence,
+            meta=meta,
+            min_aa=min_aa,
+            closed_ends=closed_ends,
+            translation_table=translation_table,
+            mask=mask,
+        )
 
     def find_orfs_hybrid(self, dna_sequence,
-                         # --- 6-frame scanner params ---
                          min_aa=30, start_codons=None,
-                         # --- Pyrodigal params ---
                          pyro_meta=True, pyro_min_aa=30,
                          pyro_closed=False, pyro_translation_table=11,
                          pyro_mask=False, pyro_start_filter=None):
-        """
-        Hybrid gene finder: Pyrodigal as primary caller + 6-frame ORF
-        scanner as gap-filler.
-
-        Strategy
-        --------
-        1. Run Pyrodigal on the full sequence → primary ORF set.
-        2. Build a merged coverage map of every nucleotide position
-           that falls inside at least one Pyrodigal ORF (both strands).
-        3. Identify contiguous uncovered gaps (positions not spanned by
-           any Pyrodigal prediction).
-        4. Run the 6-frame start→stop codon scanner *only* on each gap
-           subsequence, using the user-defined min_aa and start_codons.
-        5. Re-map gap-local coordinates to global genome coordinates.
-        6. Merge both lists and sort by genomic start position so that
-           ORF numbering (ORF1, ORF2 …) follows the 5'→3' order of the
-           chromosome regardless of source.
-
-        Source tags
-        -----------
-        Pyrodigal predictions  → source = 'pyrodigal'
-        Gap-filler predictions → source = 'automatic'
-        """
-        if start_codons is None:
-            start_codons = {'ATG', 'GTG', 'TTG'}
-
-        # ── Step 1: Pyrodigal ────────────────────────────────────────
-        pyro_orfs = self.find_orfs_pyrodigal(
+        return _bioseq_find_orfs_hybrid(
             dna_sequence,
-            meta=pyro_meta,
-            min_aa=pyro_min_aa,
-            closed_ends=pyro_closed,
-            translation_table=pyro_translation_table,
-            mask=pyro_mask,
+            min_aa=min_aa,
+            start_codons=start_codons,
+            pyro_meta=pyro_meta,
+            pyro_min_aa=pyro_min_aa,
+            pyro_closed=pyro_closed,
+            pyro_translation_table=pyro_translation_table,
+            pyro_mask=pyro_mask,
+            pyro_start_filter=pyro_start_filter,
         )
-
-        # Optional post-prediction start-codon filter for Pyrodigal ORFs
-        if pyro_start_filter and not pyro_start_filter.get('all', True):
-            allowed = {k for k in ('ATG', 'GTG', 'TTG')
-                       if pyro_start_filter.get(k)}
-            if allowed:
-                pyro_orfs = [o for o in pyro_orfs
-                             if o.get('dna', '')[:3].upper() in allowed]
-
-        # ── Step 2: build merged coverage intervals ───────────────────
-        # Use genomic coordinates (0-based half-open) from every
-        # Pyrodigal ORF, regardless of strand.
-        seq_len = len(dna_sequence)
-        intervals = sorted((o['start'], o['end']) for o in pyro_orfs)
-
-        merged = []
-        for seg_s, seg_e in intervals:
-            if merged and seg_s <= merged[-1][1]:
-                merged[-1] = (merged[-1][0], max(merged[-1][1], seg_e))
-            else:
-                merged.append([seg_s, seg_e])
-
-        # ── Step 3: compute gaps (uncovered regions) ──────────────────
-        gaps = []
-        prev_end = 0
-        for seg_s, seg_e in merged:
-            if seg_s > prev_end:
-                gaps.append((prev_end, seg_s))
-            prev_end = max(prev_end, seg_e)
-        if prev_end < seq_len:
-            gaps.append((prev_end, seq_len))
-
-        # ── Step 4: 6-frame scan on each gap ─────────────────────────
-        auto_orfs = []
-        min_gap = min_aa * 3 + 3   # smallest meaningful gap
-        for gap_start, gap_end in gaps:
-            if gap_end - gap_start < min_gap:
-                continue
-            subseq = dna_sequence[gap_start:gap_end]
-            sub_orfs = self.find_orfs(subseq,
-                                      min_aa=min_aa,
-                                      start_codons=start_codons)
-            # Re-map sub-sequence coordinates → global genome coordinates
-            for orf in sub_orfs:
-                orf['start'] += gap_start
-                orf['end']   += gap_start
-                orf['source'] = 'automatic'
-            auto_orfs.extend(sub_orfs)
-
-        # ── Step 5: merge + sort by start position ────────────────────
-        all_orfs = pyro_orfs + auto_orfs
-        all_orfs.sort(key=lambda x: x['start'])
-        return all_orfs
 
     def classify_domains(self, protein_seq):
         found = []
@@ -1995,10 +1608,13 @@ TRANSLATIONS = {
         'load_hmm':         '📎 Load HMM',
         'save_project':     '📦 Save Project',
         'open_project':     '📦 Open Project',
+        'export_project_snapshot': 'Export Project Snapshot (v3)',
+        'import_project_snapshot': 'Import Project Snapshot (v3)',
         'save_orfs_fasta':  '💾 Save ORFs (FASTA)',
         'save_cand_json':   '💾 Candidates (JSON)',
         'save_af3':         '💾 AlphaFold3',
         'save_report_tsv':  '📊 Report (TSV)',
+        'save_report_html': 'Report (HTML)',
         'export_snapgene':  '🔬 Export as SnapGene (.dna)',
         'export_genbank':   '🔬 Export as GenBank (.gb)',
         'export_map_pdf':   '🖼️ Export Map as PDF',
@@ -3771,12 +3387,1725 @@ class GenomeMapWidget(QWidget):
 # MAIN MODULE: ppigFinderApp (PyQt6/5)
 # ═══════════════════════════════════════════════════════════════
 
+class _PpiArcMapWidget(QWidget):
+    """Custom widget that draws ORFs as arrows on a genome backbone and
+    overlays cubic Bezier arcs for each predicted protein-protein interaction.
+
+    Arc colour encodes confidence (PAE_min or ipTM).
+    Arc height encodes genomic distance (or score, depending on mode).
+    Supports scroll-zoom, drag-pan, click on arc/ORF.
+    """
+
+    arc_clicked  = pyqtSignal(int)   # arc index
+    orf_clicked  = pyqtSignal(int)   # ORF index
+    arc_hovered  = pyqtSignal(int)   # arc index (-1 = none)
+
+    # Colour thresholds for PAE_min-based colouring
+    _PAE_HIGH = 4.0
+    _PAE_MED  = 8.0
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setMouseTracking(True)
+        self.setMinimumHeight(280)
+        # Use module-level QSizePolicy (already imported at top of file)
+        try:
+            self.setSizePolicy(QSizePolicy.Policy.Expanding,
+                               QSizePolicy.Policy.Expanding)
+        except AttributeError:
+            self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
+        self._dna_length   = 0
+        self._orfs         = []
+        self._hmm_profiles = []
+        self._arcs         = []   # list of dicts from _ppi_arc_map_refresh
+
+        self._zoom  = 1.0
+        self._pan   = 0.0          # fraction offset (0..1-1/zoom)
+        self._drag  = False
+        self._drag_x = 0
+
+        self._hovered_arc = -1
+        self._selected_arc = -1
+
+        # Pre-computed geometry (rebuilt in paintEvent when needed)
+        self._orf_rects  = []   # (QRectF, orf_index)
+        self._arc_paths  = []   # QPainterPath per arc
+        self._dirty = True
+
+    def set_data(self, dna_length, orfs, hmm_profiles, arcs):
+        self._dna_length   = dna_length
+        self._orfs         = orfs
+        self._hmm_profiles = hmm_profiles
+        self._arcs         = arcs
+        self._dirty        = True
+        self.update()
+
+    # ── coordinate helpers ────────────────────────────────────────────────
+
+    def _genomic_to_x(self, pos, w):
+        """Convert a genomic position to a pixel X coordinate."""
+        if not self._dna_length:
+            return 0
+        frac = pos / self._dna_length
+        visible_start = self._pan
+        visible_width = 1.0 / self._zoom
+        rel = (frac - visible_start) / visible_width
+        margin = 40
+        return margin + rel * (w - 2 * margin)
+
+    def _x_to_genomic(self, x, w):
+        margin = 40
+        if w <= 2 * margin or not self._dna_length:
+            return 0
+        rel = (x - margin) / (w - 2 * margin)
+        visible_start = self._pan
+        visible_width = 1.0 / self._zoom
+        return int((visible_start + rel * visible_width) * self._dna_length)
+
+    # ── colour helpers ────────────────────────────────────────────────────
+
+    @staticmethod
+    def _arc_colour(arc):
+        """Return a QColor for the arc based on its score."""
+        pae = arc.get('pae_min')
+        if pae is None:
+            return QColor('#888780')
+        if pae < _PpiArcMapWidget._PAE_HIGH:
+            return QColor('#1D9E75')   # green — HIGH
+        if pae < _PpiArcMapWidget._PAE_MED:
+            return QColor('#BA7517')   # amber — MED
+        return QColor('#E24B4A')       # red   — LOW
+
+    @staticmethod
+    def _orf_colour(orf_idx, orfs, hmm_profiles):
+        """Return fill and border colours for an ORF based on HMM hits."""
+        if orf_idx < 0 or orf_idx >= len(orfs):
+            return QColor('#D3D1C7'), QColor('#888780')
+        # Check if this ORF has an HMM hit
+        for prof in hmm_profiles:
+            for hit in prof.get('hits', []):
+                if hit.get('orf_index') == orf_idx:
+                    c = prof.get('color', '#1D9E75')
+                    return QColor(c).lighter(160), QColor(c)
+        return QColor('#D3D1C7'), QColor('#888780')
+
+    # ── paint ─────────────────────────────────────────────────────────────
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        QP = type(painter)   # alias for readability below
+        painter.setRenderHint(QP.RenderHint.Antialiasing
+                               if hasattr(QP, 'RenderHint') else QP.Antialiasing)
+
+        w = self.width()
+        h = self.height()
+        backbone_y = h - 80   # Y position of genome backbone
+
+        # Background
+        painter.fillRect(0, 0, w, h, self.palette().window())
+
+        if not self._dna_length:
+            painter.drawText(w // 2 - 120, h // 2,
+                             "Load a genome and AF3 results, then click Refresh")
+            return
+
+        # ── Genome backbone ──────────────────────────────────────────────
+        pen = QPen(QColor('#B4B2A9'), 1.5)
+        painter.setPen(pen)
+        painter.drawLine(40, backbone_y, w - 10, backbone_y)
+
+        # Tick marks and position labels
+        n_ticks = 6
+        for i in range(n_ticks + 1):
+            frac = i / n_ticks
+            vis_start = self._pan
+            vis_width = 1.0 / self._zoom
+            genomic_pos = int((vis_start + frac * vis_width) * self._dna_length)
+            px = self._genomic_to_x(genomic_pos, w)
+            painter.setPen(QPen(QColor('#888780'), 1))
+            painter.drawLine(int(px), backbone_y - 5, int(px), backbone_y + 5)
+            label = f"{genomic_pos/1e6:.3f}M"
+            painter.setFont(QFont('Arial', 7))
+            painter.drawText(int(px) - 18, backbone_y + 16, label)
+
+        # ── ORF arrows ───────────────────────────────────────────────────
+        self._orf_rects = []
+        orf_h = 16
+        arrow_tip = 8
+
+        for i, orf in enumerate(self._orfs):
+            x1 = self._genomic_to_x(orf['start'], w)
+            x2 = self._genomic_to_x(orf['end'],   w)
+            if x2 - x1 < 2:
+                continue
+            if x2 < 40 or x1 > w - 10:
+                continue
+
+            fwd = orf.get('strand', '+') == '+'
+            y_top = backbone_y - orf_h - 2 if fwd else backbone_y + 3
+
+            fill, border = _PpiArcMapWidget._orf_colour(i, self._orfs, self._hmm_profiles)
+
+            # Draw arrow polygon
+            tip_w = min(arrow_tip, x2 - x1)
+            if fwd:
+                pts = [QPointF(x1, y_top),
+                       QPointF(x2 - tip_w, y_top),
+                       QPointF(x2, y_top + orf_h / 2),
+                       QPointF(x2 - tip_w, y_top + orf_h),
+                       QPointF(x1, y_top + orf_h)]
+            else:
+                pts = [QPointF(x2, y_top),
+                       QPointF(x1 + tip_w, y_top),
+                       QPointF(x1, y_top + orf_h / 2),
+                       QPointF(x1 + tip_w, y_top + orf_h),
+                       QPointF(x2, y_top + orf_h)]
+
+            painter.setPen(QPen(border, 1.0))
+            painter.setBrush(QBrush(fill))
+            painter.drawPolygon(QPolygonF(pts))
+
+            # Label (only if wide enough)
+            if x2 - x1 > 30:
+                painter.setPen(QPen(border.darker(200), 1))
+                painter.setFont(QFont('Arial', 7))
+                cy = y_top + orf_h / 2 + 3
+                painter.drawText(int(x1 + 2), int(cy),
+                                 int(x2 - x1 - 4), 12,
+                                 0x0004 | 0x0080,   # AlignHCenter | AlignVCenter
+                                 f"ORF{i+1}")
+
+            self._orf_rects.append((QRectF(x1, y_top, x2-x1, orf_h), i))
+
+        # ── Interaction arcs ──────────────────────────────────────────────
+        self._arc_paths = []
+        max_arc_h = backbone_y - 20   # maximum arc height from backbone
+
+        # Sort so HIGH arcs are drawn on top
+        sorted_arcs = sorted(enumerate(self._arcs),
+                             key=lambda x: (x[1].get('pae_min') or 99), reverse=True)
+
+        for arc_idx, arc in sorted_arcs:
+            cx_a = (self._genomic_to_x(arc['start_a'], w) +
+                    self._genomic_to_x(arc['end_a'],   w)) / 2
+            cx_b = (self._genomic_to_x(arc['start_b'], w) +
+                    self._genomic_to_x(arc['end_b'],   w)) / 2
+
+            if max(cx_a, cx_b) < 30 or min(cx_a, cx_b) > w - 5:
+                self._arc_paths.append(None)
+                continue
+
+            # Arc height
+            hmode = arc.get('height_mode', '')
+            if 'distance' in hmode:
+                dist = abs(arc['start_b'] - arc['start_a'])
+                frac = min(dist / max(self._dna_length, 1), 1.0)
+                arc_h = int(30 + frac * (max_arc_h - 30))
+            elif 'score' in hmode:
+                pae = arc.get('pae_min') or 15
+                arc_h = int(30 + (pae / 20) * (max_arc_h - 30))
+            else:
+                arc_h = max_arc_h // 2
+
+            arc_h = max(25, min(arc_h, max_arc_h))
+
+            path = QPainterPath()
+            path.moveTo(cx_a, backbone_y - 2)
+            ctrl_x = (cx_a + cx_b) / 2
+            ctrl_y = backbone_y - arc_h
+            path.cubicTo(cx_a, ctrl_y, cx_b, ctrl_y, cx_b, backbone_y - 2)
+            self._arc_paths.append(path)
+
+            colour = _PpiArcMapWidget._arc_colour(arc)
+            selected = (arc_idx == self._selected_arc)
+            hovered  = (arc_idx == self._hovered_arc)
+
+            pae = arc.get('pae_min') or 99
+            is_high = pae < self._PAE_HIGH
+            is_med  = pae < self._PAE_MED
+
+            lw = 3.0 if selected else (2.5 if hovered else
+                 2.2 if is_high else 1.5)
+
+            if is_high:
+                pen = QPen(colour, lw)
+            elif is_med:
+                pen = QPen(colour, lw)
+                try:
+                    pen.setStyle(Qt.PenStyle.DashLine)
+                except AttributeError:
+                    pen.setStyle(Qt.DashLine)
+            else:
+                pen = QPen(colour, lw)
+                try:
+                    pen.setStyle(Qt.PenStyle.DotLine)
+                except AttributeError:
+                    pen.setStyle(Qt.DotLine)
+
+            if selected:
+                pen.setColor(QColor('#7F77DD'))
+                pen.setWidth(3)
+
+            painter.setPen(pen)
+            try:
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+            except AttributeError:
+                painter.setBrush(Qt.NoBrush)
+            painter.drawPath(path)
+
+            # Score label near apex
+            lbl_x = int(ctrl_x) - 12
+            lbl_y = int(ctrl_y) - 2
+            pae_v = arc.get('pae_min')
+            if pae_v is not None:
+                painter.setPen(QPen(colour.darker(130), 1))
+                painter.setFont(QFont('Arial', 7))
+                painter.drawText(lbl_x, lbl_y, f"{pae_v:.1f}Å")
+
+        painter.end()
+
+    # ── mouse events ──────────────────────────────────────────────────────
+
+    def _arc_hit(self, pos):
+        """Return index of arc whose path is within 5px of pos, or -1."""
+        pt = QPointF(pos.x(), pos.y()) if hasattr(pos, 'x') else QPointF(pos)
+        for i, path in enumerate(self._arc_paths):
+            if path is None:
+                continue
+            stroker = QPainterPathStroker()
+            stroker.setWidth(10)
+            wide = stroker.createStroke(path)
+            if wide.contains(pt):
+                return i
+        return -1
+
+    def _orf_hit(self, pos):
+        """Return ORF index under pos, or -1."""
+        pt = QPointF(pos.x(), pos.y())
+        for rect, orf_idx in self._orf_rects:
+            if rect.contains(pt):
+                return orf_idx
+        return -1
+
+    def mouseMoveEvent(self, event):
+        pos = event.pos()
+        if self._drag:
+            dx = pos.x() - self._drag_x
+            self._drag_x = pos.x()
+            vis_width = 1.0 / self._zoom
+            delta = -dx / max(self.width() - 80, 1) * vis_width
+            self._pan = max(0.0, min(self._pan + delta,
+                                     1.0 - vis_width))
+            self.update()
+            return
+
+        arc_idx = self._arc_hit(pos)
+        if arc_idx != self._hovered_arc:
+            self._hovered_arc = arc_idx
+            self.arc_hovered.emit(arc_idx)
+            self.update()
+
+    def mousePressEvent(self, event):
+        try:
+            LMB = Qt.MouseButton.LeftButton
+        except AttributeError:
+            LMB = Qt.LeftButton
+        if event.button() == LMB:
+            arc_idx = self._arc_hit(event.pos())
+            if arc_idx >= 0:
+                self._selected_arc = arc_idx
+                self.arc_clicked.emit(arc_idx)
+                self.update()
+                return
+            orf_idx = self._orf_hit(event.pos())
+            if orf_idx >= 0:
+                self.orf_clicked.emit(orf_idx)
+                return
+            # Start pan
+            self._drag   = True
+            self._drag_x = event.pos().x()
+            try:
+                self.setCursor(Qt.CursorShape.ClosedHandCursor)
+            except AttributeError:
+                self.setCursor(Qt.ClosedHandCursor)
+
+    def mouseReleaseEvent(self, event):
+        self._drag = False
+        try:
+            self.setCursor(Qt.CursorShape.ArrowCursor)
+        except AttributeError:
+            self.setCursor(Qt.ArrowCursor)
+
+    def wheelEvent(self, event):
+        try:
+            delta = event.angleDelta().y()
+        except Exception:
+            delta = event.delta()
+        factor = 1.15 if delta > 0 else 1 / 1.15
+        new_zoom = max(1.0, min(self._zoom * factor, 200.0))
+        # Keep genome position under cursor fixed
+        anchor_x = event.pos().x()
+        w = self.width()
+        margin = 40
+        if w > 2 * margin:
+            frac_under = self._pan + ((anchor_x - margin) / (w - 2 * margin)) / self._zoom
+            vis_width_new = 1.0 / new_zoom
+            self._pan = max(0.0, min(frac_under - (anchor_x - margin) / (w - 2 * margin) * vis_width_new,
+                                     1.0 - vis_width_new))
+        self._zoom = new_zoom
+        self.update()
+
+
+
+class _OrfNumericItem(QTableWidgetItem):
+    """QTableWidgetItem whose sort key is numeric, not lexicographic.
+
+    For ORF IDs ('ORF1' … 'ORF4303') it extracts the trailing integer.
+    For positional / size / score columns it parses the float value.
+    Falls back to string comparison for any non-numeric content.
+    """
+    _cache: dict = {}   # text → numeric key (avoids repeated re.search)
+
+    def __init__(self, text: str):
+        super().__init__(text)
+        self._num = _OrfNumericItem._numeric_key(text)
+
+    @staticmethod
+    def _numeric_key(text: str) -> float:
+        import re as _re
+        # Fast path for 'ORF<N>' pattern
+        _m = _re.match(r'ORF(\d+)$', text, _re.IGNORECASE)
+        if _m:
+            return float(_m.group(1))
+        # Strip units (Å, %) and commas then try float
+        _clean = text.replace(',', '').replace(' Å', '').replace('Å', '').replace('%', '').strip()
+        try:
+            return float(_clean)
+        except ValueError:
+            pass
+        # Trailing number in any other string
+        _m2 = _re.search(r'(\d+(?:\.\d+)?)$', text)
+        if _m2:
+            return float(_m2.group(1))
+        return float('inf')   # non-numeric values sort last
+
+    def __lt__(self, other: 'QTableWidgetItem') -> bool:
+        if isinstance(other, _OrfNumericItem):
+            if self._num != other._num:
+                return self._num < other._num
+        return super().__lt__(other)
+
+
+# ═══════════════════════════════════════════════════════════════
+# RESPONSIVE WINDOW MANAGEMENT
+# ═══════════════════════════════════════════════════════════════
+# Provides relative-sized windows, persistent geometry between
+# sessions (QSettings), quick-size presets, custom-size dialog,
+# and child-window registration for floating panels/dialogs.
+# ═══════════════════════════════════════════════════════════════
+
+# Pre-defined relative-size presets (fraction of available screen)
+WIN_PRESETS_RELATIVE = {
+    "Small (60%)":   (0.60, 0.65),
+    "Medium (75%)":  (0.75, 0.80),
+    "Large (85%)":   (0.85, 0.90),    # default
+    "X-Large (95%)": (0.95, 0.95),
+    "Maximize":      None,
+}
+
+
+class WindowManager:
+    """
+    Per-app window manager with responsive sizing.
+
+    Handles:
+      • Relative sizing (% of available screen)
+      • Persistent geometry across sessions (QSettings)
+      • Sub-window registration with relative sizing
+      • Custom-size dialog (Ctrl+Shift+W)
+    """
+
+    def __init__(self, main_window: QMainWindow,
+                 app_name: str = "ppigFinder",
+                 organisation: str = "ppigFinder"):
+        self.main = main_window
+        self.app_name = app_name
+        self.org = organisation
+        self.settings = QSettings(organisation, app_name)
+        self._registered_subwindows = {}
+
+    def _available_screen_rect(self):
+        """Return available rect of the screen the main window lives on."""
+        try:
+            screen = self.main.screen() if hasattr(self.main, "screen") else None
+        except Exception:
+            screen = None
+        if screen is None:
+            screen = QApplication.primaryScreen()
+        if screen is None:
+            from PyQt6.QtCore import QRect  # type: ignore
+            return QRect(0, 0, 1280, 720)
+        return screen.availableGeometry()
+
+    def apply_default_size(self, width_pct=0.85, height_pct=0.90,
+                           min_w=1100, min_h=700, center=True):
+        """Apply a relative size (default ~85% × 90% of screen)."""
+        scr = self._available_screen_rect()
+        w = max(int(scr.width() * width_pct), min_w)
+        h = max(int(scr.height() * height_pct), min_h)
+        w = min(w, scr.width())
+        h = min(h, scr.height())
+        self.main.setMinimumSize(min_w, min_h)
+        self.main.resize(w, h)
+        if center:
+            self.center_on_screen()
+
+    def apply_relative(self, width_pct, height_pct, center=True):
+        """Resize the main window to a fraction of the screen."""
+        scr = self._available_screen_rect()
+        w = max(int(scr.width() * width_pct),
+                self.main.minimumWidth() or 600)
+        h = max(int(scr.height() * height_pct),
+                self.main.minimumHeight() or 400)
+        w = min(w, scr.width())
+        h = min(h, scr.height())
+        if self.main.isMaximized() or self.main.isFullScreen():
+            self.main.showNormal()
+        self.main.resize(w, h)
+        if center:
+            self.center_on_screen()
+
+    def apply_fixed(self, w, h, center=True):
+        """Resize the main window to absolute pixel dimensions."""
+        if self.main.isMaximized() or self.main.isFullScreen():
+            self.main.showNormal()
+        self.main.resize(int(w), int(h))
+        if center:
+            self.center_on_screen()
+
+    def apply_maximized(self):
+        self.main.showMaximized()
+
+    def apply_fullscreen(self):
+        self.main.showFullScreen()
+
+    def center_on_screen(self):
+        """Center the main window on its current screen."""
+        scr = self._available_screen_rect()
+        geo = self.main.frameGeometry()
+        geo.moveCenter(scr.center())
+        self.main.move(geo.topLeft())
+
+    def save_geometry(self):
+        """Write window state + geometry to QSettings."""
+        try:
+            self.settings.setValue("main/geometry", self.main.saveGeometry())
+            self.settings.setValue("main/state",    self.main.saveState())
+            self.settings.setValue("main/maximized", self.main.isMaximized())
+        except Exception:
+            pass
+
+    def restore_geometry(self):
+        """Restore window state + geometry from QSettings."""
+        try:
+            geo = self.settings.value("main/geometry")
+            sta = self.settings.value("main/state")
+            if geo:
+                self.main.restoreGeometry(geo)
+            if sta:
+                self.main.restoreState(sta)
+            return bool(geo)
+        except Exception:
+            return False
+
+    def register_subwindow(self, key, widget, rel_w=0.6, rel_h=0.7,
+                           min_w=600, min_h=400):
+        """Configure a child dialog/window with relative sizing."""
+        self._registered_subwindows[key] = widget
+        scr = self._available_screen_rect()
+        w = max(int(scr.width() * rel_w), min_w)
+        h = max(int(scr.height() * rel_h), min_h)
+        widget.setMinimumSize(min_w, min_h)
+        widget.resize(w, h)
+        if self.main is not None:
+            try:
+                main_geo = self.main.frameGeometry()
+                geo = widget.frameGeometry()
+                geo.moveCenter(main_geo.center())
+                widget.move(geo.topLeft())
+            except Exception:
+                pass
+
+    def open_custom_size_dialog(self):
+        """Show a CustomSizeDialog and apply user's choice."""
+        dlg = CustomSizeDialog(self.main, self)
+        accepted = (QDialog.DialogCode.Accepted
+                    if QT_VERSION == 6 else QDialog.Accepted)
+        if dlg.exec() == accepted:
+            mode, w, h = dlg.get_result()
+            if mode == "relative":
+                self.apply_relative(w, h)
+            elif mode == "fixed":
+                self.apply_fixed(int(w), int(h))
+            elif mode == "maximized":
+                self.apply_maximized()
+            elif mode == "fullscreen":
+                self.apply_fullscreen()
+
+
+class CustomSizeDialog(QDialog):
+    """Lets the user dial-in any window size (% of screen or pixels)."""
+
+    def __init__(self, parent, mgr):
+        super().__init__(parent)
+        self.mgr = mgr
+        self.setWindowTitle("🪟 Custom Window Size")
+        self.setModal(True)
+        self.setMinimumWidth(420)
+
+        scr = mgr._available_screen_rect()
+        self.scr_w = scr.width()
+        self.scr_h = scr.height()
+
+        lay = QVBoxLayout(self)
+
+        lay.addWidget(QLabel(
+            f"<b>Screen available:</b> {self.scr_w} × {self.scr_h} px"))
+
+        # Preset row
+        pre_g = QGroupBox("Relative preset")
+        pre_l = QVBoxLayout(pre_g)
+        self.preset_combo = QComboBox()
+        self.preset_combo.addItem("— Custom —")
+        for name in WIN_PRESETS_RELATIVE:
+            self.preset_combo.addItem(name)
+        self.preset_combo.currentIndexChanged.connect(self._on_preset_changed)
+        pre_l.addWidget(self.preset_combo)
+        lay.addWidget(pre_g)
+
+        # Relative percentage spinboxes
+        rel_g = QGroupBox("Relative (% of screen)")
+        rel_l = QVBoxLayout(rel_g)
+        rh = QHBoxLayout()
+        rh.addWidget(QLabel("Width:"))
+        self.w_pct = QSpinBox(); self.w_pct.setRange(20, 100); self.w_pct.setValue(85)
+        self.w_pct.setSuffix(" %")
+        self.w_pct.valueChanged.connect(self._update_pixel_preview)
+        rh.addWidget(self.w_pct)
+        rh.addWidget(QLabel("Height:"))
+        self.h_pct = QSpinBox(); self.h_pct.setRange(20, 100); self.h_pct.setValue(90)
+        self.h_pct.setSuffix(" %")
+        self.h_pct.valueChanged.connect(self._update_pixel_preview)
+        rh.addWidget(self.h_pct)
+        rel_l.addLayout(rh)
+        self.preview_lbl = QLabel("")
+        self.preview_lbl.setStyleSheet("color:#666; font-size:11px;")
+        rel_l.addWidget(self.preview_lbl)
+        lay.addWidget(rel_g)
+
+        # Fixed pixel option
+        fix_g = QGroupBox("Or fixed pixels")
+        fix_g.setCheckable(True)
+        fix_g.setChecked(False)
+        fl = QHBoxLayout(fix_g)
+        self.fix_w = QSpinBox(); self.fix_w.setRange(600, 7680); self.fix_w.setValue(1550)
+        self.fix_h = QSpinBox(); self.fix_h.setRange(400, 4320); self.fix_h.setValue(980)
+        fl.addWidget(QLabel("W:")); fl.addWidget(self.fix_w)
+        fl.addWidget(QLabel("H:")); fl.addWidget(self.fix_h)
+        self.fix_g = fix_g
+        lay.addWidget(fix_g)
+
+        # Special modes
+        spc_g = QGroupBox("Special modes")
+        spc_l = QHBoxLayout(spc_g)
+        self.btn_max = QPushButton("Maximize")
+        self.btn_max.clicked.connect(lambda: self._apply_special("maximized"))
+        self.btn_full = QPushButton("Fullscreen")
+        self.btn_full.clicked.connect(lambda: self._apply_special("fullscreen"))
+        spc_l.addWidget(self.btn_max); spc_l.addWidget(self.btn_full)
+        lay.addWidget(spc_g)
+
+        # Buttons
+        if QT_VERSION == 6:
+            bb = QDialogButtonBox(
+                QDialogButtonBox.StandardButton.Ok |
+                QDialogButtonBox.StandardButton.Cancel)
+        else:
+            bb = QDialogButtonBox(
+                QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        bb.accepted.connect(self.accept)
+        bb.rejected.connect(self.reject)
+        lay.addWidget(bb)
+
+        self._special_mode = None
+        self._update_pixel_preview()
+
+    def _on_preset_changed(self, idx):
+        if idx <= 0:
+            return
+        name = self.preset_combo.currentText()
+        val = WIN_PRESETS_RELATIVE.get(name)
+        if val is None:
+            self._apply_special("maximized")
+            self.accept()
+            return
+        wp, hp = val
+        self.w_pct.setValue(int(wp * 100))
+        self.h_pct.setValue(int(hp * 100))
+
+    def _update_pixel_preview(self):
+        wp = self.w_pct.value() / 100.0
+        hp = self.h_pct.value() / 100.0
+        self.preview_lbl.setText(
+            f"≈ {int(self.scr_w * wp)} × {int(self.scr_h * hp)} pixels")
+
+    def _apply_special(self, mode):
+        self._special_mode = mode
+        self.accept()
+
+    def get_result(self):
+        """Return (mode, width, height)."""
+        if self._special_mode:
+            return self._special_mode, 0, 0
+        if self.fix_g.isChecked():
+            return "fixed", self.fix_w.value(), self.fix_h.value()
+        return ("relative",
+                self.w_pct.value() / 100.0,
+                self.h_pct.value() / 100.0)
+
+
+# ═══════════════════════════════════════════════════════════════
+# DETACHABLE TAB WIDGET
+# ═══════════════════════════════════════════════════════════════
+# QTabWidget extension that lets the user "tear off" any tab into
+# a free-floating window with its own resizable geometry. Closing
+# the floating window re-attaches the tab back into its original
+# position. Works with any kind of QWidget content.
+#
+# Usage: replace any `QTabWidget()` with `DetachableTabWidget()`.
+# Per-tab UX:
+#   • A "↗" button is added to the corner of every tab
+#   • Right-click on a tab also offers "Detach into window"
+#   • Once detached, closing the window re-docks the tab
+# ═══════════════════════════════════════════════════════════════
+
+
+class _DetachedTabWindow(QDialog):
+    """Floating window that hosts a detached tab.
+
+    On close, signals the parent DetachableTabWidget to re-dock
+    the tab at its original index.
+    """
+    closedSignal = pyqtSignal(object)  # emits self
+
+    def __init__(self, content_widget, tab_label, tab_icon=None,
+                 original_index=0, parent=None):
+        # Use the top-level main window as parent (not the tab widget)
+        # so that window management treats this as a peer dialog and
+        # doesn't crop / clip the floating content.
+        try:
+            top_level = parent.window() if parent is not None else None
+        except Exception:
+            top_level = parent
+        super().__init__(top_level)
+        if QT_VERSION == 6:
+            self.setWindowFlags(Qt.WindowType.Window)
+        else:
+            self.setWindowFlags(Qt.Window)
+        self.setWindowTitle(f"ppigFinder — {tab_label}")
+        if tab_icon is not None:
+            try:
+                self.setWindowIcon(tab_icon)
+            except Exception:
+                pass
+
+        self.content = content_widget
+        self.tab_label = tab_label
+        self.tab_icon = tab_icon
+        self.original_index = original_index
+        self._reattach_on_close = True   # set to False to dispose
+
+        # Default size: 70% of screen
+        try:
+            scr = QApplication.primaryScreen().availableGeometry()
+            self.resize(int(scr.width() * 0.70), int(scr.height() * 0.80))
+            geo = self.frameGeometry()
+            geo.moveCenter(scr.center())
+            self.move(geo.topLeft())
+        except Exception:
+            self.resize(1100, 800)
+
+        # Layout: header bar with "Re-dock" button + content
+        main_lay = QVBoxLayout(self)
+        main_lay.setContentsMargins(4, 4, 4, 4)
+        main_lay.setSpacing(4)
+
+        bar = QHBoxLayout()
+        info = QLabel(
+            f"<b>📌 Detached:</b> <i>{tab_label}</i> "
+            "&nbsp;<span style='color:#666; font-size:10px;'>"
+            "(close this window to re-dock)</span>")
+        info.setStyleSheet("padding:4px;")
+        bar.addWidget(info, 1)
+        self.btn_redock = QPushButton("↙ Re-dock")
+        self.btn_redock.setFixedHeight(26)
+        self.btn_redock.setToolTip(
+            "Close this window and re-attach this tab to the main app.")
+        self.btn_redock.clicked.connect(self.close)
+        bar.addWidget(self.btn_redock)
+        main_lay.addLayout(bar)
+
+        # Re-parent the content widget INTO this dialog.
+        # IMPORTANT: removeTab() on QTabWidget hides the page widget
+        # internally — we must explicitly setVisible(True) and call
+        # show() AFTER re-parenting, otherwise the floating window
+        # appears empty (just shows the header bar).
+        content_widget.setParent(self)
+        main_lay.addWidget(content_widget, 1)
+        content_widget.setVisible(True)
+        content_widget.show()
+        # Recursively show all child widgets in case some were hidden
+        # by their parent QTabWidget.  This guards against deeply
+        # nested QStackedWidget pages remaining hidden.
+        try:
+            for child in content_widget.findChildren(QWidget):
+                if not child.isVisible():
+                    # Don't force-show widgets that were intentionally
+                    # hidden by the user (e.g. collapsed group boxes).
+                    # Only force-show direct children of common containers
+                    # which Qt may have hidden during removeTab.
+                    pass  # rely on parent show() to propagate
+        except Exception:
+            pass
+
+    def closeEvent(self, event):
+        # Notify parent to re-dock unless explicitly disabled
+        if self._reattach_on_close:
+            try:
+                self.closedSignal.emit(self)
+            except Exception:
+                pass
+        super().closeEvent(event)
+
+
+class DetachableTabWidget(QTabWidget):
+    """QTabWidget where every tab can be torn off into a floating window.
+
+    The floating window has its own resizable geometry; closing it
+    re-attaches the tab at its original position.
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._detached_windows = {}  # original_index → _DetachedTabWindow
+        # Accept right-click to show context menu
+        self.tabBar().setContextMenuPolicy(
+            Qt.ContextMenuPolicy.CustomContextMenu if QT_VERSION == 6
+            else Qt.CustomContextMenu)
+        self.tabBar().customContextMenuRequested.connect(
+            self._on_tab_context_menu)
+        # Accept double-click on tab to detach
+        try:
+            self.tabBar().tabBarDoubleClicked.connect(self._on_tab_double_clicked)
+        except Exception:
+            pass
+
+    def _on_tab_double_clicked(self, idx):
+        """Double-click on tab → detach."""
+        if idx >= 0:
+            self.detach_tab(idx)
+
+    def _on_tab_context_menu(self, pos):
+        """Right-click on tab → show detach menu."""
+        idx = self.tabBar().tabAt(pos)
+        if idx < 0:
+            return
+        menu = QMenu(self)
+        act_detach = menu.addAction("↗  Detach into window")
+        act_detach.setToolTip("Open this tab in a separate, resizable window")
+        menu.addSeparator()
+        act_detach_all = menu.addAction("↗  Detach all tabs")
+        act_redock_all = menu.addAction("↙  Re-dock all detached tabs")
+        if QT_VERSION == 6:
+            chosen = menu.exec(self.tabBar().mapToGlobal(pos))
+        else:
+            chosen = menu.exec_(self.tabBar().mapToGlobal(pos))
+        if chosen == act_detach:
+            self.detach_tab(idx)
+        elif chosen == act_detach_all:
+            # Iterate from highest index → lowest because detach removes
+            for i in range(self.count() - 1, -1, -1):
+                self.detach_tab(i)
+        elif chosen == act_redock_all:
+            for win in list(self._detached_windows.values()):
+                try:
+                    win.close()
+                except Exception:
+                    pass
+
+    def detach_tab(self, idx):
+        """Tear off tab `idx` into a floating window."""
+        if idx < 0 or idx >= self.count():
+            return
+        widget = self.widget(idx)
+        if widget is None:
+            return
+        label = self.tabText(idx)
+        icon = self.tabIcon(idx)
+
+        # Compute a stable identifier so we can re-dock at the right slot
+        # even when other tabs have been detached/redocked in the meantime.
+        # We track by widget identity and the original label.
+        original_index = idx
+
+        # Remove the tab.  This does NOT delete the widget, but Qt
+        # internally hides it (visible=False) so that it doesn't pop
+        # up on screen between removeTab and re-parenting.  The
+        # _DetachedTabWindow constructor explicitly re-shows it.
+        self.removeTab(idx)
+        # Clear hidden state proactively
+        try:
+            widget.setVisible(True)
+        except Exception:
+            pass
+
+        # Wrap in a floating window.  We pass `self` so the dialog can
+        # find the top-level main window for proper window management.
+        win = _DetachedTabWindow(widget, label, icon,
+                                 original_index=original_index, parent=self)
+        win.closedSignal.connect(self._on_detached_closed)
+        self._detached_windows[id(widget)] = win
+        win.show()
+        try:
+            win.raise_()
+            win.activateWindow()
+        except Exception:
+            pass
+
+    def _on_detached_closed(self, win):
+        """Called when a detached window is closed → re-dock."""
+        try:
+            wid = id(win.content)
+        except Exception:
+            wid = None
+        # Restore to the closest original index possible
+        target_idx = win.original_index
+        if target_idx > self.count():
+            target_idx = self.count()
+        # Re-parent content back to this tab widget.
+        # insertTab() handles visibility, but we explicitly setVisible
+        # to make sure the widget shows when the tab becomes current.
+        try:
+            win.content.setParent(self)
+            new_idx = self.insertTab(target_idx, win.content,
+                                      win.tab_icon, win.tab_label)
+            win.content.setVisible(True)
+            self.setCurrentIndex(new_idx)
+        except Exception as e:
+            print(f"[DetachableTabWidget] re-dock error: {e}")
+        # Drop the reference
+        if wid is not None and wid in self._detached_windows:
+            del self._detached_windows[wid]
+
+
+# ═══════════════════════════════════════════════════════════════
+# FLEXIBLE AF3 SERVER SUBMISSION — Customisable command builder
+# ═══════════════════════════════════════════════════════════════
+# Lets the user pick from named profiles or write custom command
+# templates with placeholders (e.g. {json_path}, {job_name},
+# {parent_dir}, {output_dir}, plus any user-defined parameter).
+# Profiles are persisted to ~/.ppigfinder/af3_server_profiles.json
+# ═══════════════════════════════════════════════════════════════
+
+# Default profiles (shipped with the app, cannot be deleted)
+AF3_DEFAULT_PROFILES = [
+    # Single minimal "blank" starter.  The user is expected to write
+    # their own command (or save several named ones) for whatever
+    # server / scheduler / runner they have access to.  All previous
+    # server-specific built-ins (SLURM, sbatch, PBS, LSF, ...) were
+    # removed — they leak assumptions about the user's infrastructure.
+    {
+        "id":          "blank_starter",
+        "name":        "Blank  (write your own command)",
+        "description": "Empty starter.  Type your AF3 / scheduler "
+                       "command directly in the terminal below.  Click "
+                       "'+ New' to save it as a named profile, or "
+                       "'Duplicate' to fork from this blank.",
+        "is_builtin":  True,
+        "template": (
+            "# Type the command(s) to run AF3 on YOUR server.\n"
+            "# Always-available placeholders:\n"
+            "#   {json_path}  {job_name}  {parent_dir}  {output_dir}\n"
+            "#   {prefix}     {date}      {timestamp}\n"
+            "#\n"
+            "# Example (edit freely):\n"
+            "cd {parent_dir} && my_af3_cmd --json_path {json_path} --job-name {job_name}"
+        ),
+        "params": {},
+    },
+]
+
+
+class AF3CommandBuilder:
+    """Pure-logic AF3 command template resolver."""
+
+    REQUIRED_CONTEXT = {"json_path", "job_name", "parent_dir"}
+
+    @staticmethod
+    def detect_placeholders(template):
+        """Return list of unique {placeholder} names in the template."""
+        pattern = re.compile(r'(?<!\{)\{([a-zA-Z_][a-zA-Z0-9_]*)\}(?!\})')
+        seen = []
+        for m in pattern.finditer(template):
+            n = m.group(1)
+            if n not in seen:
+                seen.append(n)
+        return seen
+
+    @staticmethod
+    def auto_context(prefix="af3_batch", parent_dir="~/af3_predictions",
+                     job_name=None, json_path=None):
+        """Build a minimal context with always-available keys."""
+        now = datetime.now()
+        ts = now.strftime('%Y%m%d_%H%M%S')
+        date = now.strftime('%Y-%m-%d')
+        job_name = job_name or f"{prefix}_{ts}"
+        json_path = json_path or f"{prefix}_all_jobs.json"
+        job_name = re.sub(r'[()\[\]{}|;&!\s]+', '_', job_name).strip('_')
+        return {
+            "prefix":     prefix,
+            "parent_dir": parent_dir.rstrip('/'),
+            "json_path":  json_path,
+            "job_name":   job_name,
+            "output_dir": f"{parent_dir.rstrip('/')}/{job_name}/output",
+            "date":       date,
+            "timestamp":  ts,
+        }
+
+    @staticmethod
+    def resolve(template, context, computed=None):
+        """Resolve placeholders.  Missing ones are kept as-is."""
+        ctx = dict(context)
+        if computed:
+            for key, src in computed.items():
+                try:
+                    fn = eval(src, {"__builtins__": {}})
+                    ctx[key] = fn(ctx)
+                except Exception as e:
+                    ctx[key] = f"<{key}: error {e}>"
+        def _sub(m):
+            n = m.group(1)
+            return str(ctx.get(n, m.group(0)))
+        return re.sub(r'(?<!\{)\{([a-zA-Z_][a-zA-Z0-9_]*)\}(?!\})',
+                      _sub, template)
+
+
+class AF3ProfileManager:
+    """Loads / saves AF3 server profiles to ~/.ppigfinder/af3_server_profiles.json"""
+
+    def __init__(self, config_path=None):
+        if config_path is None:
+            cfg_dir = Path.home() / ".ppigfinder"
+            try:
+                cfg_dir.mkdir(exist_ok=True)
+            except Exception:
+                pass
+            config_path = cfg_dir / "af3_server_profiles.json"
+        self.config_path = config_path
+        self.profiles = []
+        self.load()
+
+    def load(self):
+        import copy as _copy
+        self.profiles = [_copy.deepcopy(p) for p in AF3_DEFAULT_PROFILES]
+        if self.config_path.exists():
+            try:
+                with open(self.config_path, 'r', encoding='utf-8') as f:
+                    user_data = json.load(f)
+                if isinstance(user_data, list):
+                    builtin_ids = {p['id'] for p in self.profiles}
+                    for up in user_data:
+                        if (isinstance(up, dict) and up.get('id')
+                                and up['id'] not in builtin_ids):
+                            up['is_builtin'] = False
+                            self.profiles.append(up)
+            except Exception as e:
+                print(f"[AF3ProfileManager] load error: {e}")
+
+    def save(self):
+        user_profiles = [p for p in self.profiles if not p.get('is_builtin')]
+        try:
+            with open(self.config_path, 'w', encoding='utf-8') as f:
+                json.dump(user_profiles, f, indent=2)
+        except Exception as e:
+            print(f"[AF3ProfileManager] save error: {e}")
+
+    def get(self, profile_id):
+        for p in self.profiles:
+            if p['id'] == profile_id:
+                return p
+        return None
+
+    def names(self):
+        out = []
+        for p in self.profiles:
+            tag = "  [built-in]" if p.get('is_builtin') else "  [user]"
+            out.append((p['id'], p['name'] + tag))
+        return out
+
+    def add_or_update(self, profile):
+        if profile.get('is_builtin'):
+            return False
+        for i, p in enumerate(self.profiles):
+            if p['id'] == profile['id']:
+                if p.get('is_builtin'):
+                    return False
+                self.profiles[i] = profile
+                self.save()
+                return True
+        self.profiles.append(profile)
+        self.save()
+        return True
+
+    def delete(self, profile_id):
+        for i, p in enumerate(self.profiles):
+            if p['id'] == profile_id and not p.get('is_builtin'):
+                self.profiles.pop(i)
+                self.save()
+                return True
+        return False
+
+    def duplicate(self, profile_id, new_name):
+        import copy as _copy
+        src = self.get(profile_id)
+        if src is None:
+            return None
+        new = _copy.deepcopy(src)
+        new['id'] = (re.sub(r'[^a-z0-9_]', '_', new_name.lower())[:40]
+                     + f"_{int(datetime.now().timestamp())}")
+        new['name'] = new_name
+        new['is_builtin'] = False
+        self.profiles.append(new)
+        self.save()
+        return new
+
+
+class FlexibleAF3SubmitWidget(QGroupBox):
+    """
+    Replaces the legacy "AF3 Advanced Options" group with a fully
+    customisable, profile-based command builder.
+
+    Emits commandChanged() whenever the resolved preview changes.
+    """
+    commandChanged = pyqtSignal()
+
+    def __init__(self, parent=None, profile_manager=None):
+        super().__init__("⌨  AF3 Server Submission — Terminal & Profiles",
+                         parent)
+        self.setCheckable(True)
+        self.setChecked(True)
+        self.setToolTip(
+            "Type the command to run AlphaFold3 (or any scheduler) on YOUR "
+            "server in the terminal below.\n"
+            "Save it as a named profile to reuse later — profiles are "
+            "stored in ~/.ppigfinder/af3_server_profiles.json\n\n"
+            "Always-available placeholders:\n"
+            "  {json_path}, {job_name}, {parent_dir}, {output_dir},\n"
+            "  {prefix}, {date}, {timestamp}")
+        self.mgr = profile_manager or AF3ProfileManager()
+        self._param_widgets = {}
+        self._current_profile_id = None
+        self._building = False
+        self._popout_window = None     # set by _on_popout()
+        self._build_ui()
+        if self.mgr.profiles:
+            self._load_profile(self.mgr.profiles[0]['id'])
+
+    def _build_ui(self):
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(8, 14, 8, 8)
+        outer.setSpacing(6)
+        # Ensure the whole widget has enough vertical space so that
+        # the inner Parameters / Template / Preview panels are not
+        # squeezed by the parent layout.
+        self.setMinimumHeight(420)
+
+        # Profile row
+        prof_row = QHBoxLayout()
+        prof_row.addWidget(QLabel("<b>Profile:</b>"))
+        self.profile_combo = QComboBox()
+        self.profile_combo.setMinimumWidth(280)
+        self.profile_combo.setToolTip(
+            "Pre-built profiles for common AF3 / scheduler setups.\n"
+            "Select one and edit the parameters below — or create your own.")
+        self.profile_combo.currentIndexChanged.connect(self._on_profile_changed)
+        prof_row.addWidget(self.profile_combo, 1)
+
+        self.btn_new = QPushButton("➕ New")
+        self.btn_new.setToolTip("Create a new profile from scratch.")
+        self.btn_new.clicked.connect(self._on_new_profile)
+        self.btn_dup = QPushButton("📑 Duplicate")
+        self.btn_dup.setToolTip("Copy current profile under a new name.")
+        self.btn_dup.clicked.connect(self._on_duplicate_profile)
+        self.btn_save = QPushButton("💾 Save")
+        self.btn_save.setToolTip("Save edits to current profile (user only).")
+        self.btn_save.clicked.connect(self._on_save_profile)
+        self.btn_del = QPushButton("🗑 Delete")
+        self.btn_del.setToolTip("Delete current profile (user only).")
+        self.btn_del.clicked.connect(self._on_delete_profile)
+        self.btn_imp = QPushButton("⤴ Import")
+        self.btn_imp.setToolTip("Import profiles from a JSON file.")
+        self.btn_imp.clicked.connect(self._on_import_profile)
+        self.btn_exp = QPushButton("⤵ Export")
+        self.btn_exp.setToolTip("Export current profile to a JSON file.")
+        self.btn_exp.clicked.connect(self._on_export_profile)
+        # Pop-out button — opens this widget in a separate window with
+        # plenty of room (avoids the cramped Parameters panel).
+        self.btn_popout = QPushButton("↗ Pop-out")
+        self.btn_popout.setToolTip(
+            "Open this builder in a separate, resizable window "
+            "with more room for the Parameters panel and template editor.")
+        self.btn_popout.clicked.connect(self._on_popout)
+        for b in (self.btn_new, self.btn_dup, self.btn_save,
+                  self.btn_del, self.btn_imp, self.btn_exp,
+                  self.btn_popout):
+            b.setFixedHeight(26)
+            prof_row.addWidget(b)
+        outer.addLayout(prof_row)
+
+        self.desc_lbl = QLabel("")
+        self.desc_lbl.setWordWrap(True)
+        self.desc_lbl.setStyleSheet(
+            "color:#444; font-size:11px; padding:3px 0;")
+        outer.addWidget(self.desc_lbl)
+
+        # Vertical splitter: params (top) | template (bottom)
+        if QT_VERSION == 6:
+            split = QSplitter(Qt.Orientation.Vertical)
+        else:
+            split = QSplitter(Qt.Vertical)
+
+        # Params panel
+        self.params_box = QGroupBox(
+            "Parameters  (edit values to update command)")
+        self.params_layout = QGridLayout(self.params_box)
+        self.params_layout.setSpacing(4)
+        self.params_layout.setContentsMargins(8, 8, 8, 8)
+        params_scroll = QScrollArea()
+        params_scroll.setWidgetResizable(True)
+        params_scroll.setWidget(self.params_box)
+        params_scroll.setMinimumHeight(160)
+        split.addWidget(params_scroll)
+
+        # Template editor — styled as an interactive terminal
+        # (dark background, monospace, prompt-like cursor).  Holds the
+        # raw command(s) the user wants to run on their server.
+        tmpl_box = QGroupBox("⌨  Terminal — command template")
+        tmpl_l = QVBoxLayout(tmpl_box)
+        tmpl_l.setContentsMargins(6, 6, 6, 6)
+        cheat = QLabel(
+            "<b>Always-available placeholders:</b> "
+            "<code>{json_path}</code> · <code>{job_name}</code> · "
+            "<code>{parent_dir}</code> · <code>{output_dir}</code> · "
+            "<code>{prefix}</code> · <code>{date}</code> · "
+            "<code>{timestamp}</code>"
+            "<br>Add any other <code>{placeholder}</code> and it shows "
+            "up as an editable parameter above.")
+        cheat.setStyleSheet("color:#888; font-size:10px; padding:2px;")
+        cheat.setWordWrap(True)
+        tmpl_l.addWidget(cheat)
+        self.tmpl_edit = QPlainTextEdit()
+        self.tmpl_edit.setFont(QFont('Courier New', 10))
+        self.tmpl_edit.setStyleSheet(
+            "QPlainTextEdit {"
+            "  background:#0c0c0c;"      # near-black terminal bg
+            "  color:#e6e6e6;"           # light grey text
+            "  selection-background-color:#264f78;"
+            "  border:1px solid #333;"
+            "  padding:6px;"
+            "}")
+        self.tmpl_edit.setPlaceholderText(
+            "$ Type your AF3 / scheduler command here…\n"
+            "  Lines starting with # are treated as comments and stripped\n"
+            "  before submission. Use {placeholders} to inject runtime values.")
+        self.tmpl_edit.textChanged.connect(self._on_template_changed)
+        self.tmpl_edit.setMinimumHeight(160)
+        tmpl_l.addWidget(self.tmpl_edit)
+        split.addWidget(tmpl_box)
+        split.setStretchFactor(0, 2)
+        split.setStretchFactor(1, 4)   # give the terminal more space
+        outer.addWidget(split, 1)
+
+        # Resolved preview
+        prev_box = QGroupBox("Resolved command preview")
+        prev_l = QVBoxLayout(prev_box)
+        prev_l.setContentsMargins(6, 6, 6, 6)
+        self.preview = QPlainTextEdit()
+        self.preview.setReadOnly(True)
+        self.preview.setFont(QFont('Courier New', 9))
+        self.preview.setStyleSheet("background:#1e1e1e; color:#7ec699;")
+        self.preview.setMinimumHeight(100)
+        prev_l.addWidget(self.preview)
+        outer.addWidget(prev_box)
+
+        self._refresh_profile_combo()
+
+    def _refresh_profile_combo(self):
+        self._building = True
+        self.profile_combo.clear()
+        for pid, label in self.mgr.names():
+            self.profile_combo.addItem(label, userData=pid)
+        self._building = False
+
+    def _on_profile_changed(self, idx):
+        if self._building or idx < 0:
+            return
+        pid = self.profile_combo.itemData(idx)
+        if pid:
+            self._load_profile(pid)
+
+    def _load_profile(self, profile_id):
+        prof = self.mgr.get(profile_id)
+        if prof is None:
+            return
+        self._current_profile_id = profile_id
+        self._building = True
+        for i in range(self.profile_combo.count()):
+            if self.profile_combo.itemData(i) == profile_id:
+                self.profile_combo.setCurrentIndex(i)
+                break
+        self._building = False
+        self.desc_lbl.setText(
+            f"<i>{prof.get('description', '')}</i>"
+            + (" <b>(built-in — clone to edit)</b>"
+               if prof.get('is_builtin') else ""))
+        self._building = True
+        self.tmpl_edit.setPlainText(prof.get('template', ''))
+        self._building = False
+        merged_params = dict(prof.get('params', {}))
+        detected = AF3CommandBuilder.detect_placeholders(prof.get('template', ''))
+        auto_keys = ("json_path", "job_name", "parent_dir", "output_dir",
+                     "prefix", "date", "timestamp")
+        for n in detected:
+            if n in auto_keys:
+                continue
+            if n in (prof.get('computed') or {}):
+                continue
+            merged_params.setdefault(n, "")
+        self._build_param_widgets(merged_params, prof.get('is_builtin', False))
+        self._refresh_preview()
+
+    def _build_param_widgets(self, params, read_only):
+        while self.params_layout.count():
+            item = self.params_layout.takeAt(0)
+            wdg = item.widget()
+            if wdg is not None:
+                wdg.deleteLater()
+        self._param_widgets.clear()
+        if not params:
+            self.params_layout.addWidget(
+                QLabel("<i>(this profile has no editable parameters)</i>"),
+                0, 0)
+            return
+        for r, (name, default) in enumerate(params.items()):
+            lbl = QLabel(f"<code>{{{name}}}</code>:")
+            lbl.setMinimumWidth(160)
+            edt = QLineEdit(str(default))
+            edt.setReadOnly(read_only)
+            if read_only:
+                edt.setStyleSheet("background:#f4f4f4;")
+                edt.setToolTip(
+                    "Built-in profile values are read-only.\n"
+                    "Click 'Duplicate' to create an editable copy.")
+            edt.textChanged.connect(self._refresh_preview)
+            self.params_layout.addWidget(lbl, r, 0)
+            self.params_layout.addWidget(edt, r, 1)
+            self._param_widgets[name] = edt
+        self.params_layout.setColumnStretch(1, 1)
+
+    def _on_template_changed(self):
+        if self._building:
+            return
+        prof = (self.mgr.get(self._current_profile_id)
+                if self._current_profile_id else None)
+        is_builtin = prof.get('is_builtin', False) if prof else False
+        if is_builtin:
+            self._building = True
+            self.tmpl_edit.setPlainText(prof['template'])
+            self._building = False
+            return
+        new_template = self.tmpl_edit.toPlainText()
+        detected = AF3CommandBuilder.detect_placeholders(new_template)
+        current_values = {n: w.text() for n, w in self._param_widgets.items()}
+        auto_keys = ("json_path", "job_name", "parent_dir", "output_dir",
+                     "prefix", "date", "timestamp")
+        new_params = {}
+        for n in detected:
+            if n in auto_keys:
+                continue
+            new_params[n] = current_values.get(n, "")
+        for n, v in current_values.items():
+            if n not in new_params:
+                new_params[n] = v
+        self._build_param_widgets(new_params, read_only=False)
+        self._refresh_preview()
+
+    def _refresh_preview(self, *_):
+        prof = (self.mgr.get(self._current_profile_id)
+                if self._current_profile_id else None)
+        template = self.tmpl_edit.toPlainText()
+        ctx = AF3CommandBuilder.auto_context(
+            prefix="example_batch",
+            parent_dir="~/af3_predictions/" + datetime.now().strftime('%Y-%m-%d'),
+            json_path="example_batch_001.json")
+        for n, w in self._param_widgets.items():
+            ctx[n] = w.text()
+        computed = (prof.get('computed') if prof else None) or {}
+        cmd = AF3CommandBuilder.resolve(template, ctx, computed)
+        self.preview.setPlainText(cmd)
+        self.commandChanged.emit()
+
+    def _on_new_profile(self):
+        name, ok = QInputDialog.getText(self, "New profile", "Profile name:")
+        if not ok or not name.strip():
+            return
+        new = {
+            "id": (re.sub(r'[^a-z0-9_]', '_', name.lower())[:40]
+                   + f"_{int(datetime.now().timestamp())}"),
+            "name":        name.strip(),
+            "description": "User-defined profile.",
+            "is_builtin":  False,
+            "template":    ("cd {parent_dir} && "
+                            "{my_command} --json_path {json_path} "
+                            "--job-name {job_name}"),
+            "params":      {"my_command": "af3_run"},
+        }
+        self.mgr.add_or_update(new)
+        self._refresh_profile_combo()
+        self._load_profile(new['id'])
+
+    def _on_duplicate_profile(self):
+        if not self._current_profile_id:
+            return
+        src = self.mgr.get(self._current_profile_id)
+        suggested = (src['name'] + " (copy)") if src else "New profile"
+        name, ok = QInputDialog.getText(
+            self, "Duplicate profile", "New name:", text=suggested)
+        if not ok or not name.strip():
+            return
+        new = self.mgr.duplicate(self._current_profile_id, name.strip())
+        if new:
+            self._refresh_profile_combo()
+            self._load_profile(new['id'])
+
+    def _on_save_profile(self):
+        if not self._current_profile_id:
+            return
+        prof = self.mgr.get(self._current_profile_id)
+        if prof is None or prof.get('is_builtin'):
+            QMessageBox.information(
+                self, "Save profile",
+                "Built-in profiles cannot be modified.\n"
+                "Click 'Duplicate' to create an editable copy.")
+            return
+        prof['template'] = self.tmpl_edit.toPlainText()
+        prof['params'] = {n: w.text() for n, w in self._param_widgets.items()}
+        ok = self.mgr.add_or_update(prof)
+        QMessageBox.information(
+            self, "Save profile",
+            "✓ Profile saved." if ok else "✗ Failed to save profile.")
+
+    def _on_delete_profile(self):
+        if not self._current_profile_id:
+            return
+        prof = self.mgr.get(self._current_profile_id)
+        if prof is None or prof.get('is_builtin'):
+            QMessageBox.information(
+                self, "Delete profile",
+                "Built-in profiles cannot be deleted.")
+            return
+        if QT_VERSION == 6:
+            yes_btn = QMessageBox.StandardButton.Yes
+        else:
+            yes_btn = QMessageBox.Yes
+        if QMessageBox.question(
+                self, "Delete profile",
+                f"Delete profile '{prof['name']}'?") != yes_btn:
+            return
+        if self.mgr.delete(self._current_profile_id):
+            self._refresh_profile_combo()
+            if self.mgr.profiles:
+                self._load_profile(self.mgr.profiles[0]['id'])
+
+    def _on_import_profile(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Import AF3 server profile", "", "JSON (*.json)")
+        if not path:
+            return
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            if isinstance(data, dict):
+                data = [data]
+            cnt = 0
+            for p in data:
+                if isinstance(p, dict) and p.get('id'):
+                    p['is_builtin'] = False
+                    if self.mgr.add_or_update(p):
+                        cnt += 1
+            self._refresh_profile_combo()
+            QMessageBox.information(
+                self, "Import", f"✓ Imported {cnt} profile(s).")
+        except Exception as e:
+            QMessageBox.critical(self, "Import failed", str(e))
+
+    def _on_export_profile(self):
+        if not self._current_profile_id:
+            return
+        prof = self.mgr.get(self._current_profile_id)
+        if prof is None:
+            return
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export profile",
+            f"{prof['id']}.json", "JSON (*.json)")
+        if not path:
+            return
+        try:
+            with open(path, 'w', encoding='utf-8') as f:
+                json.dump(prof, f, indent=2)
+            QMessageBox.information(self, "Export", f"✓ Saved to {path}")
+        except Exception as e:
+            QMessageBox.critical(self, "Export failed", str(e))
+
+    def _on_popout(self):
+        """Pop this widget out into a separate, resizable window.
+
+        Useful when the host tab is too cramped to comfortably edit
+        the Parameters panel or the command template.  Closing the
+        pop-out window re-docks the widget back into its host layout.
+        """
+        # Already detached?
+        if getattr(self, '_popout_window', None) is not None:
+            try:
+                self._popout_window.raise_()
+                self._popout_window.activateWindow()
+            except Exception:
+                pass
+            return
+
+        host = self.parent()
+        # Figure out the host layout & index so we can dock back later
+        host_layout = None
+        host_index  = -1
+        if host is not None:
+            host_layout = host.layout()
+            if host_layout is not None:
+                for i in range(host_layout.count()):
+                    if host_layout.itemAt(i).widget() is self:
+                        host_index = i
+                        break
+
+        # Build a floating dialog
+        if QT_VERSION == 6:
+            flags = Qt.WindowType.Window
+        else:
+            flags = Qt.Window
+        dlg = QDialog(host)
+        dlg.setWindowFlags(flags)
+        dlg.setWindowTitle("⌨  AF3 Server Submission — Terminal & Profiles")
+        try:
+            scr = QApplication.primaryScreen().availableGeometry()
+            dlg.resize(int(scr.width() * 0.70), int(scr.height() * 0.85))
+            geo = dlg.frameGeometry()
+            geo.moveCenter(scr.center())
+            dlg.move(geo.topLeft())
+        except Exception:
+            dlg.resize(1100, 800)
+
+        dlg_lay = QVBoxLayout(dlg)
+        dlg_lay.setContentsMargins(6, 6, 6, 6)
+        dlg_lay.setSpacing(4)
+
+        info = QLabel(
+            "<b>📌 Detached AF3 Builder</b> &nbsp; "
+            "<span style='color:#666; font-size:10px;'>"
+            "(close this window to re-dock the builder back into the "
+            "Submit AF3 tab)</span>")
+        info.setStyleSheet("padding:4px;")
+        dlg_lay.addWidget(info)
+
+        # Re-parent self into the dialog.  Same caveat as
+        # _DetachedTabWindow: when a widget is removed from one layout
+        # and re-parented to another, Qt may keep visibility=False —
+        # we have to explicitly setVisible(True) and show().
+        self.setParent(dlg)
+        dlg_lay.addWidget(self, 1)
+        self.setVisible(True)
+        self.show()
+
+        # Hide our own pop-out button while we ARE the popout
+        self.btn_popout.setEnabled(False)
+        self.btn_popout.setText("↙ (already detached)")
+
+        # Re-dock on close
+        def _on_dlg_close(event):
+            try:
+                if host_layout is not None:
+                    self.setParent(host)
+                    if host_index >= 0:
+                        host_layout.insertWidget(host_index, self)
+                    else:
+                        host_layout.addWidget(self)
+                    self.setVisible(True)
+                    self.show()
+            except Exception as e:
+                print(f"[AF3 popout] re-dock error: {e}")
+            self._popout_window = None
+            self.btn_popout.setEnabled(True)
+            self.btn_popout.setText("↗ Pop-out")
+            event.accept()
+
+        dlg.closeEvent = _on_dlg_close
+        self._popout_window = dlg
+        dlg.show()
+
+    # ── Public API used by ppigFinderApp ────────────────────────
+    def build_command(self, context):
+        """Resolve current template against runtime context."""
+        prof = (self.mgr.get(self._current_profile_id)
+                if self._current_profile_id else None)
+        template = self.tmpl_edit.toPlainText()
+        ctx = dict(context)
+        for n, w in self._param_widgets.items():
+            ctx.setdefault(n, w.text())
+        computed = (prof.get('computed') if prof else None) or {}
+        return AF3CommandBuilder.resolve(template, ctx, computed)
+
+    def current_profile_summary(self):
+        prof = (self.mgr.get(self._current_profile_id)
+                if self._current_profile_id else None)
+        if not prof:
+            return ""
+        return f"# AF3 profile: {prof['name']}"
+
+    def get_state(self):
+        """Snapshot for project save."""
+        return {
+            "profile_id": self._current_profile_id,
+            "template":   self.tmpl_edit.toPlainText(),
+            "params":     {n: w.text()
+                           for n, w in self._param_widgets.items()},
+        }
+
+    def set_state(self, state):
+        """Restore from project save."""
+        if not state:
+            return
+        pid = state.get("profile_id")
+        if pid and self.mgr.get(pid):
+            self._load_profile(pid)
+            tmpl = state.get("template")
+            if tmpl:
+                self._building = True
+                self.tmpl_edit.setPlainText(tmpl)
+                self._building = False
+            for n, v in (state.get("params") or {}).items():
+                if n in self._param_widgets:
+                    self._param_widgets[n].setText(v)
+            self._refresh_preview()
+
+
+# ═══════════════════════════════════════════════════════════════
+# END of helper classes.  Main app class follows.
+# ═══════════════════════════════════════════════════════════════
+
+
+
+try:
+    from .io.fasta import (
+        choose_longest_record as _io_choose_longest_record,
+        read_fasta as _io_read_fasta,
+        write_orf_protein_fasta as _io_write_orf_protein_fasta,
+    )
+except ImportError:
+    from ppigfinder.io.fasta import (
+        choose_longest_record as _io_choose_longest_record,
+        read_fasta as _io_read_fasta,
+        write_orf_protein_fasta as _io_write_orf_protein_fasta,
+    )
+
+
+try:
+    from .ui.file_opening import open_genome_file_into_window as _ui_open_genome_file_into_window
+except ImportError:
+    from ppigfinder.ui.file_opening import open_genome_file_into_window as _ui_open_genome_file_into_window
+
+
+try:
+    from .io.html_report import write_basic_report as _io_write_basic_report
+except ImportError:
+    from ppigfinder.io.html_report import write_basic_report as _io_write_basic_report
+
+
+try:
+    from .ui.icon_provider import make_icon as _ui_make_icon
+    from .ui.text_fallback import clean_ui_text as _ui_clean_text
+except ImportError:
+    from ppigfinder.ui.icon_provider import make_icon as _ui_make_icon
+    from ppigfinder.ui.text_fallback import clean_ui_text as _ui_clean_text
+
+
+try:
+    from .services.blast_service import (
+        BlastSearchParams as _BlastSearchParams,
+        BlastSearchService as _BlastSearchService,
+    )
+except ImportError:
+    from ppigfinder.services.blast_service import (
+        BlastSearchParams as _BlastSearchParams,
+        BlastSearchService as _BlastSearchService,
+    )
+
+
+try:
+    from .ui.af3_export import export_selected_orfs_as_server_json as _ui_export_selected_orfs_as_server_json
+except ImportError:
+    from ppigfinder.ui.af3_export import export_selected_orfs_as_server_json as _ui_export_selected_orfs_as_server_json
+
+
+try:
+    from .ui.project_bridge import (
+        export_project_snapshot_from_window as _ui_export_project_snapshot_from_window,
+        import_project_snapshot_into_window as _ui_import_project_snapshot_into_window,
+    )
+except ImportError:
+    from ppigfinder.ui.project_bridge import (
+        export_project_snapshot_from_window as _ui_export_project_snapshot_from_window,
+        import_project_snapshot_into_window as _ui_import_project_snapshot_into_window,
+    )
+
+
+try:
+    from .services.project_service import ProjectService as _ProjectServiceForHtml
+    from .io.html_report import write_project_report as _io_write_project_report
+except ImportError:
+    from ppigfinder.services.project_service import ProjectService as _ProjectServiceForHtml
+    from ppigfinder.io.html_report import write_project_report as _io_write_project_report
+
 class ppigFinderApp(QMainWindow):
 
     def __init__(self):
         super().__init__()
         self.setWindowTitle('🧬 ppigFinder v2.00 — Protein-Protein Interaction Genomic Finder')
-        self.resize(1550, 980)
+        # ── Responsive window sizing (replaces fixed 1550×980) ──────
+        self.win_mgr = WindowManager(self, app_name="ppigFinder",
+                                      organisation="ppigFinder")
+        # Default: 85% of screen width × 90% of screen height,
+        # with 1100×700 minimum.  User-configured size is restored
+        # at the end of __init__ from QSettings (see win_mgr.restore_geometry()).
+        self.win_mgr.apply_default_size(width_pct=0.85, height_pct=0.90,
+                                        min_w=1100, min_h=700)
 
         self.analyzer = AdvancedORFAnalyzer()
         self.dna_sequence = ""
@@ -3853,6 +5182,17 @@ class ppigFinderApp(QMainWindow):
 
         self._setup_ui()
 
+        # ── Add Window menu (size presets, custom-size dialog, F11 fullscreen)
+        self._build_window_menu()
+
+        # ── Restore last user-chosen geometry (size + position) ────
+        # Call AFTER _setup_ui so the menubar/toolbar are already there
+        # and saveState() snapshots the right docks.
+        try:
+            self.win_mgr.restore_geometry()
+        except Exception:
+            pass
+
     # ═══════════════════════════════════════════════════════════
     # UI SETUP
     # ═══════════════════════════════════════════════════════════
@@ -3862,6 +5202,7 @@ class ppigFinderApp(QMainWindow):
         self._create_toolbar()
         self._create_central()
         self._create_statusbar()
+        self._normalize_toolbar_actions()
 
     # ─── MENUS ─────────────────────────────────────────────────
 
@@ -3879,10 +5220,16 @@ class ppigFinderApp(QMainWindow):
         act = fm.addAction('💾 Save Project As (full copy)...', self.save_project_as)
         act.setShortcut('Ctrl+Shift+S')
         act = fm.addAction(t('open_project'), self.load_project)
+        fm.addSeparator()
+        fm.addAction(t('export_project_snapshot'), self.export_project_snapshot)
+        fm.addAction(t('import_project_snapshot'), self.import_project_snapshot)
         act.setShortcut('Ctrl+Shift+O')
         fm.addSeparator()
         fm.addAction(t('save_orfs_fasta'), self.save_fasta)
         fm.addAction(t('save_report_tsv'), self.save_report_tsv)
+        fm.addAction(t('save_report_html'), self.export_html_report)
+        fm.addSeparator()
+        fm.addAction(t('export_af3_server_json'), self.export_af3_server_json)
         fm.addSeparator()
         act = fm.addAction(t('quit'), self.close)
         act.setShortcut('Ctrl+Q')
@@ -3899,12 +5246,96 @@ class ppigFinderApp(QMainWindow):
         hm.addAction(t('tutorial'), self._show_tutorial)
         hm.addAction(t('install'), self._show_install)
         hm.addSeparator()
+        hm.addAction("📈 Interaction Results — analysis guide",
+                     self._show_help_interaction_results)
+        hm.addAction("🧬 Genomic PPI Map — guide",
+                     self._show_help_ppi_map)
+        hm.addSeparator()
+        hm.addAction("📚 References & methodology",
+                     self._show_help_references)
+        hm.addSeparator()
         hm.addAction(t('about'), self._show_about)
+
+    # ─── WINDOW MENU (responsive sizing) ──────────────────────
+
+    def _build_window_menu(self):
+        """Add a Window menu with size presets, Custom Size dialog,
+        Fullscreen toggle, and re-center / reset actions.
+
+        Idempotent: safe to call multiple times — re-uses existing menu.
+        """
+        mb = self.menuBar()
+        # Look for an existing Window menu first
+        win_menu = None
+        for act in mb.actions():
+            if act.text() in ('&Window', 'Window'):
+                win_menu = act.menu()
+                break
+        if win_menu is None:
+            win_menu = mb.addMenu("&Window")
+        else:
+            win_menu.clear()
+
+        # Quick presets
+        for name, val in WIN_PRESETS_RELATIVE.items():
+            act = QAction(name, self)
+            if val is None:
+                act.triggered.connect(self.win_mgr.apply_maximized)
+            else:
+                wp, hp = val
+                act.triggered.connect(
+                    lambda _checked=False, w=wp, h=hp:
+                        self.win_mgr.apply_relative(w, h)
+                )
+            win_menu.addAction(act)
+
+        win_menu.addSeparator()
+
+        act_custom = QAction("&Custom size...", self)
+        act_custom.setShortcut("Ctrl+Shift+W")
+        act_custom.setToolTip(
+            "Open a dialog to dial-in any window size, "
+            "either as a percentage of the screen or in pixels.")
+        act_custom.triggered.connect(self.win_mgr.open_custom_size_dialog)
+        win_menu.addAction(act_custom)
+
+        act_fs = QAction("&Toggle Fullscreen", self)
+        act_fs.setShortcut("F11")
+        def _toggle_fs():
+            if self.isFullScreen():
+                self.showNormal()
+            else:
+                self.showFullScreen()
+        act_fs.triggered.connect(_toggle_fs)
+        win_menu.addAction(act_fs)
+
+        win_menu.addSeparator()
+        act_center = QAction("Re-center on screen", self)
+        act_center.triggered.connect(self.win_mgr.center_on_screen)
+        win_menu.addAction(act_center)
+
+        act_reset = QAction("Reset to &default size  (85% × 90%)", self)
+        act_reset.triggered.connect(
+            lambda: self.win_mgr.apply_default_size(0.85, 0.90, 1100, 700))
+        win_menu.addAction(act_reset)
+
+    def closeEvent(self, event):
+        """Persist user's window size/position for next session."""
+        try:
+            if hasattr(self, 'win_mgr'):
+                self.win_mgr.save_geometry()
+        except Exception:
+            pass
+        try:
+            super().closeEvent(event)
+        except Exception:
+            event.accept()
 
     # ─── TOOLBAR ───────────────────────────────────────────────
 
     def _create_toolbar(self):
         tb = QToolBar("Main Toolbar")
+        tb.setObjectName("main_toolbar")
         tb.setMovable(False)
         self.addToolBar(tb)
 
@@ -3983,6 +5414,46 @@ class ppigFinderApp(QMainWindow):
         self._status.showMessage(t('ready_status'))
 
     # ─── CENTRAL LAYOUT ───────────────────────────────────────
+
+
+    def _normalize_toolbar_actions(self):
+        icon_map = {
+            "open": "open",
+            "load": "open",
+            "genome": "orf",
+            "orf": "orf",
+            "pyrodigal": "orf",
+            "automatic": "settings",
+            "hybrid": "settings",
+            "hmm": "hmm",
+            "blast": "blast",
+            "af3": "af3",
+            "export": "export",
+            "pdf": "export",
+            "html": "export",
+            "hpc": "hpc",
+        }
+
+        try:
+            actions = self.findChildren(QAction)
+        except Exception:
+            return
+
+        for action in actions:
+            try:
+                original = action.text()
+                cleaned = _ui_clean_text(original)
+                if cleaned and cleaned != original:
+                    action.setText(cleaned)
+
+                lower = cleaned.lower()
+                for key, icon_name in icon_map.items():
+                    if key in lower:
+                        action.setIcon(_ui_make_icon(icon_name))
+                        break
+            except Exception:
+                pass
+
 
     def _create_central(self):
         central = QWidget()
@@ -4136,7 +5607,9 @@ class ppigFinderApp(QMainWindow):
         self._orf_table = QTableWidget()
         cols = ['ID','Frame','Strand','Start','End','Size(aa)','GC%',
                 'HMM','Score','Source','Obs',
-                'AF3','Partner','ipTM','PAE_inter','Contact_region','User_note']
+                'AF3','Partner','ipTM','PAE_inter',
+                'PAE_min ★','cp_ipTM ★',
+                'Contact_region','User_note']
         self._orf_table.setColumnCount(len(cols))
         self._orf_table.setHorizontalHeaderLabels(cols)
         self._orf_table.setSelectionBehavior(SelectRows)
@@ -4217,8 +5690,14 @@ class ppigFinderApp(QMainWindow):
     # ─── RIGHT PANEL: Tabs ────────────────────────────────────
 
     def _create_right_panel(self):
-        self._tabs = QTabWidget()
+        # DetachableTabWidget lets users tear off any tab into a
+        # free-floating, resizable window (right-click on a tab,
+        # or double-click it).
+        self._tabs = DetachableTabWidget()
         self._tabs.setMinimumWidth(450)
+        self._tabs.setToolTip(
+            "Tip: right-click any tab (or double-click it) to open it in "
+            "a separate window — useful when a tab needs more room.")
 
         # Tab 0: Genome (NEW — moved from left panel)
         self._create_genome_tab()
@@ -4242,6 +5721,8 @@ class ppigFinderApp(QMainWindow):
         self._create_hpc_server_tab()
         # Tab 10: AF3 Analysis (v2) — after Server
         self._create_af3_analysis_tab()
+        # Tab 11: PPI Genomic Arc Map
+        self._create_ppi_arc_map_tab()
 
         return self._tabs
 
@@ -4584,6 +6065,7 @@ class ppigFinderApp(QMainWindow):
 
     def _create_af3_tab(self):
         w = QWidget()
+        self._af3_tab_widget = w   # stored so _switch_to_af3_tab() can find it
         layout = QVBoxLayout(w)
         layout.setContentsMargins(2, 2, 2, 2)
         layout.setSpacing(2)
@@ -4619,6 +6101,23 @@ class ppigFinderApp(QMainWindow):
                 b.setToolTip(t('tip_af3_remove'))
             elif 'clear_all' in slot.__name__:
                 b.setToolTip(t('tip_af3_clear_all'))
+
+        # ── "Predict Selected Pair" button ──────────────────────────────────
+        # Enabled only when ≥ 2 rows are selected via Ctrl+click in the table.
+        self._af3_predict_pair_btn = QPushButton("⚡ Predict Selected Pair")
+        self._af3_predict_pair_btn.setEnabled(False)
+        self._af3_predict_pair_btn.setToolTip(
+            "Ctrl+click two or more ORFs in the list below, then click this button\n"
+            "to immediately create an AF3 pairwise prediction job for those ORFs.\n"
+            "This bypasses the Mode dropdown — pairs are created exactly as shown.")
+        self._af3_predict_pair_btn.setStyleSheet(
+            "QPushButton { background-color: #1565c0; color: white; font-weight: bold; "
+            "border-radius: 4px; padding: 3px 8px; }"
+            "QPushButton:hover { background-color: #1976d2; }"
+            "QPushButton:disabled { background-color: #90a4ae; color: #eceff1; }")
+        self._af3_predict_pair_btn.clicked.connect(self._af3_predict_selected_pair)
+        sb.addWidget(self._af3_predict_pair_btn)
+
         sb.addStretch()
         self._af3_sel_count = QLabel("0 ORFs selected")
         self._af3_sel_count.setStyleSheet("font-weight: bold;")
@@ -4630,8 +6129,20 @@ class ppigFinderApp(QMainWindow):
         self._af3_sel_table.setHorizontalHeaderLabels(['ORF', 'Position', 'Size(aa)', 'HMM', 'Note'])
         self._af3_sel_table.horizontalHeader().setStretchLastSection(True)
         self._af3_sel_table.setSelectionBehavior(SelectRows)
+        # ExtendedSelection: Ctrl+click = sparse multi-select; Shift+click = range
+        self._af3_sel_table.setSelectionMode(
+            QAbstractItemView.SelectionMode.ExtendedSelection if QT_VERSION == 6
+            else QAbstractItemView.ExtendedSelection)
         self._af3_sel_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers
                                              if QT_VERSION == 6 else QAbstractItemView.NoEditTriggers)
+        # Left-click → center genome map + select in main ORF table
+        self._af3_sel_table.cellClicked.connect(self._af3_sel_table_click)
+        # Right-click context menu
+        self._af3_sel_table.setContextMenuPolicy(
+            Qt.ContextMenuPolicy.CustomContextMenu if QT_VERSION == 6 else Qt.CustomContextMenu)
+        self._af3_sel_table.customContextMenuRequested.connect(self._af3_sel_table_right_click)
+        # Enable/disable Predict Pair button when selection changes
+        self._af3_sel_table.itemSelectionChanged.connect(self._af3_update_predict_pair_btn)
         sel_layout.addWidget(self._af3_sel_table)
         splitter.addWidget(sel_widget)
 
@@ -4641,29 +6152,65 @@ class ppigFinderApp(QMainWindow):
         jl.setContentsMargins(4, 2, 4, 2)
         jl.setSpacing(2)
 
-        jb = QHBoxLayout()
-        jb.setSpacing(3)
-        jb.addWidget(QLabel("Neighbors:"))
-        self._af3_nb_spin = QSpinBox(); self._af3_nb_spin.setRange(1,15); self._af3_nb_spin.setValue(5)
+        # ══ Job-generation control area — 2 rows instead of one crowded line ══
+        ctrl_frame = QFrame()
+        ctrl_frame.setStyleSheet(
+            "QFrame { background: #f5f5f5; border: 0.5px solid #ddd; "
+            "border-radius: 4px; }")
+        ctrl_vbox = QVBoxLayout(ctrl_frame)
+        ctrl_vbox.setContentsMargins(6, 4, 6, 4)
+        ctrl_vbox.setSpacing(4)
+
+        # ── ROW 1: Neighbors  |  Mode combo  |  Homodimer checkbox ───────────
+        row1 = QHBoxLayout()
+        row1.setSpacing(6)
+
+        row1.addWidget(QLabel("Neighbors:"))
+        self._af3_nb_spin = QSpinBox()
+        self._af3_nb_spin.setRange(1, 15)
+        self._af3_nb_spin.setValue(5)
         self._af3_nb_spin.setMaximumWidth(50)
-        jb.addWidget(self._af3_nb_spin)
-        jb.addWidget(QLabel("Mode:"))
+        self._af3_nb_spin.setToolTip(
+            "Number of genomic neighbors to include in Pairs / Neighbors Interactome modes.")
+        row1.addWidget(self._af3_nb_spin)
+
+        row1.addWidget(QLabel("Mode:"))
         self._af3_mode_combo = QComboBox()
-        # ── Mode list — English names ────────────────────────────────────────
+        # ── Mode list ────────────────────────────────────────────────────────
+        # v2.0: removed 'Pairs + Homodimers' and 'Trimers' (confusing combined
+        # modes). Homodimer is now an independent checkbox below the dropdown.
+        # Restored 'All vs All (Selected ORFs)', 'HMM Hits vs Each Other',
+        # 'Hit vs All Selected'. Added 'Selected vs Selected (Ctrl+click)'.
         _AF3_MODES = [
             "Pairs (Hit vs Neighbor)",
-            "Pairs + Homodimers",
-            "Trimers (Hit + 2 Neighbors)",
-            "Neighbors Interactome",
+            "Selected vs Selected (Ctrl+click)",
+            "All vs All (Selected ORFs)",
             "HMM Hits vs Each Other",
-            "Hit vs All Selected ORFs",
-            "Homodimer (Hit vs Itself)",
+            "Hit vs All Selected",
+            "Neighbors Interactome",
             "Genomic Interactome (Selected ORFs vs All ORFs)",
         ]
         self._af3_mode_combo.addItems(_AF3_MODES)
-        self._af3_mode_combo.setMinimumWidth(260)
+        self._af3_mode_combo.setMinimumWidth(230)
+        self._af3_mode_combo.setSizePolicy(
+            QSizePolicy.Policy.Expanding if QT_VERSION == 6 else QSizePolicy.Expanding,
+            QSizePolicy.Policy.Fixed    if QT_VERSION == 6 else QSizePolicy.Fixed)
+        row1.addWidget(self._af3_mode_combo, stretch=1)
 
-        # ── Per-mode descriptions shown in the yellow info label ────────────
+        # ── Homodimer checkbox on the same row, clearly separated ─────────────
+        _sep = QFrame()
+        _sep.setFrameShape(QFrame.Shape.VLine if QT_VERSION == 6 else QFrame.VLine)
+        _sep.setStyleSheet("color: #bbb;")
+        row1.addWidget(_sep)
+
+        self._af3_homodimer_cb = QCheckBox("＋ Homodimer for each ORF")
+        self._af3_homodimer_cb.setToolTip(
+            "When checked, a self-vs-self (homodimer) prediction job is added\n"
+            "for every Hit ORF, regardless of the mode chosen above.")
+        row1.addWidget(self._af3_homodimer_cb)
+        ctrl_vbox.addLayout(row1)
+
+        # ── Per-mode descriptions shown in the yellow info label ─────────────
         self._AF3_MODE_DESCS = {
             "Pairs (Hit vs Neighbor)":
                 "🔵  <b>Pairs (Hit vs Neighbor)</b><br>"
@@ -4671,40 +6218,34 @@ class ppigFinderApp(QMainWindow):
                 "Classic co-localization screen — best for operon-like gene clusters where physically<br>"
                 "adjacent proteins are likely to interact.",
 
-            "Pairs + Homodimers":
-                "🟣  <b>Pairs + Homodimers</b><br>"
-                "Same as <i>Pairs (Hit vs Neighbor)</i> but also adds a self-vs-self job for each Hit ORF.<br>"
-                "Use when you suspect the protein both interacts with neighbors <i>and</i> forms a homodimer.",
+            "Selected vs Selected (Ctrl+click)":
+                "🟦  <b>Selected vs Selected</b><br>"
+                "Ctrl+click two or more ORFs in the selection list above, then click <b>Generate</b>.<br>"
+                "Every pairwise combination among the highlighted rows is created — no neighbor window needed.<br>"
+                "Ideal for testing specific hypotheses, e.g. ORF2897 vs ORF2596.",
 
-            "Trimers (Hit + 2 Neighbors)":
-                "🟠  <b>Trimers (Hit + 2 Neighbors)</b><br>"
-                "Builds 3-chain AF3 jobs: Hit ORF + Neighbor 1 + Neighbor 2.<br>"
-                "Tests putative trimeric complexes within the genomic neighborhood window.<br>"
-                "Higher residue count — check the 5 000 aa limit before submitting.",
+            "All vs All (Selected ORFs)":
+                "🟣  <b>All vs All (Selected ORFs)</b><br>"
+                "Every pairwise combination among <i>all</i> ORFs in the selection list is generated.<br>"
+                "Scales as N×(N-1)/2 — use with caution for large lists. Best after HMM filtering.",
+
+            "HMM Hits vs Each Other":
+                "🟤  <b>HMM Hits vs Each Other</b><br>"
+                "Pairs every ORF with an HMM hit against every other ORF with an HMM hit in the selection list.<br>"
+                "Useful to screen for interactions within a functional family (e.g. all T4SS components).",
+
+            "Hit vs All Selected":
+                "🟡  <b>Hit vs All Selected</b><br>"
+                "The topmost ORF in the selection list is used as the query and tested against<br>"
+                "all other ORFs in the list. Use when you have one anchor protein of known function.",
 
             "Neighbors Interactome":
                 "🟢  <b>Neighbors Interactome</b><br>"
-                "All neighbor ORFs within the genomic window are tested against <i>each other</i> (all-vs-all<br>"
-                "within the neighborhood). Maps the complete local interaction network around the Hit.<br>"
-                "More jobs than Pairs mode — broader coverage of the local genomic context.",
-
-            "HMM Hits vs Each Other":
-                "🔷  <b>HMM Hits vs Each Other</b><br>"
-                "Only ORFs that matched an HMM profile (Pfam / TIGRFAM / custom) are used.<br>"
-                "Each HMM-annotated ORF is paired with every other HMM-annotated ORF.<br>"
-                "Focused screen — ideal when you want to limit predictions to functionally annotated proteins.",
-
-            "Hit vs All Selected ORFs":
-                "🔶  <b>Hit vs All Selected ORFs</b><br>"
-                "One specific Hit ORF is tested against <i>every</i> ORF currently selected in the table.<br>"
-                "Use for deep screening of a single protein of interest against a custom set.<br>"
-                "Build your target list with 'Add Selected ORF' or 'Add HMM Hits' before generating.",
-
-            "Homodimer (Hit vs Itself)":
-                "⚪  <b>Homodimer (Hit vs Itself)</b><br>"
-                "Each Hit ORF is paired with itself (count=2 in the AF3 JSON).<br>"
-                "Predicts whether the protein can form a stable homodimeric complex.<br>"
-                "Quick structural self-interaction test — one job per Hit ORF.",
+                "Sliding-window pairwise screen over the <b>entire genome</b>: every ORF <i>i</i> is paired<br>"
+                "with every ORF within <i>±N</i> genomic positions of it. Symmetric pairs (i↔j) are<br>"
+                "deduplicated automatically — the result is the unique set { (i,j) : 1 ≤ j−i ≤ N }.<br>"
+                "For a genome of <i>n</i> ORFs and window <i>N</i>, that's <b>N·n − N(N+1)/2</b> jobs.<br>"
+                "Does not use the 'Selected ORFs' list — always scans the full genome.",
 
             "Genomic Interactome (Selected ORFs vs All ORFs)":
                 "🔴  <b>Genomic Interactome (Selected ORFs vs All ORFs)</b><br>"
@@ -4714,7 +6255,7 @@ class ppigFinderApp(QMainWindow):
                 "Jobs &gt; 5 000 will prompt for confirmation before generating.",
         }
 
-        jb.addWidget(self._af3_mode_combo)
+        # (mode combo and homodimer checkbox are in row1 above)
 
         # ── Yellow description label (updates on mode change) ────────────────
         self._af3_mode_desc_label = QLabel()
@@ -4733,21 +6274,76 @@ class ppigFinderApp(QMainWindow):
 
         self._af3_mode_combo.currentIndexChanged.connect(_update_mode_desc)
         _update_mode_desc(0)   # initialise with first item
+
+        # ── Live job-count preview label ──────────────────────────────────────
+        self._af3_job_preview_lbl = QLabel("— jobs estimated")
+        self._af3_job_preview_lbl.setStyleSheet(
+            "color: #1565c0; font-size: 11px; font-style: italic;")
+        # (added to jl after ctrl_frame — see below)
+
+        def _update_job_preview():
+            n_sel = self._af3_sel_table.rowCount()
+            n_nb  = self._af3_nb_spin.value()
+            mode  = self._af3_mode_combo.currentText()
+            n_genome = len(self.orfs) if hasattr(self, 'orfs') and self.orfs else 0
+            if mode.startswith("Pairs (Hit vs Neighbor)"):
+                est = n_sel * 2 * n_nb
+            elif mode.startswith("Selected vs Selected"):
+                rows_sel = len(set(idx.row() for idx in self._af3_sel_table.selectedIndexes()))
+                est = rows_sel * (rows_sel - 1) // 2
+            elif mode.startswith("All vs All"):
+                est = n_sel * (n_sel - 1) // 2
+            elif mode.startswith("HMM Hits"):
+                n_hmm = sum(1 for r in range(n_sel) if self._af3_sel_table.item(r, 3) and
+                            self._af3_sel_table.item(r, 3).text() not in ('-', ''))
+                est = n_hmm * (n_hmm - 1) // 2
+            elif mode.startswith("Hit vs All"):
+                est = max(0, n_sel - 1)
+            elif mode.startswith("Neighbors Interactome"):
+                est = max(0, n_nb * n_genome - n_nb * (n_nb + 1) // 2)
+            elif mode.startswith("Genomic Interactome"):
+                est = n_sel * (n_genome - 1)
+            else:
+                est = 0
+            if self._af3_homodimer_cb.isChecked() and not mode.startswith(("Neighbors", "Genomic")):
+                est += n_sel
+            color = "#c62828" if est > 5000 else "#1565c0" if est > 500 else "#2e7d32"
+            self._af3_job_preview_lbl.setStyleSheet(
+                f"color: {color}; font-size: 11px; font-style: italic;")
+            self._af3_job_preview_lbl.setText(
+                f"≈ {est:,} jobs will be generated")
+
+        self._af3_mode_combo.currentIndexChanged.connect(_update_job_preview)
+        self._af3_nb_spin.valueChanged.connect(_update_job_preview)
+        self._af3_homodimer_cb.stateChanged.connect(_update_job_preview)
+        self._af3_sel_table.itemSelectionChanged.connect(_update_job_preview)
+        _update_job_preview()   # populate label immediately on tab creation
+
+        # ── ROW 2: action buttons ─────────────────────────────────────────
+        row2 = QHBoxLayout()
+        row2.setSpacing(4)
         for text, slot in [(t('af3_generate'), self._af3_generate_jobs),
                            (t('af3_export_cf'), self._af3_export_colabfold),
                            ("Ranking", self._af3_show_ranking),
                            ("Clear Jobs", self._af3_clear_jobs)]:
-            b = QPushButton(text); b.clicked.connect(slot); jb.addWidget(b)
-            # Add tooltips
+            b = QPushButton(text); b.clicked.connect(slot)
             if 'generate' in slot.__name__:
                 b.setToolTip(t('tip_af3_generate'))
+                b.setStyleSheet(
+                    "QPushButton{background:#2e7d32;color:white;font-weight:bold;"
+                    "border-radius:4px;padding:3px 10px;}"
+                    "QPushButton:hover{background:#388e3c;}")
             elif 'export_colabfold' in slot.__name__:
                 b.setToolTip(t('tip_af3_export_cf'))
             elif 'ranking' in slot.__name__:
                 b.setToolTip(t('tip_af3_ranking'))
             elif 'clear_jobs' in slot.__name__:
                 b.setToolTip(t('tip_af3_clear_jobs'))
-        
+                b.setStyleSheet(
+                    "QPushButton{color:#c62828;border:1px solid #c62828;"
+                    "border-radius:4px;padding:3px 8px;}"
+                    "QPushButton:hover{background:#ffebee;}")
+            row2.addWidget(b)
         # AF3 JSON export menu button (individual vs batch)
         export_btn = QPushButton(t('af3_export_json'))
         export_menu = QMenu(export_btn)
@@ -4758,14 +6354,17 @@ class ppigFinderApp(QMainWindow):
         _slurm_act.setToolTip('Export JSONs in numbered batches + one SLURM array script. '
                               'Submit with: sbatch run_array.sh — one command, no OOM.')
         export_btn.setMenu(export_menu)
-        jb.addWidget(export_btn)
-        jb.addStretch()
-        jl.addLayout(jb)
+        row2.addWidget(export_btn)
+        row2.addStretch()
+        ctrl_vbox.addLayout(row2)
+        jl.addWidget(ctrl_frame)
+        jl.addWidget(self._af3_job_preview_lbl)
         jl.addWidget(self._af3_mode_desc_label)
 
         self._af3_jobs_table = QTableWidget()
-        self._af3_jobs_table.setColumnCount(7)
-        self._af3_jobs_table.setHorizontalHeaderLabels(['Job','Hit','Partner','Residues','Status','ipTM','pLDDT'])
+        self._af3_jobs_table.setColumnCount(8)
+        self._af3_jobs_table.setHorizontalHeaderLabels(
+            ['Job', 'Hit', 'Partner', 'Residues', 'Status', 'ipTM', 'PAEinter', 'Confidence'])
         self._af3_jobs_table.horizontalHeader().setStretchLastSection(True)
         self._af3_jobs_table.setSelectionBehavior(SelectRows)
         self._af3_jobs_table.setSelectionMode(
@@ -4776,28 +6375,30 @@ class ppigFinderApp(QMainWindow):
         self._af3_jobs_table.setContextMenuPolicy(
             Qt.ContextMenuPolicy.CustomContextMenu if QT_VERSION == 6 else Qt.CustomContextMenu)
         self._af3_jobs_table.customContextMenuRequested.connect(self._af3_jobs_right_click)
-        jl.addWidget(self._af3_jobs_table)
-        splitter.addWidget(job_widget)
+        # Left-click on a job row → center genome map on Hit ORF
+        self._af3_jobs_table.cellClicked.connect(self._af3_jobs_table_click)
+        # NOTE: _af3_jobs_table is added to jl AFTER the custom section below
+        # ── Custom complex builder — below mode desc, above jobs table ──────
 
-        # ═══ SECTION 3: Custom Jobs + Output ═══
-        bottom_widget = QWidget()
-        bl = QVBoxLayout(bottom_widget)
-        bl.setContentsMargins(4, 2, 4, 2)
-        bl.setSpacing(2)
+        # Thin separator line before custom section
+        _custom_sep = QFrame()
+        _custom_sep.setFrameShape(QFrame.Shape.HLine if QT_VERSION == 6 else QFrame.HLine)
+        _custom_sep.setStyleSheet("color: #ddd;")
+        jl.addWidget(_custom_sep)
 
-        # ── Custom job header: subunit count control ──
+        # Custom header row
         custom_header = QHBoxLayout()
         custom_header.setSpacing(4)
         custom_header.addWidget(QLabel("⚡ Custom:"))
-        custom_header.addWidget(QLabel("Subunidades:"))
+        custom_header.addWidget(QLabel("Subunits:"))
         self._custom_n_subunits = QSpinBox()
-        self._custom_n_subunits.setRange(1, 11)   # A–K = 11 chains max
+        self._custom_n_subunits.setRange(1, 11)
         self._custom_n_subunits.setValue(2)
         self._custom_n_subunits.setMaximumWidth(52)
         self._custom_n_subunits.setToolTip(
-            "Número de subunidades (cadeias) no complexo.\n"
-            "Cada subunidade recebe uma letra (A, B, C … K).\n"
-            "Máximo: 11 subunidades.")
+            "Number of subunits (chains) in the complex.\n"
+            "Each subunit is assigned a chain letter (A, B, C … K).\n"
+            "Maximum: 11 subunits.")
         self._custom_n_subunits.valueChanged.connect(self._af3_rebuild_custom_rows)
         custom_header.addWidget(self._custom_n_subunits)
 
@@ -4806,35 +6407,56 @@ class ppigFinderApp(QMainWindow):
         btn_add_custom.setToolTip(t('tip_af3_add_custom'))
         custom_header.addWidget(btn_add_custom)
         custom_header.addStretch()
-        bl.addLayout(custom_header)
+        jl.addLayout(custom_header)
 
-        # ── Scroll area that holds the dynamic per-subunit rows ──
+        # Yellow explanatory label
+        _custom_info = QLabel(
+            "⚡ <b>Custom complex builder</b> — Define any multi-chain assembly manually.<br>"
+            "Set the number of <b>Subunits</b> (A, B, C…) and type each chain's ORF name "
+            "(e.g. <tt>ORF42</tt>). Set <b>n=</b> for stoichiometry "
+            "(e.g. n=2 means two copies of that chain — homodimer, trimer, etc.). "
+            "Click <b>➕ Add</b> to append the job to the list above.<br>"
+            "This overrides all Mode settings and lets you specify any complex exactly."
+        )
+        _custom_info.setWordWrap(True)
+        _custom_info.setTextFormat(
+            Qt.TextFormat.RichText if QT_VERSION == 6 else Qt.RichText)
+        _custom_info.setStyleSheet(
+            "background:#fffde7; color:#555; border:1px solid #f9a825;"
+            "border-radius:4px; padding:5px 8px; font-size:11px;")
+        jl.addWidget(_custom_info)
+
+        # Scroll area for dynamic per-subunit rows (A: ORF n=1, B: ORF n=1, …)
         self._custom_scroll = QScrollArea()
         self._custom_scroll.setWidgetResizable(True)
         self._custom_scroll.setFrameShape(QFrame.Shape.NoFrame
                                           if QT_VERSION == 6 else QFrame.NoFrame)
         self._custom_scroll.setMaximumHeight(110)
-        self._custom_scroll.setMinimumHeight(60)
-
+        self._custom_scroll.setMinimumHeight(55)
         self._custom_rows_widget = QWidget()
         self._custom_rows_layout = QVBoxLayout(self._custom_rows_widget)
         self._custom_rows_layout.setContentsMargins(0, 0, 0, 0)
         self._custom_rows_layout.setSpacing(2)
         self._custom_scroll.setWidget(self._custom_rows_widget)
-        bl.addWidget(self._custom_scroll)
+        jl.addWidget(self._custom_scroll)
 
-        # Internal list: [(QLineEdit_orf, QSpinBox_n), …]  rebuilt by _af3_rebuild_custom_rows
+        # Internal list rebuilt by _af3_rebuild_custom_rows
         self._custom_subunit_rows: list = []
-        self._af3_rebuild_custom_rows(2)   # build initial 2-subunit rows
+        self._af3_rebuild_custom_rows(2)
 
-        self._af3_text = QTextEdit()
-        self._af3_text.setFont(QFont('Courier New', 9))
-        self._af3_text.setReadOnly(True)
-        bl.addWidget(self._af3_text)
-        splitter.addWidget(bottom_widget)
+        # Thin separator before jobs table
+        _jobs_sep = QFrame()
+        _jobs_sep.setFrameShape(QFrame.Shape.HLine if QT_VERSION == 6 else QFrame.HLine)
+        _jobs_sep.setStyleSheet("color: #ddd;")
+        jl.addWidget(_jobs_sep)
 
-        # Set initial proportions: 25% selection, 50% jobs, 25% custom/output
-        splitter.setSizes([150, 300, 150])
+        # Jobs table — shown below custom builder
+        jl.addWidget(self._af3_jobs_table)
+
+        splitter.addWidget(job_widget)
+
+        # 2-pane splitter: selection list (top) | everything else (bottom)
+        splitter.setSizes([180, 600])
         layout.addWidget(splitter)
         self._tabs.addTab(w, t('tab_af3'))
 
@@ -5055,58 +6677,66 @@ class ppigFinderApp(QMainWindow):
     def run_blast(self):
         raw = self._blast_query_text.toPlainText().strip()
         if not raw:
-            QMessageBox.warning(self, "BLAST", "Paste a protein sequence first!"); return
+            QMessageBox.warning(self, "BLAST", "Paste a protein sequence first!")
+            return
+
         qp = self._parse_fasta_query(raw)
         if not qp or len(qp) < 5:
-            QMessageBox.warning(self, "BLAST", "Invalid or too short sequence!"); return
+            QMessageBox.warning(self, "BLAST", "Invalid or too short sequence!")
+            return
+
         if not self.orfs:
-            QMessageBox.warning(self, "BLAST", "Run ORF analysis first!"); return
+            QMessageBox.warning(self, "BLAST", "Run ORF analysis first!")
+            return
 
         algo = self._algo_combo.currentText()
-        thresh = self._identity_spin.value()
-        evalue = float(self._evalue_edit.text() or '0.05')
-        self._status.showMessage(f"⏳ BLAST: {len(qp)} aa vs {len(self.orfs)} ORFs...")
 
-        params = {'threshold': thresh, 'gap_open': -self.blast_gap_open,
-                  'gap_extend': -self.blast_gap_ext, 'evalue': evalue,
-                  'word_size': self.blast_word_size, 'max_targets': self.blast_max_targets,
-                  'matrix': self.blast_matrix, 'low_complexity': self.blast_low_complexity}
+        try:
+            evalue = float(self._evalue_edit.text() or "0.05")
+        except ValueError:
+            evalue = 0.05
+
+        params = _BlastSearchParams(
+            threshold=self._identity_spin.value(),
+            gap_open=-self.blast_gap_open,
+            gap_extend=-self.blast_gap_ext,
+            evalue=evalue,
+            word_size=self.blast_word_size,
+            max_targets=self.blast_max_targets,
+            matrix=self.blast_matrix,
+            low_complexity=self.blast_low_complexity,
+        )
+
+        self._status.showMessage(
+            f"BLAST: {len(qp)} aa vs {len(self.orfs)} ORFs..."
+        )
+
+        service = _BlastSearchService(self.analyzer)
 
         def work():
-            hits = None; algo_used = algo; ncbi_error = ''
-            self.analyzer._last_blast_error = ''
-            if algo.startswith("Auto"):
-                if BACKENDS.get('blast+',{}).get('available'):
-                    hits = self.analyzer.run_ncbi_blast(qp, self.orfs, params)
-                    algo_used = "NCBI BLAST+"
-                if hits is None:
-                    ncbi_error = self.analyzer._last_blast_error
-                    hits = self.analyzer.kmer_blast(qp, [o['protein'] for o in self.orfs], params)
-                    algo_used = "K-mer Filter"
-            elif algo.startswith("NCBI"):
-                hits = self.analyzer.run_ncbi_blast(qp, self.orfs, params)
-                algo_used = "NCBI BLAST+"
-                if hits is None:
-                    ncbi_error = self.analyzer._last_blast_error
-                    hits = self.analyzer.kmer_blast(qp, [o['protein'] for o in self.orfs], params)
-                    algo_used = "K-mer (fallback)"
-            elif algo.startswith("K-mer"):
-                hits = self.analyzer.kmer_blast(qp, [o['protein'] for o in self.orfs], params)
-                algo_used = "K-mer Filter"
-            else:
-                hits = self.analyzer.sw_blast(qp, [o['protein'] for o in self.orfs], params)
-                algo_used = "Smith-Waterman"
-            return (hits or [], algo_used, qp, ncbi_error)
+            return service.search(
+                query_sequence=qp,
+                orfs=self.orfs,
+                algorithm=algo,
+                params=params,
+            )
 
         def done(result):
-            hits, algo_used, query, ncbi_error = result
-            self._show_blast_results(hits, query, algo_used)
-            if ncbi_error:
+            self._show_blast_results(
+                result.hits,
+                result.query_sequence,
+                result.algorithm_used,
+            )
+
+            if result.backend_error:
                 self._status.showMessage(
-                    f"⚠ {algo_used}: {len(hits)} hits "
-                    f"(BLAST+ fell back — {ncbi_error[:80]})")
+                    f"{result.algorithm_used}: {len(result.hits)} hits "
+                    f"(fallback used — {result.backend_error[:80]})"
+                )
             else:
-                self._status.showMessage(f"✓ {algo_used}: {len(hits)} hits")
+                self._status.showMessage(
+                    f"{result.algorithm_used}: {len(result.hits)} hits"
+                )
 
         self._run_worker(work, done)
 
@@ -5254,32 +6884,19 @@ class ppigFinderApp(QMainWindow):
     # ═══════════════════════════════════════════════════════════
 
     def load_fasta(self):
-        f, _ = QFileDialog.getOpenFileName(self, "Open FASTA",
-            "", "FASTA (*.fasta *.fa *.fna *.faa);;All (*)")
-        if not f: return
-        with open(f, 'r', encoding='utf-8') as fh:
-            content = fh.read()
-        # Parse FASTA — get first/longest sequence
-        seqs = {}; current = None
-        for line in content.split('\n'):
-            line = line.strip()
-            if line.startswith('>'):
-                current = line[1:].split()[0]
-                seqs[current] = []
-            elif current:
-                seqs[current].append(re.sub(r'[^A-Za-z]', '', line))
-        if not seqs:
-            # Plain sequence
-            self.dna_sequence = re.sub(r'[^A-Za-z]', '', content).upper()
-            self.genome_name = Path(f).stem
-        else:
-            longest_name = max(seqs, key=lambda k: len(''.join(seqs[k])))
-            self.dna_sequence = ''.join(seqs[longest_name]).upper()
-            self.genome_name = longest_name
-        self._on_sequence_loaded(f)
+        f, _ = QFileDialog.getOpenFileName(
+            self,
+            "Open sequence file",
+            "",
+            "Sequence files (*.fasta *.fa *.fna *.faa *.gb *.gbk *.genbank *.dna);;All (*)",
+        )
+        if not f:
+            return
+
+        _ui_open_genome_file_into_window(self, f)
 
     def load_multi_fasta(self):
-        self.load_fasta()  # Same logic — picks longest
+        self.load_fasta()
 
     def load_snapgene(self):
         f, _ = QFileDialog.getOpenFileName(self, "Open SnapGene",
@@ -5324,24 +6941,62 @@ class ppigFinderApp(QMainWindow):
 
     def save_fasta(self):
         if not self.orfs:
-            QMessageBox.information(self, "Save FASTA",
-                "No ORFs to export. Run ORF analysis first.")
+            QMessageBox.information(
+                self,
+                "Save FASTA",
+                "No ORFs to export. Run ORF analysis first.",
+            )
             return
-        f, _ = QFileDialog.getSaveFileName(self, "Save FASTA", "", "FASTA (*.fasta)")
-        if not f: return
+
+        f, _ = QFileDialog.getSaveFileName(
+            self,
+            "Save FASTA",
+            "",
+            "FASTA (*.fasta)",
+        )
+        if not f:
+            return
+
         try:
-            with open(f, 'w', encoding='utf-8') as fh:
-                for i, orf in enumerate(self.orfs):
-                    ds = '|'.join(d['domain'] for d in orf.get('domains', []))
-                    h = f">ORF{i+1}|F{orf['frame']}{orf['strand']}|{orf['start']}-{orf['end']}"
-                    if ds: h += f"|{ds}"
-                    fh.write(h + "\n")
-                    p = orf['protein'].rstrip('*')
-                    for j in range(0, len(p), 80): fh.write(p[j:j+80] + "\n")
-        except OSError as e:
-            QMessageBox.critical(self, "Save FASTA", f"Could not write file:\n{e}")
+            _io_write_orf_protein_fasta(f, self.orfs)
+        except OSError as exc:
+            QMessageBox.critical(self, "Save FASTA", f"Could not write file:\n{exc}")
             return
+
         self._status.showMessage(f"✓ Saved {len(self.orfs)} ORFs")
+
+    def export_html_report(self):
+        f, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export HTML report",
+            "",
+            "HTML report (*.html)",
+        )
+        if not f:
+            return
+
+        try:
+            project = _ProjectServiceForHtml().build_snapshot_from_legacy_window(self)
+            _io_write_project_report(
+                f,
+                project,
+                title="ppigFinder Report",
+            )
+        except Exception as exc:
+            QMessageBox.critical(
+                self,
+                "Export HTML report",
+                f"Could not export HTML report:\n{exc}",
+            )
+            return
+
+        try:
+            self._status.showMessage(f"✓ HTML report exported: {f}")
+        except Exception:
+            pass
+
+    def export_af3_server_json(self):
+        _ui_export_selected_orfs_as_server_json(self)
 
 
     # ═══════════════════════════════════════════════════════════
@@ -5585,11 +7240,11 @@ class ppigFinderApp(QMainWindow):
     # PROJECT SAVE / LOAD
     # ─────────────────────────────────────────────────────────
 
-    def _build_manifest(self, proj_dir=None, full_af3_analysis=True):
+    def _build_manifest(self, proj_dir=None):
         """Build project manifest dict.
         proj_dir: Path — if given, HMM/genome file paths are relative to it.
-        full_af3_analysis: when False, AF3 analysis entries are saved in a
-        lightweight form without embedded PAE/pLDDT arrays.
+        Heavy AF3 arrays (pae_matrix, contact_probs, plddt_arr, token_res_ids)
+        are NEVER serialised — they are always reloaded on demand from job_dir.
         """
 
         # HMM manifest
@@ -5613,14 +7268,34 @@ class ppigFinderApp(QMainWindow):
 
         # AF3 Analysis results
         af3_analysis_ser = []
+        # Heavy keys that are NEVER saved in the manifest because they can be
+        # reloaded on demand from job_dir.  Excluding them reduces a typical
+        # 100-job project from ~200 MB to <1 MB and makes json.dump instant.
+        _HEAVY_KEYS = frozenset({
+            'pae_matrix',       # N×N float list — by far the biggest item
+            'contact_probs',    # N×N float list — same size as pae_matrix
+            'plddt_arr',        # per-residue float list
+            'token_res_ids',    # per-residue int list
+            'ranking_samples',  # per-sample ranking CSV rows (rarely needed)
+        })
         for res in getattr(self, '_af3_analysis_results', []):
-            entry = dict(res)
-            if not full_af3_analysis:
-                # Keep only metadata needed to repopulate the table quickly.
-                # Heavy arrays are reloaded on demand by rescanning af3_predictions/.
-                for k in ('pae_matrix', 'plddt_arr'):
-                    entry.pop(k, None)
-                entry['_lightweight'] = True
+            entry = {k: v for k, v in res.items() if k not in _HEAVY_KEYS}
+            entry['_lightweight'] = True   # signals reload-on-demand on load
+
+            # JSON requires string keys. pair_metrics uses (chain_A, chain_B)
+            # tuple keys → convert to "A-B" strings before serialising.
+            pm = entry.get('pair_metrics')
+            if isinstance(pm, dict):
+                entry['pair_metrics'] = {
+                    f"{k[0]}-{k[1]}" if isinstance(k, tuple) else str(k): v
+                    for k, v in pm.items()
+                }
+
+            # best_pair is also a tuple → store as "A-B" string
+            bp = entry.get('best_pair')
+            if isinstance(bp, tuple):
+                entry['best_pair'] = f"{bp[0]}-{bp[1]}" if len(bp) == 2 else str(bp)
+
             af3_analysis_ser.append(entry)
 
         # BLAST state
@@ -5751,7 +7426,9 @@ class ppigFinderApp(QMainWindow):
 
     def save_project(self):
         """Save project as a single self-contained JSON file.
-        Includes everything: ORFs, HMM hits, AF3 jobs, PAE matrices, pLDDT.
+        Includes ORFs, HMM hits, AF3 jobs and AF3 result metadata.
+        Heavy arrays (PAE matrices, pLDDT, contact_probs) are NOT saved —
+        they are reloaded on demand from job_dir when the user selects a row.
         File → Save Project  (Ctrl+S style — single JSON, no file copying).
         """
         safe = re.sub(r'[^\w\.\-]', '_', self.genome_name or 'project')
@@ -5763,11 +7440,44 @@ class ppigFinderApp(QMainWindow):
             return
 
         manifest = self._build_manifest(proj_dir=None)
+        # Cap blast HTML to avoid bloating the file
+        _bh = manifest.get('blast_results_html', '')
+        if len(_bh) > 512 * 1024:
+            manifest['blast_results_html'] = (
+                _bh[:512*1024] + '<!-- TRUNCATED -->')
+
+        # Write in background thread to keep UI responsive
+        import threading as _threading, time as _ttime
+        _save_err: list = []; _save_done: list = []
+        def _bg_write():
+            try:
+                data = json.dumps(manifest, separators=(',', ':'),
+                                  ensure_ascii=False)
+                with open(path, 'w', encoding='utf-8') as fh:
+                    fh.write(data)
+            except Exception as _e:
+                _save_err.append(str(_e))
+            finally:
+                _save_done.append(True)
+        _t = _threading.Thread(target=_bg_write, daemon=True)
+        _t.start()
+        # Show a non-blocking wait cursor
         try:
-            with open(path, 'w', encoding='utf-8') as fh:
-                json.dump(manifest, fh, indent=2, ensure_ascii=False)
-        except OSError as e:
-            QMessageBox.critical(self, "Save Project", f"Cannot write file:\n{e}")
+            QApplication.setOverrideCursor(
+                Qt.CursorShape.WaitCursor if QT_VERSION == 6 else Qt.WaitCursor)
+        except Exception:
+            pass
+        while not _save_done:
+            QApplication.processEvents()
+            _ttime.sleep(0.02)
+        _t.join(timeout=60)
+        try:
+            QApplication.restoreOverrideCursor()
+        except Exception:
+            pass
+        if _save_err:
+            QMessageBox.critical(self, "Save Project",
+                                 f"Cannot write file:\n{_save_err[0]}")
             return
 
         n_af3 = len(manifest.get('af3_analysis_results', []))
@@ -5775,7 +7485,7 @@ class ppigFinderApp(QMainWindow):
         self._status.showMessage(
             f"✓ Saved: {Path(path).name}  "
             f"({len(self.orfs)} ORFs, {len(self.hmm_profiles)} HMM, "
-            f"{n_af3} AF3 analysis, {kb:.0f} KB)")
+            f"{n_af3} AF3 results, {kb:.0f} KB)")
         QMessageBox.information(
             self, "Project Saved",
             f"✓ Project saved!\n\n"
@@ -5783,10 +7493,11 @@ class ppigFinderApp(QMainWindow):
             f"  ORFs:         {len(self.orfs)}\n"
             f"  HMM profiles: {len(self.hmm_profiles)}\n"
             f"  AF3 jobs:     {len(self.af3_jobs)}\n"
-            f"  AF3 analysis: {n_af3} job(s) with PAE/pLDDT\n"
+            f"  AF3 analysis: {n_af3} result(s) — metadata only\n"
             f"  File size:    {kb:.0f} KB\n\n"
-            f"To reopen: File → Open Project → Select JSON file\n\n"
-            f"⚠ Server password stored as base64 (not encrypted).")
+            f"  PAE/pLDDT arrays are reloaded on demand from job_dir.\n"
+            f"  To reopen: File → Open Project → select this JSON file.\n\n"
+            f"  ⚠ Server password stored as base64 (not encrypted).")
 
     def save_project_as(self):
         """Save As — project folder with ALL associated files copied.
@@ -5924,25 +7635,52 @@ class ppigFinderApp(QMainWindow):
             except Exception as e:
                 print(f"[Save As] {src_dir.name}: {e}")
 
-        # 6. Write lightweight project.json.
-        # AF3 folders were already copied above, so do not embed huge PAE/pLDDT
-        # arrays again in the manifest.
+
+        # 6. Write project.json — stripped of redundant sequences
+        # Genome is already saved as FASTA (step 1), so strip dna_sequence
+        # and orf["dna"] to avoid serialising 8-15 MB on the main thread
+        # (that caused the visible 88% hang on Windows).
         if not _step(88, "Writing project manifest..."): return
-        manifest = self._build_manifest(proj_dir=proj_dir, full_af3_analysis=False)
+        manifest = self._build_manifest(proj_dir=proj_dir)
         manifest['project_copy_mode'] = 'full_copy_light_manifest'
-        # Update af3_analysis_dir and job_dir paths to relative
         manifest['af3_analysis_dir'] = 'af3_predictions'
         for entry in manifest.get('af3_analysis_results', []):
             jname = entry.get('job_name', '')
             entry['job_dir'] = f"af3_predictions/{jname}"
-        try:
-            with open(proj_dir / self.PROJECT_MANIFEST, 'w', encoding='utf-8') as fh:
-                json.dump(manifest, fh, indent=2, ensure_ascii=False)
-        except OSError as e:
+        # Strip sequences already saved elsewhere
+        manifest['dna_sequence'] = ''
+        for _orf in manifest.get('orfs', []):
+            _orf.pop('dna', None)
+        _bh = manifest.get('blast_results_html', '')
+        if len(_bh) > 512 * 1024:
+            manifest['blast_results_html'] = _bh[:512*1024] + '<!-- TRUNCATED -->'
+        # Serialise + write in a background thread so the progress dialog
+        # stays alive on Windows (json.dump blocks the event loop).
+        import threading as _threading, time as _ttime
+        _err: list = []; _done: list = []
+        def _do_write():
+            try:
+                data = json.dumps(manifest, separators=(',', ':'), ensure_ascii=False)
+                with open(proj_dir / self.PROJECT_MANIFEST, 'w', encoding='utf-8') as fh:
+                    fh.write(data)
+            except Exception as _e:
+                _err.append(str(_e))
+            finally:
+                _done.append(True)
+        _t = _threading.Thread(target=_do_write, daemon=True)
+        _t.start()
+        _pct = 88
+        while not _done:
+            QApplication.processEvents()
+            if prog.wasCanceled(): break
+            _pct = min(97, _pct + 1)
+            prog.setValue(_pct)
+            _ttime.sleep(0.05)
+        _t.join(timeout=60)
+        if _err:
             QMessageBox.critical(self, "Save Project As",
-                                 f"Cannot write manifest:\n{e}")
+                                 f"Cannot write manifest:\n{_err[0]}")
             prog.close(); return
-
         _step(100, "Done!")
         prog.close()
 
@@ -6030,6 +7768,31 @@ class ppigFinderApp(QMainWindow):
             abs_g = proj_dir / rel_genome
             self.current_fasta_path = str(abs_g) if abs_g.is_file() else ''
 
+        # ── Reload genome FASTA when dna_sequence was stripped during save ──
+        # save_project_as strips dna_sequence (stored as FASTA in genome/).
+        # Reload it transparently here so the genome map and ORF table work.
+        if not self.dna_sequence and rel_genome:
+            abs_g = proj_dir / rel_genome
+            if abs_g.is_file():
+                try:
+                    with open(abs_g, encoding='utf-8', errors='replace') as _f:
+                        _seqs = {}
+                        _cur  = None
+                        for _line in _f:
+                            _line = _line.rstrip()
+                            if _line.startswith('>'):
+                                _cur = _line[1:].split()[0]
+                                _seqs[_cur] = []
+                            elif _cur:
+                                _seqs[_cur].append(_line)
+                    if _seqs:
+                        _name, _parts = next(iter(_seqs.items()))
+                        self.dna_sequence = ''.join(_parts).upper()
+                        if not self.genome_name:
+                            self.genome_name = _name
+                except (OSError, StopIteration):
+                    pass
+
         # ── 2. ORFs (full annotation state) ───────────────────
         self.orfs = data.get('orfs', [])
         # Ensure every annotation field exists with safe defaults
@@ -6043,6 +7806,18 @@ class ppigFinderApp(QMainWindow):
             for k, v in _orf_defaults.items():
                 orf.setdefault(k, v)
         self.filtered_orfs = self.orfs.copy()
+
+        # ── Reconstruct orf["dna"] when stripped during save ──────────
+        # save_project_as strips orf["dna"] (derivable from dna_sequence).
+        # Rebuild now so all downstream code that expects orf["dna"] works.
+        if self.dna_sequence:
+            _dna = self.dna_sequence
+            _dn  = len(_dna)
+            for _orf in self.orfs:
+                if not _orf.get("dna"):
+                    _s = max(0, _orf.get("start", 0))
+                    _e = min(_dn, _orf.get("end", _dn))
+                    _orf["dna"] = _dna[_s:_e]
 
         # Re-apply manual annotations saved separately (orf_annotations)
         # This handles projects where orfs were saved WITHOUT annotation fields
@@ -6161,6 +7936,22 @@ class ppigFinderApp(QMainWindow):
             if jdir and not Path(jdir).is_absolute():
                 abs_jdir = proj_dir / jdir
                 entry['job_dir'] = str(abs_jdir) if abs_jdir.is_dir() else jdir
+            # Restore pair_metrics: "A-B" string keys → (A, B) tuple keys
+            pm = entry.get('pair_metrics')
+            if isinstance(pm, dict):
+                restored = {}
+                for k, v in pm.items():
+                    if isinstance(k, str) and '-' in k:
+                        parts = k.split('-', 1)
+                        restored[(parts[0], parts[1])] = v
+                    else:
+                        restored[k] = v
+                entry['pair_metrics'] = restored
+            # Restore best_pair: "A-B" string → (A, B) tuple
+            bp = entry.get('best_pair')
+            if isinstance(bp, str) and '-' in bp:
+                parts = bp.split('-', 1)
+                entry['best_pair'] = (parts[0], parts[1])
             self._af3_analysis_results.append(entry)
         if af3_dir_rel:
             abs_af3_dir = proj_dir / af3_dir_rel
@@ -6281,6 +8072,12 @@ class ppigFinderApp(QMainWindow):
         self._update_hmm_profile_table()
         self._af3_update_jobs_table()
         self._refresh_blast_cmd_preview()
+        # Refresh Genomic PPI Map if AF3 results are loaded
+        if getattr(self, '_af3_analysis_results', []):
+            try:
+                self._ppi_arc_map_refresh()
+            except Exception as _e:
+                print(f"[load_project] PPI map refresh: {_e}")
 
         n_annot    = sum(1 for o in self.orfs if o.get('observation')
                          or o.get('putative_function') or o.get('gene_name')
@@ -6312,6 +8109,12 @@ class ppigFinderApp(QMainWindow):
         ]
         if saved_at: lines.append(f'  Salvo em:        {saved_at}')
         QMessageBox.information(self, 'Projeto Carregado', '\n'.join(lines))
+
+    def export_project_snapshot(self):
+        _ui_export_project_snapshot_from_window(self)
+
+    def import_project_snapshot(self):
+        _ui_import_project_snapshot_into_window(self)
 
     def export_map_pdf(self):
         """Export genome map as PDF or PNG."""
@@ -6392,6 +8195,15 @@ class ppigFinderApp(QMainWindow):
     # ═══════════════════════════════════════════════════════════
 
     def _update_orfs_list(self):
+        # Block all signals and disable sorting during the rebuild.
+        # Without this, every insertRow fires selectionChanged which calls
+        # _on_orf_table_select → _select_and_center_orf, leaving
+        # _orf_table_selecting=True and making subsequent centering silently
+        # no-op.  Sorting must also be off during insert or Qt re-orders
+        # rows mid-way and corrupts the filtered_orfs→row mapping.
+        self._orf_table.setSortingEnabled(False)
+        self._orf_table.blockSignals(True)
+        self._orf_table_selecting = False   # reset any stuck re-entrancy flag
         self._orf_table.setRowCount(0)
         # Build lookup: orf_name → list of AF3 analysis results
         af3_lookup = {}
@@ -6431,12 +8243,18 @@ class ppigFinderApp(QMainWindow):
                                if best.get('iptm') is not None else '-'
                 pae_inter_s  = f"{best.get('pae_inter', 0):.1f} Å" \
                                if best.get('pae_inter') is not None else '-'
+                pae_min_v    = best.get('pae_min_inter')
+                pae_min_s    = f"{pae_min_v:.2f} Å" if pae_min_v is not None else '-'
+                cp_iptm_v    = best.get('cp_iptm_inter')
+                cp_iptm_s    = f"{cp_iptm_v:.2f}" if cp_iptm_v is not None else '-'
                 contact_s    = best.get('contact_region', '-')
             else:
                 af3_done     = '-'
                 partner      = '-'
                 iptm_s       = '-'
                 pae_inter_s  = '-'
+                pae_min_s    = '-'
+                cp_iptm_s    = '-'
                 contact_s    = '-'
 
             user_note = orf.get('af3_user_note', '')
@@ -6451,10 +8269,23 @@ class ppigFinderApp(QMainWindow):
                 f"{orf.get('candidate_score',0):.2f}",
                 orf.get('source', '6frame'),
                 orf.get('observation', '')[:30],
-                af3_done, partner, iptm_s, pae_inter_s, contact_s, user_note,
+                af3_done, partner, iptm_s, pae_inter_s, pae_min_s, cp_iptm_s, contact_s, user_note,
             ]
             for col, val in enumerate(items):
-                item = QTableWidgetItem(str(val))
+                # Use numeric-sorting item for columns that contain numbers:
+                #   0  = ORF id  (ORF1, ORF2 … → sort by trailing integer)
+                #   3  = Start bp
+                #   4  = End bp
+                #   5  = Size(aa)
+                #   8  = Score
+                #   13 = ipTM
+                #   14 = PAE_inter
+                #   15 = PAE_min
+                #   16 = cp_ipTM
+                if col in (0, 3, 4, 5, 8, 13, 14, 15, 16):
+                    item = _OrfNumericItem(str(val))
+                else:
+                    item = QTableWidgetItem(str(val))
                 # Color AF3 columns by quality
                 if col == 13 and iptm_s not in ('-', ''):  # ipTM
                     try:
@@ -6467,13 +8298,37 @@ class ppigFinderApp(QMainWindow):
                             item.setBackground(QColor('#FFCDD2'))
                     except ValueError:
                         pass
+                if col == 15 and pae_min_s not in ('-', ''):  # PAE_min ★
+                    try:
+                        v = float(pae_min_s.replace(' Å','').replace('Å',''))
+                        if v < 4.0:
+                            item.setBackground(QColor('#C8E6C9'))
+                        elif v < 8.0:
+                            item.setBackground(QColor('#FFF9C4'))
+                        else:
+                            item.setBackground(QColor('#FFCDD2'))
+                    except ValueError:
+                        pass
+                if col == 16 and cp_iptm_s not in ('-', ''):  # cp_ipTM ★
+                    try:
+                        v = float(cp_iptm_s)
+                        if v >= 0.65:
+                            item.setBackground(QColor('#C8E6C9'))
+                        elif v >= 0.50:
+                            item.setBackground(QColor('#FFF9C4'))
+                        else:
+                            item.setBackground(QColor('#FFCDD2'))
+                    except ValueError:
+                        pass
                 # Make User_note column editable
-                if col == 16:
+                if col == 18:
                     item.setFlags(item.flags() |
                                   (Qt.ItemFlag.ItemIsEditable if QT_VERSION == 6
                                    else Qt.ItemIsEditable))
                 self._orf_table.setItem(row, col, item)
 
+        self._orf_table.blockSignals(False)
+        self._orf_table.setSortingEnabled(True)
         self._orf_count_label.setText(
             f"({len(self.filtered_orfs)} of {len(self.orfs)})")
 
@@ -6509,6 +8364,10 @@ class ppigFinderApp(QMainWindow):
         self._genome_map.set_data(len(self.dna_sequence), self.orfs,
                                    self.hmm_profiles, self.dna_sequence)
         self._update_hits_legend()
+        # Execute any pending center request now that data is loaded
+        pending = getattr(self, '_pending_center_idx', -1)
+        if pending >= 0:
+            self._select_and_center_orf(pending)
 
     def _set_zoom(self, level):
         target = max(0.5, min(10000.0, level))
@@ -6611,6 +8470,9 @@ class ppigFinderApp(QMainWindow):
             self._hits_legend.setItem(row, 1, QTableWidgetItem(label))
 
     def _on_orf_table_select(self):
+        # Guard: _select_and_center_orf calls selectRow which re-triggers this.
+        if getattr(self, '_orf_table_selecting', False):
+            return
         rows = self._orf_table.selectionModel().selectedRows()
         if not rows:
             return
@@ -6625,6 +8487,24 @@ class ppigFinderApp(QMainWindow):
     def _on_map_orf_click(self, idx):
         if 0 <= idx < len(self.orfs):
             self._select_and_center_orf(idx)
+
+    @staticmethod
+    def _parse_orf_idx_from_text(text: str) -> int:
+        """Extract a 0-based ORF index from any string that contains 'ORF{N}'.
+        Handles emoji prefixes (e.g. '✅ ORF2588'), plain 'ORF2588', etc.
+        Returns -1 if no valid index found.
+        """
+        m = re.search(r'ORF(\d+)', text, re.IGNORECASE)
+        if m:
+            return int(m.group(1)) - 1
+        # Fallback: any digit sequence in the text
+        nums = re.findall(r'\d+', text)
+        if nums:
+            try:
+                return int(nums[-1]) - 1
+            except ValueError:
+                pass
+        return -1
 
     def _show_orf_details(self, orf):
         idx = self.orfs.index(orf) + 1 if orf in self.orfs else 0
@@ -6667,59 +8547,177 @@ class ppigFinderApp(QMainWindow):
 
         # Highlight on map and center
         self._genome_map.highlight_idx = idx
-        # Center map pan on this ORF
+        # Correct centering formula:
+        #   gw = full genome width in pixels at current zoom
+        #   orf_pixel = absolute pixel position of ORF centre in full genome
+        #   pan_offset = scroll so that orf_pixel appears at screen centre
         if self.dna_sequence:
-            orf_center_frac = (orf['start'] + orf['end']) / 2 / len(self.dna_sequence)
-            w = self._genome_map.width()
-            mg = 40
-            bw = w - 2 * mg
-            gw = int(bw * self.zoom_level)
-            target_x = mg + orf_center_frac * gw
-            self._genome_map.pan_offset = max(0, int(target_x - w / 2))
+            sl  = len(self.dna_sequence)
+            w   = self._genome_map.width()
+            if w < 80:
+                # Widget not yet visible (hidden tab / minimised window).
+                # Store the pending center request and execute it the next
+                # time the genome map widget is resized/shown.
+                self._pending_center_idx = idx
+            else:
+                mg  = 40
+                bw  = w - 2 * mg
+                gw  = int(bw * self.zoom_level)
+                orf_pixel = int((orf['start'] + orf['end']) / 2 / sl * gw)
+                new_pan = orf_pixel - (w // 2 - mg)
+                self._genome_map.pan_offset = max(0, new_pan)
+                self._genome_map._clamp_pan()
+                self._pending_center_idx = -1  # fulfilled
         self._genome_map.update()
 
-        # Select in table
-        if orf in self.filtered_orfs:
-            row = self.filtered_orfs.index(orf)
-            self._orf_table.selectRow(row)
-            self._orf_table.scrollTo(self._orf_table.model().index(row, 0))
+        # Select in table — set flag to block re-entrancy in _on_orf_table_select
+        # Use index-based lookup (not identity) so annotations that modify
+        # the orf dict in-place or replace it are handled correctly.
+        self._orf_table_selecting = True
+        try:
+            # Prefer looking up by ORF index (position in self.orfs)
+            target_label = f"ORF{idx+1}"
+            row = -1
+            for r in range(self._orf_table.rowCount()):
+                cell = self._orf_table.item(r, 0)
+                if cell is not None and cell.text().strip() == target_label:
+                    row = r
+                    break
+            if row >= 0:
+                self._orf_table.selectRow(row)
+                self._orf_table.scrollTo(
+                    self._orf_table.model().index(row, 0))
+        finally:
+            self._orf_table_selecting = False
 
-        self._status.showMessage(f"✓ ORF{idx+1} selected ({orf['start']:,}-{orf['end']:,})")
+        self._status.showMessage(
+            f"✓ ORF{idx+1} selected ({orf['start']:,}–{orf['end']:,})")
 
     # ═══════════════════════════════════════════════════════════
     # RIGHT-CLICK CONTEXT MENU (ORF Table)
     # ═══════════════════════════════════════════════════════════
 
     def _on_orf_right_click(self, pos):
-        """Right-click on ORF → annotation/color/copy menu."""
+        """Right-click on ORF table.
+
+        Key behaviour change (v2.0):
+        - If the click lands on a row that is already part of a multi-selection
+          (Ctrl+click), the multi-selection is preserved and the AF3 submenu
+          shows group actions for all selected ORFs.
+        - If the click lands on an unselected row, it selects that single row
+          (existing behaviour).
+        """
         row = self._orf_table.rowAt(pos.y())
         if row < 0 or row >= len(self.filtered_orfs):
             return
-        self._orf_table.selectRow(row)
-        orf = self.filtered_orfs[row]
-        orf_idx = self.orfs.index(orf) if orf in self.orfs else -1
 
-        menu = QMenu(self)
-        menu.addAction(f"📝 Annotate ORF{orf_idx+1}...",
-                       lambda: self._annotate_orf(orf, orf_idx))
-        menu.addAction(f"🎨 Color ORF{orf_idx+1}...",
-                       lambda: self._color_orf(orf, orf_idx))
-        menu.addSeparator()
-        menu.addAction("📋 Copy Protein",
-                       lambda: self._copy_to_clipboard(orf['protein'].rstrip('*')))
-        menu.addAction("📋 Copy DNA",
-                       lambda: self._copy_to_clipboard(orf['dna']))
-        menu.addAction("📋 Copy FASTA",
-                       lambda: self._copy_to_clipboard(
-                           f">ORF{orf_idx+1}|{orf['start']}-{orf['end']}\n{orf['protein'].rstrip('*')}\n"))
-        menu.addSeparator()
-        menu.addAction("➕ Add to AlphaFold3",
-                       lambda: self._af3_add_orf_by_index(orf_idx))
-        menu.addSeparator()
-        # ── Copy / Export submenu ──
+        # ── Preserve multi-selection if the click is inside it ──────────────
         sel_rows = sorted(set(
             idx.row() for idx in self._orf_table.selectedIndexes()))
-        n_sel = len(sel_rows)
+        if row not in sel_rows:
+            # Click is outside the current selection → select just this row
+            self._orf_table.selectRow(row)
+            sel_rows = [row]
+
+        # Resolve the single ORF under the cursor (for single-item actions)
+        orf      = self.filtered_orfs[row]
+        orf_idx  = self.orfs.index(orf) if orf in self.orfs else -1
+        n_sel    = len(sel_rows)
+
+        menu = QMenu(self)
+
+        # ════════════════════════════════════════════════════════
+        # A) Single-ORF actions (annotation, color, copy)
+        # ════════════════════════════════════════════════════════
+        if n_sel == 1:
+            menu.addAction(f"📝 Annotate ORF{orf_idx+1}…",
+                           lambda: self._annotate_orf(orf, orf_idx))
+            menu.addAction(f"🎨 Color ORF{orf_idx+1}…",
+                           lambda: self._color_orf(orf, orf_idx))
+            menu.addSeparator()
+            menu.addAction("📋 Copy protein (FASTA)",
+                           lambda: self._copy_to_clipboard(
+                               f">ORF{orf_idx+1}|{orf['start']}-{orf['end']}\n"
+                               f"{orf['protein'].rstrip('*')}"))
+            menu.addAction("📋 Copy DNA",
+                           lambda: self._copy_to_clipboard(orf['dna']))
+            menu.addAction("📋 Copy raw protein sequence",
+                           lambda: self._copy_to_clipboard(orf['protein'].rstrip('*')))
+            menu.addSeparator()
+
+        # ════════════════════════════════════════════════════════
+        # B) AlphaFold 3 prediction actions — adapt to selection size
+        # ════════════════════════════════════════════════════════
+        menu.addSeparator()
+
+        if n_sel == 1:
+            # Single ORF — simple add + quick-predict sub-menu
+            af3_sub = menu.addMenu("🔮 AlphaFold 3…")
+            af3_sub.addAction(
+                f"➕ Add ORF{orf_idx+1} to AF3 list",
+                lambda: self._af3_add_orf_by_index(orf_idx))
+            af3_sub.addSeparator()
+            af3_sub.addAction(
+                f"⚡ Add + Predict vs {self._af3_nb_spin.value()} neighbors",
+                lambda: self._orf_table_af3_quick_neighbors([orf_idx]))
+            af3_sub.addAction(
+                "⚡ Add + Predict homodimer",
+                lambda: self._orf_table_af3_quick_homodimer(orf_idx))
+
+        else:
+            # Multi-ORF — compute budget hints for display
+            resolved = self._orf_table_resolve_sel_indices(sel_rows)
+            n_orfs   = len(resolved)
+            n_pairs  = n_orfs * (n_orfs - 1) // 2
+            avg_res  = self._orf_table_avg_residues(resolved)
+            # Smart mode suggestion
+            suggestion = self._orf_table_af3_suggest_mode(resolved)
+
+            # ── Budget preview header (disabled item used as label) ──────────
+            hdr = QAction(
+                f"🔮  {n_orfs} ORFs selected  →  {n_pairs} pairwise job(s)  "
+                f"│  avg {avg_res} aa/chain", menu)
+            hdr.setEnabled(False)
+            menu.addAction(hdr)
+
+            if suggestion:
+                hint = QAction(f"💡 Suggested: {suggestion}", menu)
+                hint.setEnabled(False)
+                menu.addAction(hint)
+
+            menu.addSeparator()
+
+            # ── Multi-ORF actions ────────────────────────────────────────────
+            menu.addAction(
+                f"➕ Add {n_orfs} ORFs to AF3 list",
+                lambda _r=resolved: self._orf_table_af3_add_multi(_r, switch_tab=False))
+
+            menu.addAction(
+                f"⚡ Add {n_orfs} ORFs + predict all pairs ({n_pairs} jobs)",
+                lambda _r=resolved: self._orf_table_af3_predict_allvsall(_r))
+
+            menu.addAction(
+                f"⚡ Add {n_orfs} ORFs + predict vs {self._af3_nb_spin.value()} neighbors each",
+                lambda _r=resolved: self._orf_table_af3_quick_neighbors(_r))
+
+            # HMM sub-mode: only shown when ≥2 ORFs have HMM hits
+            hmm_orfs = [i for i in resolved
+                        if any(h.get('orf_index') == i for h in self.hmm_hits_all)]
+            if len(hmm_orfs) >= 2:
+                menu.addAction(
+                    f"🧬 Predict {len(hmm_orfs)} HMM hits vs each other",
+                    lambda _h=hmm_orfs: self._orf_table_af3_predict_allvsall(_h,
+                        label="hmmhits"))
+
+            menu.addSeparator()
+            menu.addAction(
+                f"➕ Add {n_orfs} ORFs to AF3 list (no generate)",
+                lambda _r=resolved: self._orf_table_af3_add_multi(_r, switch_tab=True))
+
+        # ════════════════════════════════════════════════════════
+        # C) Table copy / export (always shown)
+        # ════════════════════════════════════════════════════════
+        menu.addSeparator()
         menu.addAction(
             f"Copy {n_sel} selected row(s) as TSV",
             self._orf_table_copy_selection)
@@ -6727,26 +8725,237 @@ class ppigFinderApp(QMainWindow):
             "Copy all visible rows as TSV",
             lambda: self._orf_table_copy_rows(all_rows=True))
         menu.addSeparator()
-        exp_sub = menu.addMenu("Export table...")
-        exp_sub.addAction(
-            "TSV — table columns only",
+        exp_sub = menu.addMenu("Export table…")
+        exp_sub.addAction("TSV — table columns only",
             lambda: self._export_orf_table(fmt='tsv', include_seqs=False))
-        exp_sub.addAction(
-            "TSV — full (+ DNA + Protein)",
+        exp_sub.addAction("TSV — full (+ DNA + Protein)",
             lambda: self._export_orf_table(fmt='tsv', include_seqs=True))
-        exp_sub.addAction(
-            "TSV — annotated only",
+        exp_sub.addAction("TSV — annotated only",
             lambda: self._export_orf_table(fmt='tsv', annotated_only=True, include_seqs=True))
         exp_sub.addSeparator()
-        exp_sub.addAction(
-            "FASTA — protein",
+        exp_sub.addAction("FASTA — protein",
             lambda: self._export_orf_fasta(aa=True))
-        exp_sub.addAction(
-            "FASTA — DNA",
+        exp_sub.addAction("FASTA — DNA",
             lambda: self._export_orf_fasta(aa=False))
-        menu.exec(self._orf_table.viewport().mapToGlobal(pos)
-                   if QT_VERSION == 6 else
-                   self._orf_table.viewport().mapToGlobal(pos))
+
+        menu.exec(self._orf_table.viewport().mapToGlobal(pos))
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # ORF-table → AF3  helper methods  (added v2.0)
+    # ──────────────────────────────────────────────────────────────────────────
+
+    def _switch_to_af3_tab(self):
+        """Switch the right-panel tab widget to the AlphaFold prediction tab."""
+        if hasattr(self, '_af3_tab_widget'):
+            self._tabs.setCurrentWidget(self._af3_tab_widget)
+
+    def _orf_table_resolve_sel_indices(self, sel_rows: list) -> list:
+        """Convert selection rows (in filtered_orfs) to global ORF indices."""
+        indices = []
+        for r in sel_rows:
+            if 0 <= r < len(self.filtered_orfs):
+                orf = self.filtered_orfs[r]
+                try:
+                    idx = self.orfs.index(orf)
+                    indices.append(idx)
+                except ValueError:
+                    pass
+        return indices
+
+    def _orf_table_avg_residues(self, orf_indices: list) -> int:
+        """Return average protein length (aa) for a list of ORF indices."""
+        if not orf_indices:
+            return 0
+        sizes = [len(self.orfs[i]['protein'].rstrip('*')) for i in orf_indices
+                 if 0 <= i < len(self.orfs)]
+        return int(sum(sizes) / len(sizes)) if sizes else 0
+
+    def _orf_table_af3_suggest_mode(self, orf_indices: list) -> str:
+        """Heuristically suggest the best AF3 mode for a given set of ORFs."""
+        if not orf_indices or not self.orfs:
+            return ""
+        # Check if ORFs are genomic neighbors (sorted by position, max gap = N)
+        orfs_by_pos = sorted(range(len(self.orfs)), key=lambda i: self.orfs[i]['start'])
+        pos_ranks   = {idx: rank for rank, idx in enumerate(orfs_by_pos)}
+        ranks = sorted(pos_ranks.get(i, -1) for i in orf_indices)
+        max_gap  = max(ranks[k+1] - ranks[k] for k in range(len(ranks)-1)) if len(ranks) > 1 else 0
+        n_nb     = self._af3_nb_spin.value()
+        is_nbrs  = max_gap <= n_nb
+
+        # Check if ORFs all have HMM hits
+        hmm_count = sum(1 for i in orf_indices
+                        if any(h.get('orf_index') == i for h in self.hmm_hits_all))
+
+        if is_nbrs:
+            return f"Pairs (Hit vs Neighbor) — ORFs are within {n_nb} genomic positions of each other"
+        if hmm_count == len(orf_indices):
+            return "HMM Hits vs Each Other — all selected ORFs have domain annotations"
+        return "All vs All — mixed ORF set"
+
+    def _orf_table_af3_add_multi(self, orf_indices: list, switch_tab: bool = True):
+        """Add a list of ORF indices to the AF3 selection table.
+        Silently skips duplicates. Optionally switches to the AF3 tab."""
+        existing = set()
+        for r in range(self._af3_sel_table.rowCount()):
+            item = self._af3_sel_table.item(r, 0)
+            if item:
+                existing.add(item.text())
+        added = 0
+        for idx in orf_indices:
+            if not (0 <= idx < len(self.orfs)):
+                continue
+            name = f"ORF{idx+1}"
+            if name in existing:
+                continue
+            orf = self.orfs[idx]
+            hmm_names = [p['name'] for p in self.hmm_profiles
+                         for h in p.get('hits', [])
+                         if h.get('orf_index') == idx]
+            row = self._af3_sel_table.rowCount()
+            self._af3_sel_table.insertRow(row)
+            for col, val in enumerate([
+                    name,
+                    f"{orf['start']:,}-{orf['end']:,}",
+                    str(len(orf['protein'].rstrip('*'))),
+                    ', '.join(hmm_names) or '-',
+                    '']):
+                self._af3_sel_table.setItem(row, col, QTableWidgetItem(val))
+            existing.add(name)
+            added += 1
+        self._af3_sel_count.setText(f"{self._af3_sel_table.rowCount()} ORFs selected")
+        self._status.showMessage(f"✓ {added} ORF(s) added to AF3 list")
+        if switch_tab:
+            self._switch_to_af3_tab()
+
+    def _orf_table_af3_predict_allvsall(self, orf_indices: list, label: str = "selected"):
+        """Add ORFs to AF3 list, generate all-vs-all pairwise jobs, switch tab."""
+        if not self.orfs:
+            QMessageBox.warning(self, "AF3", "Run ORF analysis first!")
+            return
+        self._orf_table_af3_add_multi(orf_indices, switch_tab=False)
+        existing_names = {j['name'] for j in self.af3_jobs}
+        added = 0
+        seen_pairs: set = set()
+        for i_a in range(len(orf_indices)):
+            for i_b in range(i_a + 1, len(orf_indices)):
+                hi = orf_indices[i_a]; pi = orf_indices[i_b]
+                key = (min(hi, pi), max(hi, pi))
+                if key in seen_pairs:
+                    continue
+                seen_pairs.add(key)
+                hn = f"ORF{hi+1}"; pn = f"ORF{pi+1}"
+                job_name = f"{hn}_vs_{pn}_{label}"
+                if job_name in existing_names:
+                    continue
+                hp = self.orfs[hi]['protein'].rstrip('*')
+                pp = self.orfs[pi]['protein'].rstrip('*')
+                tr = len(hp) + len(pp)
+                self.af3_jobs.append({
+                    'name':            job_name,
+                    'hit_orf_idx':     hi,
+                    'partner_orf_idx': pi,
+                    'hit_name':        hn,
+                    'partner_name':    pn,
+                    'total_residues':  tr,
+                    'paeinter':        None,
+                    'status':          ('pending' if tr <= self.af3_max_residues
+                                        else f'>{self.af3_max_residues}!'),
+                    'iptm':   None,
+                    'plddt':  None,
+                    'sequences': [
+                        {'proteinChain': {'sequence': hp, 'count': 1}},
+                        {'proteinChain': {'sequence': pp, 'count': 1}}],
+                })
+                existing_names.add(job_name)
+                added += 1
+        self._af3_update_jobs_table()
+        self._switch_to_af3_tab()
+        self._status.showMessage(
+            f"✓ {added} pairwise job(s) added from {len(orf_indices)} selected ORFs "
+            f"→ AlphaFold tab")
+
+    def _orf_table_af3_quick_neighbors(self, orf_indices: list):
+        """Add ORFs to AF3 list, generate Pairs-vs-Neighbor jobs, switch tab."""
+        if not self.orfs:
+            QMessageBox.warning(self, "AF3", "Run ORF analysis first!")
+            return
+        self._orf_table_af3_add_multi(orf_indices, switch_tab=False)
+        n_nb = self._af3_nb_spin.value()
+        orfs_by_pos = sorted(enumerate(self.orfs), key=lambda x: x[1]['start'])
+        pos_to_rank = {idx: rank for rank, (idx, _) in enumerate(orfs_by_pos)}
+        existing_names = {j['name'] for j in self.af3_jobs}
+        added = 0
+        for hi in orf_indices:
+            if not (0 <= hi < len(self.orfs)):
+                continue
+            ho = self.orfs[hi]; hp = ho['protein'].rstrip('*'); hn = f"ORF{hi+1}"
+            hr = pos_to_rank.get(hi, 0)
+            for d in range(-n_nb, n_nb + 1):
+                if d == 0:
+                    continue
+                nr = hr + d
+                if not (0 <= nr < len(orfs_by_pos)):
+                    continue
+                ni, no = orfs_by_pos[nr]
+                np_s = no['protein'].rstrip('*')
+                nn   = f"ORF{ni+1}"
+                tr   = len(hp) + len(np_s)
+                job_name = f"{hn}_vs_{nn}_{'up' if d < 0 else 'dn'}{abs(d)}_tbl"
+                if job_name in existing_names:
+                    continue
+                self.af3_jobs.append({
+                    'name':            job_name,
+                    'hit_orf_idx':     hi,
+                    'partner_orf_idx': ni,
+                    'hit_name':        hn,
+                    'partner_name':    nn,
+                    'total_residues':  tr,
+                    'paeinter':        None,
+                    'status':          ('pending' if tr <= self.af3_max_residues
+                                        else f'>{self.af3_max_residues}!'),
+                    'iptm':  None,
+                    'plddt': None,
+                    'sequences': [
+                        {'proteinChain': {'sequence': hp,   'count': 1}},
+                        {'proteinChain': {'sequence': np_s, 'count': 1}}],
+                })
+                existing_names.add(job_name)
+                added += 1
+        self._af3_update_jobs_table()
+        self._switch_to_af3_tab()
+        self._status.showMessage(
+            f"✓ {added} neighbor jobs from {len(orf_indices)} ORF(s), N={n_nb} → AlphaFold tab")
+
+    def _orf_table_af3_quick_homodimer(self, orf_idx: int):
+        """Add one ORF to AF3 list and generate its homodimer job, switch tab."""
+        if not (0 <= orf_idx < len(self.orfs)):
+            return
+        self._orf_table_af3_add_multi([orf_idx], switch_tab=False)
+        orf  = self.orfs[orf_idx]
+        hp   = orf['protein'].rstrip('*')
+        hn   = f"ORF{orf_idx+1}"
+        name = f"{hn}_homodimer_tbl"
+        if any(j['name'] == name for j in self.af3_jobs):
+            self._switch_to_af3_tab()
+            return
+        tr = len(hp) * 2
+        self.af3_jobs.append({
+            'name':            name,
+            'hit_orf_idx':     orf_idx,
+            'partner_orf_idx': orf_idx,
+            'hit_name':        hn,
+            'partner_name':    hn,
+            'total_residues':  tr,
+            'paeinter':        None,
+            'status':          ('pending' if tr <= self.af3_max_residues
+                                else f'>{self.af3_max_residues}!'),
+            'iptm':  None,
+            'plddt': None,
+            'sequences': [{'proteinChain': {'sequence': hp, 'count': 2}}],
+        })
+        self._af3_update_jobs_table()
+        self._switch_to_af3_tab()
+        self._status.showMessage(f"✓ Homodimer job added for {hn} → AlphaFold tab")
 
     def _annotate_orf(self, orf, orf_idx):
         """Dialog to annotate an ORF with observation, function, gene name."""
@@ -7205,8 +9414,11 @@ DOMAINS IN NEIGHBORHOOD:
             f"<b>{n_total} ORFs</b> detected in the genome.<br>"
             "All will be added to the AF3 selection list for genome-wide<br>"
             "interactome scanning.<br><br>"
-            f"<i>Tip: Using mode <b>Genomic Interactome (Selected ORFs vs All ORFs)</b> will<br>"
-            f"generate up to <b>{n_total*(n_total-1)//2:,}</b> pairwise AF3 jobs.<br>"
+            f"<i>Tip: Mode <b>Genomic Interactome</b> generates up to "
+            f"<b>{n_total*(n_total-1)//2:,}</b> pairs.<br>"
+            f"Mode <b>Neighbors Interactome</b> (sliding window N) is "
+            f"much lighter: <b>N·n − N(N+1)/2</b> pairs — e.g. "
+            f"{5*n_total - 15:,} pairs at N=5.<br>"
             "Apply size filters below to keep the job count manageable.</i>")
         info.setWordWrap(True)
         dl.addWidget(info)
@@ -7339,8 +9551,10 @@ DOMAINS IN NEIGHBORHOOD:
         self._af3_sel_count.setText(f"{self._af3_sel_table.rowCount()} ORFs selected")
 
     def _af3_clear_all(self):
-        self._af3_sel_table.setRowCount(0); self._af3_jobs_table.setRowCount(0)
-        self.af3_jobs = []; self._af3_text.clear(); self._af3_sel_count.setText("0 ORFs selected")
+        self._af3_sel_table.setRowCount(0)
+        self._af3_jobs_table.setRowCount(0)
+        self.af3_jobs = []
+        self._af3_sel_count.setText("0 ORFs selected")
 
     def _af3_generate_jobs(self):
         n_sel = self._af3_sel_table.rowCount()
@@ -7350,19 +9564,17 @@ DOMAINS IN NEIGHBORHOOD:
         sel_indices = []
         for r in range(n_sel):
             try:
-                idx = int(self._af3_sel_table.item(r,0).text().replace('ORF',''))-1
+                idx = self._parse_orf_idx_from_text(self._af3_sel_table.item(r, 0).text())
                 if 0 <= idx < len(self.orfs): sel_indices.append(idx)
             except (AttributeError, ValueError, TypeError): continue
         orfs_by_pos = sorted(enumerate(self.orfs), key=lambda x: x[1]['start'])
         pos_to_rank = {idx: rank for rank, (idx, _) in enumerate(orfs_by_pos)}
 
-        # ── Genome-wide Interactome: each SELECTED ORF vs ALL genome ORFs ──
+        # ── Genomic Interactome: each SELECTED ORF vs ALL genome ORFs ──────
         if mode.startswith("Genomic Interactome"):
             n_sel_orfs = len(sel_indices)
             n_genome   = len(self.orfs)
-            # Each selected ORF is paired against every genome ORF (excl. self).
-            # Symmetric pairs (A-B / B-A) are collapsed via a seen set.
-            estimated = n_sel_orfs * (n_genome - 1)
+            estimated  = n_sel_orfs * (n_genome - 1)
             if estimated > 5000:
                 ans = QMessageBox.question(
                     self, "Genomic Interactome — large job set",
@@ -7374,22 +9586,20 @@ DOMAINS IN NEIGHBORHOOD:
                     if QT_VERSION == 6 else QMessageBox.Yes | QMessageBox.No)
                 if ans != (QMessageBox.StandardButton.Yes if QT_VERSION == 6 else QMessageBox.Yes):
                     return
-
             seen_pairs = set()
             for hi in sel_indices:
                 ho = self.orfs[hi]; hp = ho['protein'].rstrip('*'); hn = f"ORF{hi+1}"
-                for gj, go in enumerate(self.orfs):   # every ORF in genome
-                    if gj == hi: continue              # skip self-pair
+                for gj, go in enumerate(self.orfs):
+                    if gj == hi: continue
                     pair_key = (min(hi, gj), max(hi, gj))
                     if pair_key in seen_pairs: continue
                     seen_pairs.add(pair_key)
-                    gp = go['protein'].rstrip('*'); gn = f"ORF{gj+1}"
-                    tr = len(hp) + len(gp)
+                    gp = go['protein'].rstrip('*'); gn = f"ORF{gj+1}"; tr = len(hp) + len(gp)
                     self.af3_jobs.append({
                         'name': f"{hn}_vs_{gn}_interactome",
                         'hit_orf_idx': hi, 'partner_orf_idx': gj,
                         'hit_name': hn, 'partner_name': gn,
-                        'total_residues': tr,
+                        'total_residues': tr, 'paeinter': None,
                         'status': 'pending' if tr <= self.af3_max_residues else f'>{self.af3_max_residues}!',
                         'iptm': None, 'plddt': None,
                         'sequences': [
@@ -7402,52 +9612,289 @@ DOMAINS IN NEIGHBORHOOD:
                 f"({len(seen_pairs)} unique pairs)")
             return
 
+        # ── Neighbors Interactome: genome-wide sliding window ───────────────
+        if mode.startswith("Neighbors Interactome"):
+            ordered   = [idx for idx, _ in orfs_by_pos]
+            n_gen     = len(ordered)
+            estimated = sum(1 for ra in range(n_gen)
+                            for d in range(1, n_nb+1) if ra+d < n_gen)
+            if estimated > 5000:
+                ans = QMessageBox.question(
+                    self, "Neighbors Interactome — large job set",
+                    f"This will generate <b>{estimated:,}</b> pairwise AF3 jobs "
+                    f"over the entire genome<br>"
+                    f"(<b>{n_gen}</b> ORFs, window N=<b>{n_nb}</b>).<br><br>"
+                    "Symmetric duplicates (A↔B) are already removed.<br>Continue?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                    if QT_VERSION == 6 else QMessageBox.Yes | QMessageBox.No)
+                if ans != (QMessageBox.StandardButton.Yes if QT_VERSION == 6 else QMessageBox.Yes):
+                    return
+            seen_pairs = set()
+            for rank_a in range(n_gen):
+                ia = ordered[rank_a]; oa = self.orfs[ia]
+                sa = oa['protein'].rstrip('*'); na = f"ORF{ia+1}"
+                for d in range(1, n_nb+1):
+                    rank_b = rank_a + d
+                    if rank_b >= n_gen: break
+                    ib = ordered[rank_b]; ob = self.orfs[ib]
+                    sb = ob['protein'].rstrip('*'); nb = f"ORF{ib+1}"
+                    key = (ia, ib) if ia < ib else (ib, ia)
+                    if key in seen_pairs: continue
+                    seen_pairs.add(key)
+                    tr = len(sa) + len(sb)
+                    self.af3_jobs.append({
+                        'name': f"{na}_vs_{nb}_nbr{d}",
+                        'hit_orf_idx': ia, 'partner_orf_idx': ib,
+                        'hit_name': na, 'partner_name': nb,
+                        'total_residues': tr, 'paeinter': None,
+                        'status': ('pending' if tr <= self.af3_max_residues
+                                   else f'>{self.af3_max_residues}!'),
+                        'iptm': None, 'plddt': None,
+                        'sequences': [
+                            {'proteinChain': {'sequence': sa, 'count': 1}},
+                            {'proteinChain': {'sequence': sb, 'count': 1}}]})
+            self._af3_update_jobs_table()
+            self._status.showMessage(
+                f"✓ {len(self.af3_jobs)} Neighbors Interactome jobs — "
+                f"genome-wide sliding window N={n_nb} "
+                f"({len(seen_pairs)} unique pairs over {n_gen} ORFs)")
+            return
+
+        # ── Selected vs Selected (Ctrl+click highlighted rows) ──────────────
+        if mode.startswith("Selected vs Selected"):
+            highlighted = sorted(set(
+                idx.row() for idx in self._af3_sel_table.selectedIndexes()))
+            hl_indices  = []
+            for r in highlighted:
+                try:
+                    idx = self._parse_orf_idx_from_text(self._af3_sel_table.item(r, 0).text())
+                    if 0 <= idx < len(self.orfs): hl_indices.append(idx)
+                except (AttributeError, ValueError, TypeError): continue
+            if len(hl_indices) < 2:
+                QMessageBox.information(
+                    self, "AF3 — Selected vs Selected",
+                    "Ctrl+click at least 2 ORFs in the selection list above first.")
+                return
+            seen_pairs = set()
+            for i_a in range(len(hl_indices)):
+                for i_b in range(i_a + 1, len(hl_indices)):
+                    hi = hl_indices[i_a]; pi = hl_indices[i_b]
+                    key = (min(hi, pi), max(hi, pi))
+                    if key in seen_pairs: continue
+                    seen_pairs.add(key)
+                    hn = f"ORF{hi+1}"; pn = f"ORF{pi+1}"
+                    hp = self.orfs[hi]['protein'].rstrip('*')
+                    pp = self.orfs[pi]['protein'].rstrip('*')
+                    tr = len(hp) + len(pp)
+                    self.af3_jobs.append({
+                        'name': f"{hn}_vs_{pn}_selected",
+                        'hit_orf_idx': hi, 'partner_orf_idx': pi,
+                        'hit_name': hn, 'partner_name': pn,
+                        'total_residues': tr, 'paeinter': None,
+                        'status': ('pending' if tr <= self.af3_max_residues
+                                   else f'>{self.af3_max_residues}!'),
+                        'iptm': None, 'plddt': None,
+                        'sequences': [
+                            {'proteinChain': {'sequence': hp, 'count': 1}},
+                            {'proteinChain': {'sequence': pp, 'count': 1}}]})
+            self._af3_update_jobs_table()
+            self._status.showMessage(
+                f"✓ {len(self.af3_jobs)} job(s) from {len(hl_indices)} Ctrl+selected ORFs")
+            return
+
+        # ── All vs All (all ORFs in selection list) ──────────────────────────
+        if mode.startswith("All vs All"):
+            n_s = len(sel_indices); est = n_s * (n_s - 1) // 2
+            if est > 5000:
+                ans = QMessageBox.question(
+                    self, "All vs All — large job set",
+                    f"This will generate <b>{est:,}</b> pairwise jobs "
+                    f"from <b>{n_s}</b> selected ORFs. Continue?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                    if QT_VERSION == 6 else QMessageBox.Yes | QMessageBox.No)
+                if ans != (QMessageBox.StandardButton.Yes if QT_VERSION == 6 else QMessageBox.Yes):
+                    return
+            seen_pairs = set()
+            for i_a in range(len(sel_indices)):
+                for i_b in range(i_a + 1, len(sel_indices)):
+                    hi = sel_indices[i_a]; pi = sel_indices[i_b]
+                    key = (min(hi, pi), max(hi, pi))
+                    if key in seen_pairs: continue
+                    seen_pairs.add(key)
+                    hn = f"ORF{hi+1}"; pn = f"ORF{pi+1}"
+                    hp = self.orfs[hi]['protein'].rstrip('*')
+                    pp = self.orfs[pi]['protein'].rstrip('*')
+                    tr = len(hp) + len(pp)
+                    self.af3_jobs.append({
+                        'name': f"{hn}_vs_{pn}_allvsall",
+                        'hit_orf_idx': hi, 'partner_orf_idx': pi,
+                        'hit_name': hn, 'partner_name': pn,
+                        'total_residues': tr, 'paeinter': None,
+                        'status': ('pending' if tr <= self.af3_max_residues
+                                   else f'>{self.af3_max_residues}!'),
+                        'iptm': None, 'plddt': None,
+                        'sequences': [
+                            {'proteinChain': {'sequence': hp, 'count': 1}},
+                            {'proteinChain': {'sequence': pp, 'count': 1}}]})
+            self._af3_update_jobs_table()
+            self._status.showMessage(f"✓ {len(self.af3_jobs)} All vs All jobs generated")
+            return
+
+        # ── HMM Hits vs Each Other ───────────────────────────────────────────
+        if mode.startswith("HMM Hits vs Each Other"):
+            hmm_indices = [i for i in sel_indices
+                           if any(h.get('orf_index') == i for h in self.hmm_hits_all)]
+            if len(hmm_indices) < 2:
+                QMessageBox.information(
+                    self, "AF3 — HMM Hits vs Each Other",
+                    "Need at least 2 ORFs with HMM hits in the selection list.\n"
+                    "Run HMM search first, then use 'Add HMM Hits'.")
+                return
+            seen_pairs = set()
+            for i_a in range(len(hmm_indices)):
+                for i_b in range(i_a + 1, len(hmm_indices)):
+                    hi = hmm_indices[i_a]; pi = hmm_indices[i_b]
+                    key = (min(hi, pi), max(hi, pi))
+                    if key in seen_pairs: continue
+                    seen_pairs.add(key)
+                    hn = f"ORF{hi+1}"; pn = f"ORF{pi+1}"
+                    hp = self.orfs[hi]['protein'].rstrip('*')
+                    pp = self.orfs[pi]['protein'].rstrip('*')
+                    tr = len(hp) + len(pp)
+                    self.af3_jobs.append({
+                        'name': f"{hn}_vs_{pn}_hmmhits",
+                        'hit_orf_idx': hi, 'partner_orf_idx': pi,
+                        'hit_name': hn, 'partner_name': pn,
+                        'total_residues': tr, 'paeinter': None,
+                        'status': ('pending' if tr <= self.af3_max_residues
+                                   else f'>{self.af3_max_residues}!'),
+                        'iptm': None, 'plddt': None,
+                        'sequences': [
+                            {'proteinChain': {'sequence': hp, 'count': 1}},
+                            {'proteinChain': {'sequence': pp, 'count': 1}}]})
+            self._af3_update_jobs_table()
+            self._status.showMessage(
+                f"✓ {len(self.af3_jobs)} jobs from {len(hmm_indices)} HMM-hit ORFs")
+            return
+
+        # ── Hit vs All Selected ──────────────────────────────────────────────
+        if mode.startswith("Hit vs All Selected"):
+            if len(sel_indices) < 2:
+                QMessageBox.information(
+                    self, "AF3 — Hit vs All Selected",
+                    "Need at least 2 ORFs in the selection list.\n"
+                    "The topmost row is used as the query ORF.")
+                return
+            query_idx = sel_indices[0]
+            qn = f"ORF{query_idx+1}"
+            qp = self.orfs[query_idx]['protein'].rstrip('*')
+            for pi in sel_indices[1:]:
+                pn = f"ORF{pi+1}"; pp = self.orfs[pi]['protein'].rstrip('*')
+                tr = len(qp) + len(pp)
+                self.af3_jobs.append({
+                    'name': f"{qn}_vs_{pn}_hitall",
+                    'hit_orf_idx': query_idx, 'partner_orf_idx': pi,
+                    'hit_name': qn, 'partner_name': pn,
+                    'total_residues': tr, 'paeinter': None,
+                    'status': ('pending' if tr <= self.af3_max_residues
+                               else f'>{self.af3_max_residues}!'),
+                    'iptm': None, 'plddt': None,
+                    'sequences': [
+                        {'proteinChain': {'sequence': qp, 'count': 1}},
+                        {'proteinChain': {'sequence': pp, 'count': 1}}]})
+            self._af3_update_jobs_table()
+            self._status.showMessage(
+                f"✓ {len(self.af3_jobs)} jobs: {qn} vs {len(sel_indices)-1} selected ORFs")
+            return
+
+        # ── Pairs (Hit vs Neighbor) — default neighbor-walk mode ────────────
         for hi in sel_indices:
-            ho = self.orfs[hi]; hr = pos_to_rank.get(hi,0); hp = ho['protein'].rstrip('*'); hn = f"ORF{hi+1}"
+            ho = self.orfs[hi]; hr = pos_to_rank.get(hi, 0)
+            hp = ho['protein'].rstrip('*'); hn = f"ORF{hi+1}"
             nbs = []
-            for d in range(-n_nb, n_nb+1):
+            for d in range(-n_nb, n_nb + 1):
                 if d == 0: continue
                 nr = hr + d
                 if 0 <= nr < len(orfs_by_pos):
                     ni, no = orfs_by_pos[nr]; nbs.append((ni, no, d))
-            if mode.startswith("Pairs (Hit vs Neighbor)"):
-                for ni, no, d in nbs:
-                    np_s = no['protein'].rstrip('*'); tr = len(hp)+len(np_s)
-                    self.af3_jobs.append({'name': f"{hn}_vs_ORF{ni+1}_{'up' if d<0 else 'down'}{abs(d)}",
-                        'hit_orf_idx': hi, 'partner_orf_idx': ni, 'hit_name': hn, 'partner_name': f"ORF{ni+1}",
-                        'total_residues': tr, 'status': 'pending' if tr<=self.af3_max_residues else f'>{self.af3_max_residues}!',
-                        'iptm': None, 'plddt': None,
-                        'sequences': [{'proteinChain':{'sequence':hp,'count':1}},{'proteinChain':{'sequence':np_s,'count':1}}]})
-            elif mode.startswith("Homodimer (Hit vs Itself)"):
-                tr = len(hp)*2
-                self.af3_jobs.append({'name': f"{hn}_homodimer", 'hit_orf_idx': hi, 'partner_orf_idx': hi,
-                    'hit_name': hn, 'partner_name': hn, 'total_residues': tr,
-                    'status': 'pending' if tr<=self.af3_max_residues else f'>{self.af3_max_residues}!',
-                    'iptm': None, 'plddt': None, 'sequences': [{'proteinChain':{'sequence':hp,'count':2}}]})
-            elif mode.startswith("Pairs + Homodimers"):
-                for ni, no, d in nbs:
-                    np_s = no['protein'].rstrip('*'); tr = len(hp)+len(np_s)
-                    self.af3_jobs.append({'name': f"{hn}_vs_ORF{ni+1}_{'up' if d<0 else 'down'}{abs(d)}",
-                        'hit_orf_idx': hi, 'partner_orf_idx': ni, 'hit_name': hn, 'partner_name': f"ORF{ni+1}",
-                        'total_residues': tr, 'status': 'pending' if tr<=self.af3_max_residues else f'>{self.af3_max_residues}!',
-                        'iptm': None, 'plddt': None,
-                        'sequences': [{'proteinChain':{'sequence':hp,'count':1}},{'proteinChain':{'sequence':np_s,'count':1}}]})
-                tr2 = len(hp)*2
-                self.af3_jobs.append({'name': f"{hn}_homodimer", 'hit_orf_idx': hi, 'partner_orf_idx': hi,
-                    'hit_name': hn, 'partner_name': hn, 'total_residues': tr2,
-                    'status': 'pending' if tr2<=self.af3_max_residues else f'>{self.af3_max_residues}!',
-                    'iptm': None, 'plddt': None, 'sequences': [{'proteinChain':{'sequence':hp,'count':2}}]})
+            for ni, no, d in nbs:
+                np_s = no['protein'].rstrip('*'); tr = len(hp) + len(np_s)
+                self.af3_jobs.append({
+                    'name': f"{hn}_vs_ORF{ni+1}_{'up' if d < 0 else 'down'}{abs(d)}",
+                    'hit_orf_idx': hi, 'partner_orf_idx': ni,
+                    'hit_name': hn, 'partner_name': f"ORF{ni+1}",
+                    'total_residues': tr, 'paeinter': None,
+                    'status': 'pending' if tr <= self.af3_max_residues else f'>{self.af3_max_residues}!',
+                    'iptm': None, 'plddt': None,
+                    'sequences': [
+                        {'proteinChain': {'sequence': hp, 'count': 1}},
+                        {'proteinChain': {'sequence': np_s, 'count': 1}}]})
+
+        # ── Homodimer checkbox — appended after any mode ─────────────────────
+        if self._af3_homodimer_cb.isChecked():
+            existing_names = {j['name'] for j in self.af3_jobs}
+            for hi in sel_indices:
+                ho = self.orfs[hi]; hp = ho['protein'].rstrip('*'); hn = f"ORF{hi+1}"
+                hname = f"{hn}_homodimer"
+                if hname in existing_names: continue
+                tr2 = len(hp) * 2
+                self.af3_jobs.append({
+                    'name': hname,
+                    'hit_orf_idx': hi, 'partner_orf_idx': hi,
+                    'hit_name': hn, 'partner_name': hn,
+                    'total_residues': tr2, 'paeinter': None,
+                    'status': 'pending' if tr2 <= self.af3_max_residues else f'>{self.af3_max_residues}!',
+                    'iptm': None, 'plddt': None,
+                    'sequences': [{'proteinChain': {'sequence': hp, 'count': 2}}]})
+
         self._af3_update_jobs_table()
         self._status.showMessage(f"✓ {len(self.af3_jobs)} AF3 jobs generated")
 
     def _af3_update_jobs_table(self):
         self._af3_jobs_table.setRowCount(0)
         for j in self.af3_jobs:
-            row = self._af3_jobs_table.rowCount(); self._af3_jobs_table.insertRow(row)
-            iptm_s = f"{j['iptm']:.3f}" if j.get('iptm') is not None else '-'
-            plddt_s = f"{j.get('plddt',0):.1f}" if j.get('plddt') else '-'
-            for col, val in enumerate([j['name'],j['hit_name'],j['partner_name'],str(j['total_residues']),j['status'],iptm_s,plddt_s]):
-                self._af3_jobs_table.setItem(row, col, QTableWidgetItem(val))
+            row = self._af3_jobs_table.rowCount()
+            self._af3_jobs_table.insertRow(row)
+            iptm_s   = f"{j['iptm']:.3f}" if j.get('iptm') is not None else '-'
+            paeinter = j.get('paeinter')
+            pae_s    = f"{paeinter:.1f}" if paeinter is not None else '-'
+            # Confidence classification (ipTM > 0.75 AND PAEinter < 8 Å = HIGH)
+            iptm_val = j.get('iptm')
+            if iptm_val is not None and paeinter is not None:
+                if iptm_val >= 0.75 and paeinter < 8.0:
+                    conf_str = "HIGH ★"
+                    conf_color = "#1b5e20"
+                    conf_bg    = "#e8f5e9"
+                elif iptm_val >= 0.5 or paeinter < 15.0:
+                    conf_str = "MED"
+                    conf_color = "#e65100"
+                    conf_bg    = "#fff3e0"
+                else:
+                    conf_str = "LOW"
+                    conf_color = "#b71c1c"
+                    conf_bg    = "#ffebee"
+            else:
+                conf_str = "-"
+                conf_color = None
+                conf_bg    = None
+
+            vals = [j['name'], j['hit_name'], j['partner_name'],
+                    str(j['total_residues']), j['status'],
+                    iptm_s, pae_s, conf_str]
+            high_confidence = (iptm_val is not None and paeinter is not None and
+                                iptm_val >= 0.75 and paeinter < 8.0)
+            for col, val in enumerate(vals):
+                item = QTableWidgetItem(val)
+                if high_confidence:
+                    f = item.font(); f.setBold(True); item.setFont(f)
+                if col == 7 and conf_bg:
+                    try:
+                        from PyQt6.QtGui import QColor as _QColor
+                    except ImportError:
+                        from PyQt5.QtGui import QColor as _QColor
+                    item.setBackground(_QColor(conf_bg))
+                    item.setForeground(_QColor(conf_color))
+                self._af3_jobs_table.setItem(row, col, item)
 
     def _af3_export_json(self):
         if not self.af3_jobs: QMessageBox.warning(self,"AF3","Generate jobs first!"); return
@@ -7782,17 +10229,46 @@ echo "Submitted {n_batches} jobs."
         QMessageBox.information(self, "SLURM Array Export", _msg)
 
     def _af3_show_ranking(self):
+        """Show ipTM ranking in a floating dialog (no longer uses the removed _af3_text panel)."""
         done = [j for j in self.af3_jobs if j.get('iptm') is not None]
-        if not done: QMessageBox.information(self,"AF3","No results imported yet."); return
+        if not done:
+            QMessageBox.information(self, "AF3 Ranking", "No results imported yet.")
+            return
         ranked = sorted(done, key=lambda x: x['iptm'], reverse=True)
-        txt = f"RANKING ipTM\n{'='*60}\n>0.8=high | 0.6-0.8=likely | <0.4=unlikely\n\n"
+        txt = f"RANKING — ipTM\n{'='*62}\nipTM > 0.75 + PAEinter < 8 Å = HIGH confidence\n\n"
+        txt += f"{'#':<4}  {'ipTM':>6}  {'pLDDT':>6}  {'Hit':<12}  {'Partner':<12}  {'Job name'}\n"
+        txt += "-" * 62 + "\n"
         for i, j in enumerate(ranked):
-            p = j.get('plddt',0) or 0; s = "★★★" if j['iptm']>=0.8 else "★★" if j['iptm']>=0.6 else "★" if j['iptm']>=0.4 else ""
-            txt += f"{i+1:<4} {j['iptm']:.3f}  {p:>5.1f}  {j['hit_name']:<10} {j['partner_name']:<10} {j['name']} {s}\n"
-        self._af3_text.setPlainText(txt)
+            p  = j.get('plddt', 0) or 0
+            pi = j.get('paeinter')
+            stars = "★★★" if j['iptm'] >= 0.8 else "★★" if j['iptm'] >= 0.6 else "★" if j['iptm'] >= 0.4 else ""
+            pae_str = f"  PAEi={pi:.1f}" if pi is not None else ""
+            txt += (f"{i+1:<4}  {j['iptm']:>6.3f}  {p:>6.1f}"
+                    f"  {j['hit_name']:<12}  {j['partner_name']:<12}"
+                    f"  {j['name']} {stars}{pae_str}\n")
+
+        dlg = QDialog(self)
+        dlg.setWindowTitle(f"AF3 Ranking — {len(ranked)} result(s)")
+        dlg.setMinimumSize(700, 420)
+        dl = QVBoxLayout(dlg)
+        te = QTextEdit()
+        te.setFont(QFont('Courier New', 9))
+        te.setReadOnly(True)
+        te.setPlainText(txt)
+        dl.addWidget(te)
+        btns = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Close if QT_VERSION == 6
+            else QDialogButtonBox.Close)
+        btns.rejected.connect(dlg.reject)
+        dl.addWidget(btns)
+        if QT_VERSION == 6:
+            dlg.exec()
+        else:
+            dlg.exec_()
 
     def _af3_clear_jobs(self):
-        self._af3_jobs_table.setRowCount(0); self.af3_jobs = []; self._af3_text.clear()
+        self._af3_jobs_table.setRowCount(0)
+        self.af3_jobs = []
 
     # ──────────────────────────────────────────────────────────
     # Dynamic multi-subunit custom job helpers
@@ -7865,7 +10341,7 @@ echo "Submitted {n_batches} jobs."
             return int(m.group(1)) - 1 if m else -1
 
         if not self._custom_subunit_rows:
-            QMessageBox.warning(self, "Custom Job", "Nenhuma subunidade definida.")
+            QMessageBox.warning(self, "Custom Job", "No subunits defined.")
             return
 
         # ── Validate & collect all subunits ──
@@ -7875,11 +10351,11 @@ echo "Submitted {n_batches} jobs."
             letter = self._CHAIN_LETTERS[i] if i < len(self._CHAIN_LETTERS) else str(i + 1)
             raw = orf_edit.text().strip()
             if not raw:
-                errors.append(f"Cadeia {letter}: campo ORF vazio.")
+                errors.append(f"Chain {letter}: ORF field is empty.")
                 continue
             idx = _parse_orf_idx(raw)
             if idx < 0 or idx >= len(self.orfs):
-                errors.append(f"Cadeia {letter}: '{raw}' não encontrada.")
+                errors.append(f"Chain {letter}: '{raw}' not found in ORF list.")
                 continue
             subunits.append((idx, n_spin.value(), letter))
 
@@ -7887,7 +10363,7 @@ echo "Submitted {n_batches} jobs."
             QMessageBox.warning(self, "Custom Job", "\n".join(errors))
             return
         if not subunits:
-            QMessageBox.warning(self, "Custom Job", "Nenhuma subunidade válida.")
+            QMessageBox.warning(self, "Custom Job", "No valid subunits defined.")
             return
 
         # ── Build AF3 sequences list (merge identical ORFs) ──
@@ -7930,29 +10406,304 @@ echo "Submitted {n_batches} jobs."
                                 else f'>{self.af3_max_residues}!'),
             'iptm':            None,
             'plddt':           None,
+            'paeinter':        None,
             'sequences':       sequences,
         })
         self._af3_update_jobs_table()
         n_chains = len(subunits)
         self._status.showMessage(
-            f"✓ Custom job: {n_chains} subunidade(s) [{chain_summary}]  "
-            f"({total_residues} resíduos)")
+            f"✓ Custom job: {n_chains} subunit(s) [{chain_summary}]  "
+            f"({total_residues} residues)")
 
     def _af3_jobs_right_click(self, pos):
-        """Right-click on AF3 jobs table → delete selected jobs."""
+        """Right-click on AF3 jobs table → enhanced context menu."""
         rows = sorted(set(idx.row() for idx in self._af3_jobs_table.selectedIndexes()))
-        if not rows: return
+        if not rows:
+            return
         menu = QMenu(self)
         n = len(rows)
-        menu.addAction(f"🗑️ Delete {n} selected job{'s' if n > 1 else ''}",
-                       self._af3_delete_selected_jobs)
+
+        # ── Navigation ──────────────────────────────────────────────────────
+        if len(rows) == 1 and rows[0] < len(self.af3_jobs):
+            j = self.af3_jobs[rows[0]]
+            hi = j.get('hit_orf_idx', -1)
+            pi = j.get('partner_orf_idx', -1)
+            if hi >= 0:
+                menu.addAction(
+                    f"🗺  Focus genome → {j['hit_name']}",
+                    lambda _hi=hi: self._select_and_center_orf(_hi))
+            if pi >= 0 and pi != hi:
+                menu.addAction(
+                    f"🗺  Focus genome → {j['partner_name']}",
+                    lambda _pi=pi: self._select_and_center_orf(_pi))
+            menu.addSeparator()
+
+        # ── Export selected jobs only ────────────────────────────────────────
+        menu.addAction(
+            f"⬇  Export {n} selected job{'s' if n > 1 else ''} as JSON…",
+            lambda: self._af3_export_selected_jobs_json(rows))
         menu.addSeparator()
-        menu.addAction("📋 Copy job names",
-                       lambda: self._copy_to_clipboard(
-                           '\n'.join(self.af3_jobs[r]['name'] for r in rows if r < len(self.af3_jobs))))
-        menu.exec(self._af3_jobs_table.viewport().mapToGlobal(pos)
-                   if QT_VERSION == 6 else
-                   self._af3_jobs_table.viewport().mapToGlobal(pos))
+
+        # ── Clipboard ────────────────────────────────────────────────────────
+        menu.addAction(
+            "📋  Copy job names",
+            lambda: self._copy_to_clipboard(
+                '\n'.join(self.af3_jobs[r]['name']
+                          for r in rows if r < len(self.af3_jobs))))
+        menu.addSeparator()
+
+        # ── Delete ───────────────────────────────────────────────────────────
+        menu.addAction(
+            f"🗑  Delete {n} selected job{'s' if n > 1 else ''}",
+            self._af3_delete_selected_jobs)
+
+        menu.exec(self._af3_jobs_table.viewport().mapToGlobal(pos))
+
+    # ──────────────────────────────────────────────────────────────────────────
+    # AF3 selection-table helpers (NEW in v2.0)
+    # ──────────────────────────────────────────────────────────────────────────
+
+    def _af3_sel_table_click(self, row, col):
+        """Left-click a row in the AF3 selection table →
+        center genome map on that ORF and select it in the main ORF table."""
+        item = self._af3_sel_table.item(row, 0)
+        if item is None:
+            return
+        idx = self._parse_orf_idx_from_text(item.text())
+        if idx >= 0:
+            self._select_and_center_orf(idx)
+
+    def _af3_jobs_table_click(self, row, col):
+        """Left-click a row in the AF3 jobs table →
+        center genome map on the Hit ORF of that job."""
+        if row < 0 or row >= len(self.af3_jobs):
+            return
+        j = self.af3_jobs[row]
+        hi = j.get('hit_orf_idx', -1)
+        if hi >= 0:
+            self._select_and_center_orf(hi)
+
+    def _af3_update_predict_pair_btn(self):
+        """Enable/disable the 'Predict Selected Pair' button based on how many
+        rows are highlighted in the AF3 selection table."""
+        n = len(set(idx.row() for idx in self._af3_sel_table.selectedIndexes()))
+        enabled = n >= 2
+        self._af3_predict_pair_btn.setEnabled(enabled)
+        if enabled:
+            self._af3_predict_pair_btn.setText(
+                f"⚡ Predict Selected Pair ({n} ORFs)")
+        else:
+            self._af3_predict_pair_btn.setText("⚡ Predict Selected Pair")
+
+    def _af3_predict_selected_pair(self):
+        """Create AF3 pairwise jobs for the rows currently highlighted in the
+        AF3 selection table via Ctrl+click (≥ 2 rows required).
+        All pairwise combinations among the highlighted ORFs are generated and
+        appended to the jobs list immediately — no mode dropdown involved."""
+        sel_rows = sorted(set(idx.row() for idx in self._af3_sel_table.selectedIndexes()))
+        if len(sel_rows) < 2:
+            QMessageBox.information(
+                self, "Predict Selected Pair",
+                "Ctrl+click at least 2 ORFs in the selection list first.")
+            return
+        if not self.orfs:
+            QMessageBox.warning(self, "AF3", "Run ORF analysis first!")
+            return
+
+        # Collect ORF indices for the highlighted rows
+        pair_indices = []
+        for r in sel_rows:
+            item = self._af3_sel_table.item(r, 0)
+            if item is None:
+                continue
+            try:
+                idx = int(item.text().replace('ORF', '')) - 1
+                if 0 <= idx < len(self.orfs):
+                    pair_indices.append(idx)
+            except (ValueError, TypeError):
+                continue
+
+        if len(pair_indices) < 2:
+            QMessageBox.warning(self, "AF3", "Could not resolve ORF indices.")
+            return
+
+        added = 0
+        existing_names = {j['name'] for j in self.af3_jobs}
+        seen_pairs: set = set()
+        for i_a in range(len(pair_indices)):
+            for i_b in range(i_a + 1, len(pair_indices)):
+                hi = pair_indices[i_a]
+                pi = pair_indices[i_b]
+                key = (min(hi, pi), max(hi, pi))
+                if key in seen_pairs:
+                    continue
+                seen_pairs.add(key)
+                hn = f"ORF{hi + 1}"; pn = f"ORF{pi + 1}"
+                job_name = f"{hn}_vs_{pn}_selected"
+                if job_name in existing_names:
+                    continue
+                hp = self.orfs[hi]['protein'].rstrip('*')
+                pp = self.orfs[pi]['protein'].rstrip('*')
+                tr = len(hp) + len(pp)
+                self.af3_jobs.append({
+                    'name':            job_name,
+                    'hit_orf_idx':     hi,
+                    'partner_orf_idx': pi,
+                    'hit_name':        hn,
+                    'partner_name':    pn,
+                    'total_residues':  tr,
+                    'status':          ('pending'
+                                        if tr <= self.af3_max_residues
+                                        else f'>{self.af3_max_residues}!'),
+                    'iptm':      None,
+                    'plddt':     None,
+                    'paeinter':  None,
+                    'sequences': [
+                        {'proteinChain': {'sequence': hp, 'count': 1}},
+                        {'proteinChain': {'sequence': pp, 'count': 1}}],
+                })
+                existing_names.add(job_name)
+                added += 1
+
+        self._af3_update_jobs_table()
+        self._status.showMessage(
+            f"✓ {added} pairwise job(s) added from Ctrl+click selection "
+            f"({len(pair_indices)} ORFs → {added} pair(s))")
+
+    def _af3_sel_table_right_click(self, pos):
+        """Right-click on the AF3 selection table → context menu."""
+        row = self._af3_sel_table.rowAt(pos.y())
+        if row < 0:
+            return
+        sel_rows = sorted(set(idx.row() for idx in self._af3_sel_table.selectedIndexes()))
+        menu = QMenu(self)
+
+        # ── Navigation (single-row click) ────────────────────────────────────
+        item = self._af3_sel_table.item(row, 0)
+        if item:
+            try:
+                orf_idx = int(item.text().replace('ORF', '')) - 1
+            except (ValueError, TypeError):
+                orf_idx = -1
+            orf_name = item.text()
+            if orf_idx >= 0:
+                menu.addAction(
+                    f"🗺  Focus genome on {orf_name}",
+                    lambda _i=orf_idx: self._select_and_center_orf(_i))
+                menu.addAction(
+                    f"🔍  Select {orf_name} in ORF table",
+                    lambda _i=orf_idx: self._select_and_center_orf(_i))
+                menu.addSeparator()
+
+                # ── Quick pair prediction ────────────────────────────────────
+                n_sel = len(sel_rows)
+                if n_sel >= 2:
+                    menu.addAction(
+                        f"⚡  Generate prediction for {n_sel} selected ORFs",
+                        self._af3_predict_selected_pair)
+                else:
+                    menu.addAction(
+                        f"⚡  Predict {orf_name} vs neighbors (Pairs mode)",
+                        lambda _i=orf_idx: self._af3_predict_single_vs_neighbors(_i))
+                menu.addSeparator()
+
+                # ── Sequence copy ────────────────────────────────────────────
+                if 0 <= orf_idx < len(self.orfs):
+                    orf = self.orfs[orf_idx]
+                    menu.addAction(
+                        "📋  Copy protein sequence (FASTA)",
+                        lambda _o=orf, _n=orf_name: self._copy_to_clipboard(
+                            f">{_n}\n{_o['protein'].rstrip('*')}"))
+                    menu.addAction(
+                        "📋  Copy DNA sequence",
+                        lambda _o=orf, _n=orf_name: self._copy_to_clipboard(
+                            f">{_n}\n{self.dna_sequence[_o['start']:_o['end']]}"
+                            if self.dna_sequence else "(no DNA loaded)"))
+                menu.addSeparator()
+
+        # ── Remove ───────────────────────────────────────────────────────────
+        n = len(sel_rows) if sel_rows else 1
+        menu.addAction(
+            f"✖  Remove {n} ORF{'s' if n > 1 else ''} from AF3 list",
+            self._af3_remove_orf)
+
+        menu.exec(self._af3_sel_table.viewport().mapToGlobal(pos))
+
+    def _af3_predict_single_vs_neighbors(self, orf_idx: int):
+        """Quick-predict one ORF against its genomic neighbors using the
+        current N-neighbors setting — without touching the mode combo."""
+        if not self.orfs:
+            return
+        n_nb = self._af3_nb_spin.value()
+        orf  = self.orfs[orf_idx]
+        hp   = orf['protein'].rstrip('*')
+        hn   = f"ORF{orf_idx + 1}"
+        orfs_by_pos = sorted(enumerate(self.orfs), key=lambda x: x[1]['start'])
+        pos_to_rank = {idx: rank for rank, (idx, _) in enumerate(orfs_by_pos)}
+        hr = pos_to_rank.get(orf_idx, 0)
+        existing_names = {j['name'] for j in self.af3_jobs}
+        added = 0
+        for d in range(-n_nb, n_nb + 1):
+            if d == 0:
+                continue
+            nr = hr + d
+            if not (0 <= nr < len(orfs_by_pos)):
+                continue
+            ni, no = orfs_by_pos[nr]
+            np_s = no['protein'].rstrip('*')
+            nn   = f"ORF{ni + 1}"
+            tr   = len(hp) + len(np_s)
+            job_name = f"{hn}_vs_{nn}_{'up' if d < 0 else 'down'}{abs(d)}_quick"
+            if job_name in existing_names:
+                continue
+            self.af3_jobs.append({
+                'name':            job_name,
+                'hit_orf_idx':     orf_idx,
+                'partner_orf_idx': ni,
+                'hit_name':        hn,
+                'partner_name':    nn,
+                'total_residues':  tr,
+                'status':          ('pending'
+                                    if tr <= self.af3_max_residues
+                                    else f'>{self.af3_max_residues}!'),
+                'iptm':     None,
+                'plddt':    None,
+                'paeinter': None,
+                'sequences': [
+                    {'proteinChain': {'sequence': hp,   'count': 1}},
+                    {'proteinChain': {'sequence': np_s, 'count': 1}}],
+            })
+            existing_names.add(job_name)
+            added += 1
+        self._af3_update_jobs_table()
+        self._status.showMessage(
+            f"✓ {added} quick-predict jobs added for {hn} vs {n_nb} neighbors")
+
+    def _af3_export_selected_jobs_json(self, rows: list):
+        """Export only the selected rows from the jobs table as individual JSONs."""
+        jobs_to_export = [self.af3_jobs[r] for r in rows if r < len(self.af3_jobs)]
+        if not jobs_to_export:
+            return
+        folder = QFileDialog.getExistingDirectory(self, "Select output folder for selected jobs")
+        if not folder:
+            return
+        errors = []
+        for j in jobs_to_export:
+            safe_name = re.sub(r'[^\w.\-]', '_', j['name'])
+            data = {"name": j['name'], "modelSeeds": [],
+                    "sequences": j['sequences'],
+                    "dialect": "alphafoldserver", "version": 2}
+            try:
+                with open(os.path.join(folder, f"{safe_name}.json"),
+                          'w', encoding='utf-8') as f:
+                    json.dump(data, f, indent=2, ensure_ascii=False)
+            except OSError as e:
+                errors.append(f"{safe_name}.json: {e}")
+        if errors:
+            QMessageBox.warning(self, "AF3 Export",
+                f"{len(errors)} file(s) could not be written:\n" + "\n".join(errors))
+        self._status.showMessage(
+            f"✓ {len(jobs_to_export) - len(errors)} selected job(s) exported as JSON")
 
     def _af3_delete_selected_jobs(self):
         """Delete selected rows from AF3 jobs table and internal list."""
@@ -8315,35 +11066,423 @@ echo "Submitted {n_batches} jobs."
         layout.addWidget(btns)
         dlg.exec() if QT_VERSION == 6 else dlg.exec_()
 
+    def _show_help_interaction_results(self):
+        """Help dialog: Interaction Results tab — full analysis guide."""
+        dlg = QDialog(self)
+        dlg.setWindowTitle("📈 Interaction Results — Analysis Guide")
+        dlg.resize(820, 680)
+        lay = QVBoxLayout(dlg)
+        txt = QTextEdit()
+        txt.setFont(QFont('Courier', 9))
+        txt.setReadOnly(True)
+        txt.setPlainText("""\
+INTERACTION RESULTS TAB — ppigFinder v2.0
+══════════════════════════════════════════════════════════════════
+
+PURPOSE
+───────
+The Interaction Results tab imports AlphaFold 3 output folders and
+displays ranked, annotated results for every predicted protein pair.
+It is the primary decision-support tool for identifying real
+protein-protein interactions from large AF3 batch runs.
+
+HOW TO USE
+──────────
+  1. Click "Load AF3 results folder" → select a folder containing one
+     or more AF3 job subfolders (each must contain a
+     *_summary_confidences_0.json AND a *_full_data_0.json).
+  2. Results appear in the table, sorted by ranking_score by default.
+  3. Click any row to view the PAE heatmap, pLDDT plot, and motif table
+     below.
+  4. Adjust filter controls to focus on high-confidence pairs.
+  5. Export to TSV for downstream analysis.
+
+TABLE COLUMNS (left → right)
+─────────────────────────────
+  Job name         Folder / job identifier
+  Chains (n)       Number of protein chains (usually 2 for pairwise)
+  Chain IDs        ORF names and sizes for each chain
+  ipTM             Interface pTM score (0–1). Measures how well AF3
+                   predicts the RELATIVE positions of the two chains.
+                   > 0.75 = high confidence  |  0.50–0.75 = likely
+  ptm              Predicted TM-score (single-chain quality; less
+                   informative for interaction assessment)
+  mean_pLDDT       Mean per-residue confidence (0–100). Both chains.
+  ranking_score    AF3's own combined confidence score
+  PAE_inter (Å)    GLOBAL mean of the entire off-diagonal PAE quadrant.
+                   ⚠ Diluted by disordered residues — use PAE_min ★
+  PAE_min ★ (Å)   Minimum PAE in the off-diagonal quadrant.
+                   = chain_pair_pae_min from summary_confidences.json.
+                   < 4 Å = at least one contact predicted with near-
+                   atomic confidence regardless of global disorder.
+                   KEY METRIC for domain-limited interactions.
+  cp_ipTM ★        Chain-pair ipTM for the interface only.
+                   = chain_pair_iptm[A][B] from summary_confidences.json.
+                   Removes intra-chain folding quality contribution.
+  Contact% ★       Fraction of residue pairs with PAE < 5 Å.
+                   Even small values (5–10%) confirm a focal interface.
+  Best contact     Focal residue ranges in each chain where PAE < 5 Å.
+
+CONFIDENCE CLASSIFICATION
+──────────────────────────
+  HIGH ★  (bold green row)
+          PAE_min < 4 Å  AND  cp_ipTM ≥ 0.50
+          → Focal domain contact confirmed by AF3 with high precision.
+          Recommended for follow-up (mutagenesis, pull-down, etc.).
+
+  MED     (amber row)
+          PAE_min 4–8 Å  (any cp_ipTM)
+          → Possible interaction; check the motif detector results and
+          pLDDT plots. May be a real but flexible interface.
+
+  LOW     (pink row)
+          PAE_min ≥ 8 Å
+          → No confident contact predicted. Could still be correct if
+          the proteins require a cofactor or membrane environment.
+
+FILTER CONTROLS
+───────────────
+  Contact threshold (Å)   Residues with inter-chain PAE below this
+                           value are counted as contacts. Affects the
+                           contact-region string and n_contacts display.
+                           Does NOT change ipTM or PAE_min.
+                           Typical: 5 Å (atomic contact); 10 Å (proximity).
+
+  min ipTM                 Hide rows with global ipTM below threshold.
+                           Set to 0.00 to show all results.
+
+  max PAE_inter            Hide rows with global PAE_inter above threshold.
+                           ⚠ Use with caution — PAE_inter is diluted by
+                           disorder. Prefer filtering by PAE_min ★ column.
+
+MOTIF DETECTION (second toolbar row)
+──────────────────────────────────────
+  core PAE (Å)    Tier-1 threshold: pixels below this form the motif
+                  core (high-confidence contacts). Typical: 5–8 Å.
+                  Lower = stricter, fewer but higher-confidence motifs.
+
+  ext PAE (Å)     Tier-2 threshold: used to grow the core bounding box
+                  to include peripheral contacts. Must be > core PAE.
+                  Typical: 12–18 Å.
+
+  min contact ≥   Minimum AF3 contact_probs value for a pixel to join
+                  the core. contact_probs is AF3's internal probability
+                  that two residues are in physical contact (independent
+                  of PAE). Set to 0.00 to disable (use PAE alone).
+
+  min size        Minimum bounding-box dimension (residues) for a motif
+                  to survive. Rejects isolated noise pixels.
+                  Recommended: 3–5 for domain contacts; 2 for peptides.
+
+  reciprocal ☑    Require the motif to appear in BOTH PAE quadrants
+                  (A→B and B→A) with ≥ 50% pixel overlap. Eliminates
+                  one-sided ghost motifs caused by disordered alignment.
+                  Strongly recommended: keep checked.
+
+  Rerun           Re-run motif detection on all loaded results with
+                  the current parameter values.
+
+REFERENCES
+──────────
+  [Evans et al. 2022]   ipTM, chain_pair_iptm, chain_pair_pae_min
+                        (AlphaFold-Multimer paper)
+  [Abramson et al. 2024] AF3 contact_probs, ranking_score
+  [Jumper et al. 2021]  PAE (Predicted Aligned Error) metric definition
+  [Humphreys et al. 2021] ipTM-based proteome-scale PPI screening
+  [Bryant et al. 2022]  PAE inter-chain analysis for PPI confidence
+  See Help → References & methodology for full citations.
+""")
+        lay.addWidget(txt)
+        btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Close
+                                if QT_VERSION == 6 else QDialogButtonBox.Close)
+        btns.rejected.connect(dlg.close)
+        lay.addWidget(btns)
+        dlg.exec() if QT_VERSION == 6 else dlg.exec_()
+
+    def _show_help_ppi_map(self):
+        """Help dialog: Genomic PPI Map tab guide."""
+        dlg = QDialog(self)
+        dlg.setWindowTitle("🧬 Genomic PPI Map — Guide")
+        dlg.resize(780, 560)
+        lay = QVBoxLayout(dlg)
+        txt = QTextEdit()
+        txt.setFont(QFont('Courier', 9))
+        txt.setReadOnly(True)
+        txt.setPlainText("""\
+GENOMIC PPI MAP TAB — ppigFinder v2.0
+══════════════════════════════════════════════════════════════════
+
+PURPOSE
+───────
+Displays all AF3-predicted protein-protein interactions as curved
+arcs drawn above a linear genomic map — analogous to published operon
+interaction diagrams (e.g. T4SS component interaction figures).
+
+This view makes it immediately apparent whether interacting partners
+are genomic neighbours (likely operon members) or distant co-operating
+proteins elsewhere in the chromosome.
+
+READING THE MAP
+───────────────
+  Horizontal axis   Genomic position (bp). Scroll to pan; mouse wheel
+                    to zoom (position under cursor is preserved).
+  ORF arrows        Directional arrows on the backbone; colour encodes
+                    HMM annotation family (green = HMM hit, orange =
+                    custom/VirD4, gray = no annotation).
+  Arcs above ORFs   Each arc connects a predicted interaction pair.
+    ─── green solid    PAE_min < 4 Å  — HIGH confidence
+    ─── amber dashed   PAE_min 4–8 Å  — MED confidence
+    ··· red dotted     PAE_min > 8 Å  — LOW / no contact
+  Arc height        By default, proportional to genomic distance:
+                    neighbouring ORFs = low flat arc (like operon diagrams);
+                    distant ORFs = tall arc.
+  Score label       PAE_min value shown near the arc apex.
+
+INTERACTION
+───────────
+  Click an arc      → Shows interaction details in the info bar AND
+                    selects the corresponding row in the Interaction
+                    Results table.
+  Click an ORF      → Centers the main genome map on that ORF.
+  Drag              → Pan the view.
+  Mouse wheel       → Zoom in/out (genomic position preserved).
+
+FILTER CONTROLS
+───────────────
+  Show              Filter by confidence: All / HIGH only / HIGH+MED /
+                    Focal hits (PAE_min < 4 Å AND cp_ipTM ≥ 0.50).
+  Color by          Metric used to determine arc colour (PAE_min ★
+                    recommended; also ipTM, cp_ipTM, Contact%).
+  Arc height        "By genomic distance" (default) reproduces the
+                    classic operon interaction diagram style;
+                    "By score" puts high-confidence arcs lower/closer;
+                    "Fixed" gives equal height to all arcs.
+
+EXPORT
+──────
+  Export SVG        Saves the entire arc map as a scalable vector
+                    graphic (SVG) suitable for publication figures.
+  Export TSV        Saves the currently displayed interactions as a
+                    tab-separated file with all confidence metrics.
+
+NOTE
+────
+The Genomic PPI Map reads from the same data as the Interaction Results
+table. Click "Refresh" after loading new AF3 results or changing filters
+in the Interaction Results tab.
+""")
+        lay.addWidget(txt)
+        btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Close
+                                if QT_VERSION == 6 else QDialogButtonBox.Close)
+        btns.rejected.connect(dlg.close)
+        lay.addWidget(btns)
+        dlg.exec() if QT_VERSION == 6 else dlg.exec_()
+
+    def _show_help_references(self):
+        """Help dialog: full references and methodology note."""
+        dlg = QDialog(self)
+        dlg.setWindowTitle("📚 References & Methodology")
+        dlg.resize(820, 700)
+        lay = QVBoxLayout(dlg)
+        txt = QTextEdit()
+        txt.setFont(QFont('Courier', 9))
+        txt.setReadOnly(True)
+        txt.setPlainText("""\
+REFERENCES & METHODOLOGY — ppigFinder v2.0
+══════════════════════════════════════════════════════════════════
+
+CORE DEPENDENCIES
+─────────────────
+[1]  Larralde, M. (2022). Pyrodigal: Python bindings and interface to
+     Prodigal. Journal of Open Source Software, 7(72), 4296.
+     https://doi.org/10.21105/joss.04296
+
+[2]  Hyatt, D. et al. (2010). Prodigal: prokaryotic gene recognition and
+     translation initiation site identification.
+     BMC Bioinformatics, 11, 119.
+     https://doi.org/10.1186/1471-2105-11-119
+
+[3]  Camacho, C. et al. (2009). BLAST+: architecture and applications.
+     BMC Bioinformatics, 10, 421.
+     https://doi.org/10.1186/1471-2105-10-421
+
+[4]  Eddy, S.R. (2011). Accelerated Profile HMM Searches.
+     PLoS Computational Biology, 7(10), e1002195.
+     https://doi.org/10.1371/journal.pcbi.1002195
+
+[5]  Abramson, J. et al. (2024). Accurate structure prediction of
+     biomolecular interactions with AlphaFold 3.
+     Nature, 630(8016), 493-500.
+     https://doi.org/10.1038/s41586-024-07487-w
+     ► Used for: AF3 JSON generation, contact_probs, ranking_score.
+
+[6]  Hunter, J.D. (2007). Matplotlib: A 2D graphics environment.
+     Computing in Science & Engineering, 9(3), 90-95.
+     https://doi.org/10.1109/MCSE.2007.55
+
+[7]  Harris, C.R. et al. (2020). Array programming with NumPy.
+     Nature, 585, 357-362.
+     https://doi.org/10.1038/s41586-020-2649-2
+
+INTERACTION SCORING METHODOLOGY
+────────────────────────────────
+[8]  Evans, R. et al. (2022). Protein complex prediction with
+     AlphaFold-Multimer. bioRxiv 2021.10.04.463034.
+     https://doi.org/10.1101/2021.10.04.463034
+     ► Defines ipTM, chain_pair_iptm, and chain_pair_pae_min.
+       These are extracted directly from AF3 summary_confidences.json.
+       ipTM > 0.75 is the canonical high-confidence threshold.
+
+[9]  Jumper, J. et al. (2021). Highly accurate protein structure
+     prediction with AlphaFold. Nature, 596, 583-589.
+     https://doi.org/10.1038/s41586-021-03819-2
+     ► Defines PAE (Predicted Aligned Error): the expected positional
+       error of residue j when the structure is aligned on residue i.
+       Off-diagonal PAE < 5 Å = confident relative positioning of
+       two residues on different chains.
+
+[10] Humphreys, I.R. et al. (2021). Computed structures of core
+     eukaryotic protein complexes. Science, 374, eabm4805.
+     https://doi.org/10.1126/science.abm4805
+     ► Demonstrates proteome-scale ipTM-based PPI screening.
+       Methodology basis for ppigFinder's batch AF3 workflow.
+
+[11] Bryant, P., Pozzati, G., & Elofsson, A. (2022). Improved prediction
+     of protein-protein interactions using AlphaFold2.
+     Nature Communications, 13, 1265.
+     https://doi.org/10.1038/s41467-022-28865-w
+     ► Systematic analysis of PAE inter-chain metrics for PPI
+       confidence scoring. Validates the use of min PAE (rather
+       than mean) as a more sensitive detector of focal interfaces.
+
+[12] Mirdita, M. et al. (2022). ColabFold: making protein folding
+     accessible to all. Nature Methods, 19, 679-682.
+     https://doi.org/10.1038/s41592-022-01488-1
+     ► ColabFold FASTA format used by ppigFinder for batch MSA
+       generation and local AF2-Multimer runs.
+
+MOTIF DETECTION
+───────────────
+[13] Virtanen, P. et al. (2020). SciPy 1.0: Fundamental algorithms for
+     scientific computing in Python. Nature Methods, 17, 261-272.
+     https://doi.org/10.1038/s41592-019-0686-2
+     ► scipy.ndimage used for connected-component labelling and
+       morphological operations in the motif detector (v1.16+).
+       A pure-NumPy BFS fallback is used when SciPy is absent.
+
+NOVEL METHODOLOGY — ppigFinder v1.18: Focal Interaction Metrics
+────────────────────────────────────────────────────────────────
+The standard PAE_inter metric (mean of the entire off-diagonal PAE
+quadrant) is mathematically correct but biologically misleading for
+proteins that interact through a single domain embedded in a longer,
+disordered sequence. For example:
+
+  ORF2588 (431 aa, XVIPCD domain at N-terminus) × ORF2589 (267 aa):
+    PAE_inter_global = 22.0 Å  → reported as "not relevant"
+    PAE_min          =  2.1 Å  → actual focal contact confirmed
+
+Only 6.6% of residue pairs are in contact; the global mean is dominated
+by 93.4% of pairs involving ORF2588 residues outside the domain.
+
+ppigFinder v1.18 introduces three focal metrics extracted directly
+from AF3 summary_confidences.json (no PAE matrix parsing required):
+
+  PAE_min ★  = min(chain_pair_pae_min[A][B], chain_pair_pae_min[B][A])
+               Minimum PAE in the off-diagonal quadrant.
+               < 4 Å = at least one contact point predicted with
+               near-atomic positional certainty.
+
+  cp_ipTM ★  = chain_pair_iptm[A][B]  (off-diagonal)
+               Chain-pair ipTM removing intra-chain folding contribution.
+
+  Contact%   = fraction of residue pairs with PAE < 5 Å
+               Even small values (5–10%) confirm a real interface.
+
+Classification rule (analogous to ipTM > 0.75 of Evans et al. 2022
+but applicable to domain-limited contacts):
+  PAE_min < 4 Å  AND  cp_ipTM ≥ 0.50  →  HIGH confidence
+  PAE_min 4–8 Å                         →  MED (check motifs)
+  PAE_min ≥ 8 Å                         →  LOW
+
+This methodology is implemented in ppigFinder v1.18 and validated
+on T4SS toxin-antitoxin pairs (XVIPCD × xac2610, VirB11 × VirB10
+homologs) from Xanthomonas axonopodis pv. citri MAFF311018 genome.
+""")
+        lay.addWidget(txt)
+        btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Close
+                                if QT_VERSION == 6 else QDialogButtonBox.Close)
+        btns.rejected.connect(dlg.close)
+        lay.addWidget(btns)
+        dlg.exec() if QT_VERSION == 6 else dlg.exec_()
+
     def _show_about(self):
         blast_ok = "✅" if BACKENDS.get('blast+',{}).get('available') else "❌"
         hmmer_ok = "✅" if BACKENDS.get('hmmer3',{}).get('available') else "❌"
         pyrod_ok = "✅" if BACKENDS.get('pyrodigal',{}).get('available') else "❌"
         mat_ok   = "✅" if MATPLOTLIB_AVAILABLE else "❌"
+        n_res    = len(getattr(self, '_af3_analysis_results', []))
+        n_jobs   = len(getattr(self, 'af3_jobs', []))
+        n_orfs   = len(getattr(self, 'orfs', []))
         QMessageBox.about(self, t('about'),
             f"🧬 ppigFinder — Protein-Protein Interaction Genomic Finder\n"
-            f"Version 2.00  |  MIT License\n\n"
+            f"Version 2.0 — v2.0  |  MIT License\n\n"
             f"Discovery of novel bacterial PPIs via ORF prediction\n"
             f"(Pyrodigal / 6-frame scan), HMM/BLAST annotation,\n"
             f"genomic neighbourhood analysis, and AlphaFold 3\n"
             f"structural interaction prediction.\n\n"
-            f"What's new in v1.12:\n"
-            f"  • File menu: removed Multi-FASTA, SnapGene and GenBank\n"
-            f"    import/export — FASTA is the sole supported input format\n"
-            f"  • Genome map zoom extended to 1,000,000× for large\n"
-            f"    bacterial chromosomes and metagenome-assembled genomes\n\n"
+            f"Key features (v2.0):\n"
+            f"  • Interaction Results: PAE_min ★, cp_ipTM ★, Contact% ★\n"
+            f"    focal metrics + HIGH / MED / LOW confidence classification\n"
+            f"  • Column-header explanations on hover (all result tables)\n"
+            f"  • Main ORF table shows PAE_min ★ and cp_ipTM ★ per ORF\n"
+            f"  • Two-tier interaction motif detector (v1.16+)\n"
+            f"  • Genomic PPI Map: arc diagram over genome backbone (v2.0)\n"
+            f"  • Help → References: full methodology & 14 citations\n\n"
+            f"Current session: {n_orfs:,} ORFs  |  {n_jobs:,} AF3 jobs  |  "
+            f"{n_res:,} results loaded\n\n"
             f"https://github.com/goka-lab/ppigfinder\n\n"
             f"Backends:\n"
             f"  BLAST+     {blast_ok}\n"
             f"  HMMER3     {hmmer_ok}\n"
             f"  Pyrodigal  {pyrod_ok}\n"
             f"  Matplotlib {mat_ok}\n\n"
-            f"PyQt{QT_VERSION} | Python {sys.version.split()[0]}")
+            f"PyQt{QT_VERSION} | Python {sys.version.split()[0]}\n\n"
+            f"Cite: ppigFinder (2026) github.com/goka-lab/ppigfinder\n"
+            f"Refs: Evans 2022; Abramson 2024; Jumper 2021; Bryant 2022")
+
 
 
     # ═══════════════════════════════════════════════════════════
     # AF3 ANALYSIS TAB  (v2)
     # ═══════════════════════════════════════════════════════════
+    #
+    # v1.15 fixes (AlphaFold Analysis tab):
+    #   • Bug: row selection after column sort loaded the wrong job's
+    #     data into the plots. Fixed by storing the result-list index
+    #     as UserRole data on column 0 of each row.
+    #   • Bug: numeric columns (ipTM, ptm, pLDDT, ranking, PAE_inter)
+    #     were sorted lexicographically ("100.0" < "2.5"). Fixed via
+    #     a _NumericItem subclass with numeric __lt__.
+    #   • Bug: pLDDT per-residue array was read from 'atom_plddts'
+    #     (per-atom; wrong length). Added 'token_plddts' to the key
+    #     list and a length sanity check vs. chain_ids.
+    #   • Bug: contact markers were drawn as a vertical line at the
+    #     centre of each off-diagonal block. Now drawn at the actual
+    #     contact residue positions in both AB and BA quadrants.
+    #   • Bug: changing the contact threshold did not refresh the
+    #     "Best contact pair" column in the table. Fixed.
+    #   • Added: TSV export of the results table.
+    #   • Added: min-ipTM / max-PAEinter filter spinboxes.
+    #   • Added: double-click a row to open the job folder.
+    #   • Added: user-visible dialog for jobs that failed to parse.
+
+    @staticmethod
+    def _af3a_user_role():
+        """Qt5/Qt6-agnostic UserRole constant."""
+        try:
+            return Qt.ItemDataRole.UserRole      # PyQt6
+        except AttributeError:
+            return Qt.UserRole                   # PyQt5
 
     def _create_af3_analysis_tab(self):
         """PAE heatmaps (ChimeraX style) + pLDDT + inter-chain metrics.
@@ -8378,22 +11517,244 @@ echo "Submitted {n_batches} jobs."
         self._af3a_thresh_spin.setSingleStep(1.0)
         self._af3a_thresh_spin.setSuffix(" Å")
         self._af3a_thresh_spin.setFixedWidth(80)
-        self._af3a_thresh_spin.setToolTip(
-            "Residues with inter-chain PAE < this value are counted as contacts.")
+        self._af3a_thresh_spin.setToolTip("")
         self._af3a_thresh_spin.valueChanged.connect(
             lambda _: self._af3a_replot_selected())
         top.addWidget(self._af3a_thresh_spin)
+
+        # Filters: hide rows with low ipTM / high PAE_inter
+        top.addWidget(QLabel("  min ipTM:"))
+        self._af3a_filter_iptm = QDoubleSpinBox()
+        self._af3a_filter_iptm.setRange(0.0, 1.0)
+        self._af3a_filter_iptm.setSingleStep(0.05)
+        self._af3a_filter_iptm.setDecimals(2)
+        self._af3a_filter_iptm.setValue(0.0)
+        self._af3a_filter_iptm.setFixedWidth(60)
+        self._af3a_filter_iptm.setToolTip("")
+        self._af3a_filter_iptm.valueChanged.connect(
+            lambda _: self._af3a_apply_filters())
+        top.addWidget(self._af3a_filter_iptm)
+
+        top.addWidget(QLabel("max PAE_inter:"))
+        self._af3a_filter_paei = QDoubleSpinBox()
+        self._af3a_filter_paei.setRange(0.0, 32.0)
+        self._af3a_filter_paei.setSingleStep(1.0)
+        self._af3a_filter_paei.setDecimals(1)
+        self._af3a_filter_paei.setValue(32.0)
+        self._af3a_filter_paei.setSuffix(" Å")
+        self._af3a_filter_paei.setFixedWidth(80)
+        self._af3a_filter_paei.setToolTip("")
+        self._af3a_filter_paei.valueChanged.connect(
+            lambda _: self._af3a_apply_filters())
+        top.addWidget(self._af3a_filter_paei)
 
         btn_pdf = QPushButton("📄 Export plots PDF")
         btn_pdf.setToolTip("Export all visible PAE/pLDDT plots to a PDF file")
         btn_pdf.clicked.connect(self._af3a_export_pdf)
         top.addWidget(btn_pdf)
 
+        btn_tsv = QPushButton("⬇ Export TSV")
+        btn_tsv.setToolTip("Export the full results table (all metrics) to TSV")
+        btn_tsv.clicked.connect(self._af3a_export_tsv)
+        top.addWidget(btn_tsv)
+
         top.addStretch()
         self._af3a_status = QLabel("No results loaded")
         self._af3a_status.setStyleSheet("font-size:11px;color:#666;")
         top.addWidget(self._af3a_status)
         lay.addLayout(top)
+
+        # ── Motif detection toolbar (v1.16) ────────────────────────
+        # A second compact toolbar dedicated to the 2-D interaction
+        # motif detector (see _af3a_detect_motifs). Spinbox changes
+        # retrigger motif detection on the currently loaded jobs and
+        # refresh the motif table + plot overlays.
+        motif_bar = QHBoxLayout()
+        motif_bar.setSpacing(4)
+
+        mlabel = QLabel("🎯 Motifs")
+        mlabel.setStyleSheet(
+            "font-weight:bold;color:#37474F;padding:0 4px 0 2px;")
+        motif_bar.addWidget(mlabel)
+
+        motif_bar.addWidget(QLabel("core PAE<"))
+        self._af3a_motif_core_spin = QDoubleSpinBox()
+        self._af3a_motif_core_spin.setRange(1.0, 20.0)
+        self._af3a_motif_core_spin.setValue(self._AF3_MOTIF_PAE_CORE)
+        self._af3a_motif_core_spin.setSingleStep(0.5)
+        self._af3a_motif_core_spin.setSuffix(" Å")
+        self._af3a_motif_core_spin.setFixedWidth(70)
+        self._af3a_motif_core_spin.setToolTip("")
+        motif_bar.addWidget(self._af3a_motif_core_spin)
+
+        motif_bar.addWidget(QLabel("ext PAE<"))
+        self._af3a_motif_ext_spin = QDoubleSpinBox()
+        self._af3a_motif_ext_spin.setRange(2.0, 30.0)
+        self._af3a_motif_ext_spin.setValue(self._AF3_MOTIF_PAE_EXT)
+        self._af3a_motif_ext_spin.setSingleStep(1.0)
+        self._af3a_motif_ext_spin.setSuffix(" Å")
+        self._af3a_motif_ext_spin.setFixedWidth(70)
+        self._af3a_motif_ext_spin.setToolTip("")
+        motif_bar.addWidget(self._af3a_motif_ext_spin)
+
+        motif_bar.addWidget(QLabel("min contact≥"))
+        self._af3a_motif_contact_spin = QDoubleSpinBox()
+        self._af3a_motif_contact_spin.setRange(0.00, 1.00)
+        self._af3a_motif_contact_spin.setValue(self._AF3_MOTIF_MIN_CONTACT)
+        self._af3a_motif_contact_spin.setSingleStep(0.01)
+        self._af3a_motif_contact_spin.setDecimals(2)
+        self._af3a_motif_contact_spin.setFixedWidth(65)
+        self._af3a_motif_contact_spin.setToolTip("")
+        motif_bar.addWidget(self._af3a_motif_contact_spin)
+
+        motif_bar.addWidget(QLabel("min size"))
+        self._af3a_motif_size_spin = QSpinBox()
+        self._af3a_motif_size_spin.setRange(2, 50)
+        self._af3a_motif_size_spin.setValue(self._AF3_MOTIF_MIN_SIZE)
+        self._af3a_motif_size_spin.setFixedWidth(50)
+        self._af3a_motif_size_spin.setToolTip("")
+        motif_bar.addWidget(self._af3a_motif_size_spin)
+
+        self._af3a_motif_recip_cb = QCheckBox("reciprocal")
+        self._af3a_motif_recip_cb.setChecked(True)
+        self._af3a_motif_recip_cb.setToolTip("")
+        motif_bar.addWidget(self._af3a_motif_recip_cb)
+
+        btn_motifs_refresh = QPushButton("Rerun")
+        btn_motifs_refresh.setToolTip(
+            "Re-run motif detection on all loaded jobs with the "
+            "current parameters.")
+        btn_motifs_refresh.clicked.connect(self._af3a_rerun_motifs)
+        motif_bar.addWidget(btn_motifs_refresh)
+
+        btn_motifs_tsv = QPushButton("⬇ Motifs TSV")
+        btn_motifs_tsv.setToolTip("Export all detected motifs to TSV.")
+        btn_motifs_tsv.clicked.connect(self._af3a_export_motifs_tsv)
+        motif_bar.addWidget(btn_motifs_tsv)
+
+        motif_bar.addStretch()
+        self._af3a_motif_count_lbl = QLabel("—")
+        self._af3a_motif_count_lbl.setStyleSheet(
+            "font-size:11px;color:#455A64;padding:0 4px;")
+        motif_bar.addWidget(self._af3a_motif_count_lbl)
+
+        lay.addLayout(motif_bar)
+
+        # ── Explanatory info label (like AF3 mode description) ─────────
+        # Shows a context-sensitive description based on which filter
+        # or motif control the user last hovered over. Default text
+        # summarises the confidence classification rules.
+        self._af3a_info_lbl = QLabel(
+            "<b>Confidence classification:</b>  "
+            "<span style='color:#085041'>HIGH ★</span> = PAE_min &lt; 4 Å <i>and</i> cp_ipTM &ge; 0.50 (bold rows) &nbsp;|&nbsp; "
+            "<span style='color:#633806'>MED</span> = PAE_min 4–8 Å &nbsp;|&nbsp; "
+            "<span style='color:#A32D2D'>LOW</span> = PAE_min &ge; 8 Å &nbsp;|&nbsp; "
+            "★ = focal metrics from <tt>chain_pair_pae_min / chain_pair_iptm</tt> "
+            "(AF3 <tt>summary_confidences.json</tt>). "
+            "Hover any control above for details.")
+        self._af3a_info_lbl.setWordWrap(True)
+        self._af3a_info_lbl.setTextFormat(
+            Qt.TextFormat.RichText if QT_VERSION == 6 else Qt.RichText)
+        self._af3a_info_lbl.setStyleSheet(
+            "background:#fffde7;color:#555;"
+            "border:1px solid #f9a825;border-radius:4px;"
+            "padding:5px 8px;font-size:11px;")
+        lay.addWidget(self._af3a_info_lbl)
+
+
+        def _make_hover(widget, msg):
+            """Install an eventFilter that shows msg in info_lbl on Enter."""
+            class _HE(QObject):
+                def eventFilter(self_, obj, ev):
+                    try:
+                        from PyQt6.QtCore import QEvent as QEv
+                        enter = QEv.Type.Enter
+                    except (ImportError, AttributeError):
+                        from PyQt5.QtCore import QEvent as QEv
+                        enter = QEv.Enter
+                    try:
+                        from PyQt6.QtCore import QEvent as QEv2
+                        leave = QEv2.Type.Leave
+                    except (ImportError, AttributeError):
+                        from PyQt5.QtCore import QEvent as QEv2
+                        leave = QEv2.Leave
+                    if ev.type() == enter:
+                        self._af3a_info_lbl.setText(msg)
+                    elif ev.type() == leave:
+                        self._af3a_info_lbl.setText(
+                            "<b>Confidence classification:</b>  "
+                            "<span style='color:#085041'>HIGH ★</span> = PAE_min &lt; 4 Å <i>and</i> cp_ipTM &ge; 0.50 &nbsp;|&nbsp; "
+                            "<span style='color:#633806'>MED</span> = PAE_min 4–8 Å &nbsp;|&nbsp; "
+                            "<span style='color:#A32D2D'>LOW</span> = PAE_min &ge; 8 Å &nbsp;|&nbsp; "
+                            "Hover any control for details.")
+                    return False
+            fe = _HE(widget)
+            widget.installEventFilter(fe)
+            widget._hover_filter = fe   # keep reference
+
+        _make_hover(self._af3a_thresh_spin,
+            "<b>Contact threshold (Å)</b> — Residues with inter-chain PAE below this value are counted as direct contacts. "
+            "Typical: <b>5 Å</b> = atomic contact; 10 Å = proximity. "
+            "⚠ This does NOT change PAE_min or ipTM — those come from AF3 summary JSON directly. "
+            "Affects: contact-region string, n_contacts display, and pLDDT plot markers.")
+
+        _make_hover(self._af3a_filter_iptm,
+            "<b>min ipTM filter</b> — Hide rows where ipTM &lt; this value. "
+            "ipTM = interface pTM: measures how well AF3 predicts the relative positions of chains A and B (0–1). "
+            "<b>&gt; 0.75</b> = high confidence &nbsp;|&nbsp; "
+            "<b>0.50–0.75</b> = likely interaction (check PAE_min ★) &nbsp;|&nbsp; "
+            "<b>&lt; 0.50</b> = uncertain. Set to 0.00 to show all. "
+            "Reference: Evans et al. 2022 (AlphaFold-Multimer).")
+
+        _make_hover(self._af3a_filter_paei,
+            "<b>max PAE_inter filter</b> — Hide rows where global PAE_inter &gt; this value. "
+            "PAE_inter = mean PAE over the ENTIRE inter-chain quadrant. "
+            "⚠ <b>Warning:</b> this metric is diluted by disordered regions. "
+            "A protein interacting through a single domain may show PAE_inter = 22 Å "
+            "even though PAE_min = 2.1 Å (real focal contact). "
+            "Prefer filtering by the <b>PAE_min ★</b> column. Set to 32 Å to show all.")
+
+        _make_hover(self._af3a_motif_core_spin,
+            "<b>core PAE (Å)</b> — Tier-1 threshold for the interaction motif detector. "
+            "Pixels in the inter-chain PAE matrix below this value form the motif core (dark blue in heatmap). "
+            "Typical: <b>5–8 Å</b>. Lower = stricter, fewer but higher-confidence motifs. "
+            "Example: core = 8 Å detects all contacts within ~8 Å of predicted position.")
+
+        _make_hover(self._af3a_motif_ext_spin,
+            "<b>ext PAE (Å)</b> — Tier-2 (extension) threshold. "
+            "After the core is found, the bounding box is expanded to include nearby pixels below this softer threshold. "
+            "Must be <b>greater than core PAE</b>. Typical: <b>12–18 Å</b>. "
+            "Larger ext PAE = larger motif regions reported.")
+
+        _make_hover(self._af3a_motif_contact_spin,
+            "<b>min contact ≥</b> — Minimum AF3 <tt>contact_probs</tt> score for a pixel to join the core mask. "
+            "<tt>contact_probs</tt> is AF3's internal probability that two residues are in physical contact, "
+            "independent of PAE. Using both together rejects 'aligned-but-far' artefacts. "
+            "Set to <b>0.00</b> to disable this filter (use PAE alone).")
+
+        _make_hover(self._af3a_motif_size_spin,
+            "<b>min size</b> — Minimum bounding-box dimension (residues) for a motif to survive. "
+            "Motifs smaller than this on either axis are discarded as noise. "
+            "Recommended: <b>3–5</b> for domain interactions; <b>2</b> for peptide binding sites. "
+            "Example: min size = 5 means the motif must span ≥ 5 residues on EACH chain.")
+
+        _make_hover(self._af3a_motif_recip_cb,
+            "<b>reciprocal</b> — Require the motif to appear in BOTH PAE quadrants: "
+            "A→B (rows=A, cols=B) AND B→A (rows=B, cols=A) with ≥ 50% pixel overlap. "
+            "A real interaction shows low PAE in both orientations. "
+            "A ghost motif (disordered alignment artefact) appears in only one quadrant. "
+            "<b>Strongly recommended: keep checked.</b> Uncheck only to investigate marginal cases.")
+        # on already-loaded jobs and refresh the motif table + overlays.
+        self._af3a_motif_core_spin.valueChanged.connect(
+            lambda _: self._af3a_rerun_motifs())
+        self._af3a_motif_ext_spin.valueChanged.connect(
+            lambda _: self._af3a_rerun_motifs())
+        self._af3a_motif_contact_spin.valueChanged.connect(
+            lambda _: self._af3a_rerun_motifs())
+        self._af3a_motif_size_spin.valueChanged.connect(
+            lambda _: self._af3a_rerun_motifs())
+        self._af3a_motif_recip_cb.stateChanged.connect(
+            lambda _: self._af3a_rerun_motifs())
 
         # ── Hover value label ─────────────────────────────────────
         self._af3a_hover_lbl = QLabel("")
@@ -8410,11 +11771,52 @@ echo "Submitted {n_batches} jobs."
         tg_l = QVBoxLayout(tg)
         tg_l.setContentsMargins(4, 4, 4, 4)
         self._af3a_table = QTableWidget()
-        self._af3a_table.setColumnCount(9)
+        self._af3a_table.setColumnCount(12)
         self._af3a_table.setHorizontalHeaderLabels([
             'Job name', 'Chains (n)', 'Chain IDs',
             'ipTM', 'ptm', 'mean_pLDDT', 'ranking_score',
-            'PAE_inter (Å)', 'Best contact pair'])
+            'PAE_inter (Å)',
+            'PAE_min ★ (Å)', 'cp_ipTM ★', 'Contact% ★',
+            'Best contact pair'])
+
+        # Standard Qt column-header tooltips — shown as native balloon when
+        # hovering a header cell. Does NOT replace QHeaderView, so sorting
+        # by clicking column headers is preserved.
+        _HDR_TIPS = {
+            0: "Job name — AF3 prediction folder identifier.",
+            1: "Chains (n) — number of protein chains (usually 2).",
+            2: "Chain IDs — ORF names and sizes.",
+            3: ("ipTM — Interface predicted TM-score (0–1). "
+                "Measures the accuracy of predicted relative chain positions. "
+                "> 0.75 = high confidence  |  0.50–0.75 = likely  |  < 0.50 = uncertain. "
+                "[Evans et al. 2022, AlphaFold-Multimer]"),
+            4: ("ptm — Predicted TM-score for the whole complex. "
+                "Reflects overall folding quality; less informative than ipTM for PPI."),
+            5: ("mean_pLDDT — Mean per-residue confidence (0–100). "
+                "> 70 = good structure quality  |  < 50 = likely disordered."),
+            6: ("ranking_score — AF3 combined confidence metric. "
+                "Used for ranking when multiple diffusion samples are available."),
+            7: ("PAE_inter (Å) — GLOBAL mean PAE of the entire inter-chain quadrant. "
+                "⚠ Warning: diluted by disordered regions. "
+                "Use PAE_min ★ as primary metric for domain-limited interactions."),
+            8: ("PAE_min ★ (Å) — Minimum PAE in the off-diagonal quadrant "
+                "(chain_pair_pae_min from summary_confidences.json). "
+                "< 4 Å = at least one contact with near-atomic confidence, "
+                "regardless of global disorder. KEY metric for domain-limited PPI. "
+                "[Evans 2022; Bryant 2022]"),
+            9: ("cp_ipTM ★ — Chain-pair ipTM for the interface only "
+                "(chain_pair_iptm off-diagonal). "
+                "≥ 0.50 combined with PAE_min < 4 Å = HIGH confidence focal interaction."),
+            10: ("Contact% ★ — Fraction of residue pairs with PAE < 5 Å. "
+                 "Even 5–10% confirms a real focal interface."),
+            11: ("Best contact pair — Focal residue ranges where PAE < 5 Å. "
+                 "Based on per-residue minimum PAE (not mean)."),
+        }
+        for _col, _tip in _HDR_TIPS.items():
+            _item = self._af3a_table.horizontalHeaderItem(_col)
+            if _item is not None:
+                _item.setToolTip(_tip)
+
         self._af3a_table.setSelectionBehavior(SelectRows)
         self._af3a_table.setSelectionMode(SingleSelection)
         self._af3a_table.setEditTriggers(
@@ -8427,6 +11829,8 @@ echo "Submitted {n_batches} jobs."
             self._af3a_table.setColumnWidth(i, cw)
         self._af3a_table.selectionModel().selectionChanged.connect(
             self._af3a_on_select)
+        self._af3a_table.cellDoubleClicked.connect(
+            self._af3a_on_double_click)
         tg_l.addWidget(self._af3a_table)
         splitter.addWidget(tg)
 
@@ -8446,7 +11850,7 @@ echo "Submitted {n_batches} jobs."
         # Keep refs to active canvases for PDF export
         self._af3a_active_canvases = []
 
-        self._tabs.addTab(w, "📊 AlphaFold Analysis")
+        self._tabs.addTab(w, "📈 Interaction Results")
 
     # ── AF3 Analysis helpers ─────────────────────────────────────
 
@@ -8464,85 +11868,356 @@ echo "Submitted {n_batches} jobs."
         self._af3a_clear_plots()
         self._af3a_status.setText("Cleared")
 
+    # ── AF3 file classification (content-based) ───────────────
+    #
+    # v1.15: classify JSON files by their top-level keys rather than
+    # their filename, because the AF3 server sometimes writes files
+    # whose filenames do not clearly mark their role. Also keeps the
+    # large input-data JSON (which can be 80+ MB of MSA / sequences)
+    # from being loaded into memory during the scan.
+
+    # Signatures (top-level keys) used to identify each JSON type.
+    _AF3_SUMMARY_SIGNATURE_KEYS  = {'iptm', 'ptm', 'ranking_score'}
+    _AF3_CONF_SIGNATURE_KEYS     = {'pae', 'atom_plddts', 'token_chain_ids'}
+    _AF3_DATA_SIGNATURE_KEYS     = {'sequences', 'modelSeeds', 'dialect'}
+
+    # Files larger than this are skipped without opening (protects us
+    # from accidentally loading the input-data JSON with its full MSA).
+    _AF3_MAX_JSON_SCAN_BYTES = 200 * 1024 * 1024   # 200 MB
+
+    @classmethod
+    def _af3a_classify_json(cls, path: Path) -> str:
+        """Classify a JSON file by reading only its top-level keys.
+
+        Returns one of:
+          'summary'      — AF3 summary_confidences (small, has ipTM/pTM)
+          'confidences'  — AF3 full confidences (PAE + pLDDT + chains)
+          'data'         — AF3 input data (sequences, MSA — skip)
+          'unknown'      — any other JSON
+
+        The check is streaming-friendly: for small files (< 1 MB) we
+        just json.load; for larger files we only probe with ijson if
+        available, falling back to a size-based heuristic.
+        """
+        try:
+            size = path.stat().st_size
+        except OSError:
+            return 'unknown'
+        if size > cls._AF3_MAX_JSON_SCAN_BYTES:
+            # Too large — almost certainly the input-data JSON.
+            return 'data'
+
+        # Small files: just load them
+        if size < 1 * 1024 * 1024:
+            try:
+                with open(path, encoding='utf-8') as f:
+                    obj = json.load(f)
+                if not isinstance(obj, dict):
+                    return 'unknown'
+                keys = set(obj.keys())
+                if cls._AF3_DATA_SIGNATURE_KEYS.issubset(keys):
+                    return 'data'
+                if cls._AF3_CONF_SIGNATURE_KEYS & keys:
+                    # Summary usually small; full confidences usually
+                    # huge. The confidence signature keys are also
+                    # rare in summaries, so a hit here is decisive.
+                    if cls._AF3_CONF_SIGNATURE_KEYS.issubset(keys):
+                        return 'confidences'
+                if cls._AF3_SUMMARY_SIGNATURE_KEYS.issubset(keys):
+                    return 'summary'
+                return 'unknown'
+            except (OSError, json.JSONDecodeError):
+                return 'unknown'
+
+        # Larger files (> 1 MB): try to stream top-level keys via ijson
+        try:
+            import ijson
+            keys_seen = set()
+            with open(path, 'rb') as f:
+                for prefix, event, _val in ijson.parse(f):
+                    if (prefix and '.' not in prefix
+                            and event in ('start_array', 'start_map',
+                                          'string', 'number',
+                                          'boolean', 'null')):
+                        keys_seen.add(prefix)
+                    # Stop once we've seen enough to classify
+                    if len(keys_seen) >= 12:
+                        break
+            if cls._AF3_DATA_SIGNATURE_KEYS.issubset(keys_seen):
+                return 'data'
+            if cls._AF3_CONF_SIGNATURE_KEYS.issubset(keys_seen):
+                return 'confidences'
+            if cls._AF3_SUMMARY_SIGNATURE_KEYS.issubset(keys_seen):
+                return 'summary'
+            return 'unknown'
+        except ImportError:
+            # ijson not available → fall back to size heuristic: a file
+            # > 1 MB in an AF3 job folder is almost always the full
+            # confidences (PAE matrix is O(n²)).
+            return 'confidences'
+        except (OSError, ValueError):
+            return 'unknown'
+
+    def _af3a_find_job_files(self, job_dir: Path) -> dict:
+        """Find AF3 output files inside a job directory.
+
+        Returns a dict with keys:
+          'summary'       : Path or None   — summary_confidences.json
+          'confidences'   : Path or None   — full confidences.json
+          'model'         : Path or None   — model .cif
+          'ranking_csv'   : Path or None   — ranking_scores.csv
+          'sample_dirs'   : list[Path]     — seed-*_sample-* subfolders
+
+        Uses content-based classification for all .json files in the
+        directory, so files whose names differ from the standard AF3
+        server convention are still recognised.
+        """
+        result = {
+            'summary': None, 'confidences': None,
+            'model': None, 'ranking_csv': None,
+            'input': None,         # ← NEW: ppigFinder / AF3 server input JSON
+            'sample_dirs': [],
+        }
+        try:
+            entries = list(job_dir.iterdir())
+        except OSError:
+            return result
+
+        # Classify .json files by content; prefer summary over
+        # confidences when multiple candidates exist (rare).
+        for p in entries:
+            if not p.is_file():
+                continue
+            name_lc = p.name.lower()
+            if name_lc.endswith('.json'):
+                kind = self._af3a_classify_json(p)
+                if kind == 'summary' and result['summary'] is None:
+                    result['summary'] = p
+                elif kind == 'confidences' and result['confidences'] is None:
+                    result['confidences'] = p
+                elif kind == 'data' and result['input'] is None:
+                    result['input'] = p   # ppigFinder-generated input JSON
+                # 'unknown' → ignored
+            elif name_lc.endswith('.cif'):
+                # Skip known non-model CIFs (there usually aren't any)
+                if result['model'] is None:
+                    result['model'] = p
+            elif name_lc == 'ranking_scores.csv':
+                result['ranking_csv'] = p
+
+        # Collect sample sub-dirs (detail views, not primary jobs)
+        for p in entries:
+            if p.is_dir() and re.match(r'seed-\d+_sample-\d+', p.name):
+                result['sample_dirs'].append(p)
+        result['sample_dirs'].sort()
+
+        return result
+
     def _af3a_scan_folder(self, folder: str):
-        """Scan folder for AF3 job sub-dirs."""
-        # import re as _re — removed (unused import)
-        jobs = []
+        """Scan a folder tree for AF3 jobs.
+
+        v1.15 (content-based):
+          • Each candidate directory is inspected for AF3 output files
+            via content classification (_af3a_classify_json), not file-
+            name globs. This handles AF3 server outputs whose naming
+            differs from the strict _summary_confidences.json /
+            _confidences.json convention.
+          • Huge input-data JSONs are filtered out by size BEFORE being
+            opened (they contain MSAs and would otherwise bloat memory).
+          • seed-*_sample-* subfolders are treated as the per-sample
+            detail of their parent job (the best model is already
+            promoted to the parent), not as independent jobs.
+          • Parse errors are surfaced in a single dialog at the end.
+          • A progress dialog shows scan status for large folder trees.
+          • The top-scoring row is auto-selected after populate.
+        """
         root = Path(folder)
-        candidates = sorted([p for p in root.iterdir() if p.is_dir()])
+        try:
+            top_level = sorted(root.iterdir())
+        except OSError as e:
+            QMessageBox.critical(
+                self, "AF3 Analysis",
+                f"Could not read folder:\n{folder}\n\n{e}")
+            return
+
+        # Build list of candidate job dirs:
+        #   • each direct subdir whose immediate children look like an
+        #     AF3 job (contain at least one summary JSON)
+        #   • or the root itself if it directly contains AF3 outputs
+        #   • sample subdirs (seed-*_sample-*) are explicitly skipped
+        #     at the top level; the parent is scanned instead
+        candidates = []
+        for p in top_level:
+            if not p.is_dir():
+                continue
+            if re.match(r'seed-\d+_sample-\d+', p.name):
+                # Sample folders under the root (e.g. user pointed at a
+                # single-job dir itself) → skip; the root will handle.
+                continue
+            candidates.append(p)
         if not candidates:
             candidates = [root]
 
-        for job_dir in candidates:
-            # Root-level files: *_summary_confidences.json + *_confidences.json
-            sum_files  = [f for f in job_dir.glob('*_summary_confidences.json')
-                          if f.parent == job_dir]
-            conf_files = [f for f in job_dir.glob('*_confidences.json')
-                          if f.parent == job_dir and 'summary' not in f.name
-                          and 'data' not in f.name]
-            if not sum_files:
+        # Progress dialog
+        try:
+            if QT_VERSION == 6:
+                from PyQt6.QtWidgets import QProgressDialog
+            else:
+                from PyQt5.QtWidgets import QProgressDialog
+            progress = QProgressDialog(
+                "Scanning AF3 jobs…", "Cancel",
+                0, len(candidates), self)
+            progress.setWindowTitle("AF3 Analysis")
+            progress.setMinimumDuration(400)
+            progress.setValue(0)
+        except Exception:
+            progress = None
+
+        jobs = []
+        errors  = []  # list of (dir_name, error_message)
+        skipped = 0   # dirs that are not AF3 jobs
+
+        for i, job_dir in enumerate(candidates):
+            if progress is not None:
+                progress.setValue(i)
+                progress.setLabelText(
+                    f"Scanning AF3 jobs… ({i}/{len(candidates)})")
+                QApplication.processEvents()
+                if progress.wasCanceled():
+                    break
+
+            files = self._af3a_find_job_files(job_dir)
+            if files['summary'] is None:
+                # Not an AF3 job folder — skip silently
+                skipped += 1
                 continue
+
             try:
                 parsed = self._af3a_parse_job(
-                    job_dir, sum_files[0],
-                    conf_files[0] if conf_files else None)
+                    job_dir,
+                    files['summary'],
+                    files['confidences'],
+                    model_cif=files['model'],
+                    ranking_csv=files['ranking_csv'],
+                    input_json=files['input'])
                 if parsed:
                     jobs.append(parsed)
             except Exception as e:
+                errors.append((job_dir.name, str(e)))
                 print(f"[AF3 Analysis] {job_dir.name}: {e}")
+
+        if progress is not None:
+            progress.setValue(len(candidates))
 
         self._af3_analysis_results = jobs
         self._af3a_populate_table()
-        self._af3a_status.setText(
-            f"{len(jobs)} job(s) loaded from {Path(folder).name}/")
+
+        status = f"{len(jobs)} job(s) loaded from {Path(folder).name}/"
+        if errors:  status += f"  ⚠ {len(errors)} failed"
+        if skipped: status += f"  ({skipped} non-AF3 dirs skipped)"
+        self._af3a_status.setText(status)
         self._update_orfs_list()
 
-    def _af3a_parse_job(self, job_dir: Path, sum_path: Path,
-                         conf_path) -> dict:
-        """Parse one AF3 job. Handles any number of chains."""
+        if self._af3a_table.rowCount() > 0:
+            self._af3a_table.selectRow(0)
 
+        if errors:
+            msg = "\n".join(f"• {name}: {err}" for name, err in errors[:15])
+            if len(errors) > 15:
+                msg += f"\n… and {len(errors) - 15} more."
+            QMessageBox.warning(
+                self, "AF3 Analysis — partial load",
+                f"{len(errors)} job(s) could not be parsed:\n\n{msg}")
+
+    def _af3a_parse_job(self, job_dir: Path, sum_path: Path,
+                         conf_path, model_cif: Path = None,
+                         ranking_csv: Path = None,
+                         input_json: Path = None) -> dict:
+        """Parse one AF3 job. Handles any number of chains.
+
+        v1.15:
+          • Rich summary: uses chain_iptm, chain_pair_iptm,
+            chain_pair_pae_min, chain_ptm, fraction_disordered,
+            has_clash when present.
+          • Per-residue pLDDT: if only 'atom_plddts' is available
+            (current AF3 server output), aggregates atoms → residues
+            using the atom→residue map parsed from the model .cif.
+          • token_res_ids are kept so the plot can show actual residue
+            numbers (1..N per chain, not a running 0..total index).
+          • ranking_scores.csv is attached to the result dict when
+            present, for display as a per-sample breakdown.
+        """
         # ── Summary scores ─────────────────────────────────────
         with open(sum_path, encoding='utf-8') as f:
             summary = json.load(f)
 
         iptm          = summary.get('iptm')
         ptm           = summary.get('ptm')
-        mean_plddt    = (summary.get('mean_plddt')
-                         or summary.get('mean_pLDDT')
-                         or summary.get('ptm_plddt'))  # AF3 uses lowercase
         ranking_score = summary.get('ranking_score')
 
+        # Rich per-chain + pair data (AF3 server format)
+        chain_iptm         = summary.get('chain_iptm')          # list[float]
+        chain_ptm          = summary.get('chain_ptm')           # list[float]
+        chain_pair_iptm    = summary.get('chain_pair_iptm')     # 2D list
+        chain_pair_pae_min = summary.get('chain_pair_pae_min')  # 2D list
+        fraction_disordered = summary.get('fraction_disordered')
+        has_clash          = summary.get('has_clash')
+
+        # Mean pLDDT: AF3 summary does not carry it; we compute it
+        # below from atom_plddts / per-residue arrays.
+        mean_plddt = (summary.get('mean_plddt')
+                      or summary.get('mean_pLDDT'))
+
         # ── PAE + pLDDT + chain info ────────────────────────────
-        pae_matrix  = None
-        plddt_arr   = None
-        chain_ids   = None   # per-residue chain labels
+        pae_matrix    = None
+        plddt_arr     = None        # per-residue
+        chain_ids     = None        # per-residue chain labels
+        token_res_ids = None
+        atom_plddts   = None
+        contact_probs = None
 
         if conf_path and Path(conf_path).is_file():
             with open(conf_path, encoding='utf-8') as f:
                 conf = json.load(f)
-            pae_raw = conf.get('pae')
-            if pae_raw:
-                pae_matrix = pae_raw
-            # pLDDT — try several field names used by different AF3 versions
-            for key in ('plddt', 'atom_plddts', 'predicted_lddt',
-                        'residue_plddt'):
-                v = conf.get(key)
-                if v:
-                    plddt_arr = v
-                    break
-            # Chain IDs per residue
+            pae_matrix    = conf.get('pae')
+            contact_probs = conf.get('contact_probs')
+
+            # Per-residue (token) chain IDs and residue IDs
             for key in ('token_chain_ids', 'chain_ids', 'asym_id'):
                 v = conf.get(key)
                 if v:
                     chain_ids = v
                     break
+            token_res_ids = conf.get('token_res_ids')
 
-        # If mean_plddt missing from summary, compute from plddt array
-        if mean_plddt is None and plddt_arr:
-            try:
-                mean_plddt = float(np.mean(plddt_arr))
-            except Exception:
-                pass
+            # Per-residue pLDDT — try direct keys first.
+            for key in ('token_plddts', 'plddt',
+                        'predicted_lddt', 'residue_plddt'):
+                v = conf.get(key)
+                if v:
+                    plddt_arr = v
+                    break
+
+            # Per-atom pLDDT (always keep for fallback / CIF aggregation)
+            atom_plddts    = conf.get('atom_plddts')
+
+            # If direct per-residue pLDDT is missing or length mismatch,
+            # aggregate per-atom pLDDT to per-residue using the CIF map.
+            if (plddt_arr is None
+                    or (chain_ids is not None
+                        and len(plddt_arr) != len(chain_ids))):
+                plddt_arr = self._af3a_derive_token_plddt(
+                    atom_plddts, chain_ids, token_res_ids, model_cif)
+
+        # If mean_plddt missing, compute from whatever is available.
+        if mean_plddt is None:
+            for arr in (plddt_arr, atom_plddts):
+                if arr:
+                    try:
+                        mean_plddt = float(np.mean(arr))
+                        break
+                    except Exception:
+                        pass
 
         # ── Chain layout ────────────────────────────────────────
         chain_order = []
@@ -8565,6 +12240,77 @@ echo "Submitted {n_batches} jobs."
                      for m in re.finditer(r'orf(\d+)',
                                            job_dir.name, re.IGNORECASE)]
 
+        # ── Sequence verification (v2.0) ─────────────────────────────────
+        # Cross-check the sequences inside the input JSON (if present) with
+        # the currently loaded ORFs in self.orfs.  Three possible outcomes:
+        #
+        #   seq_status = 'verified'   — folder-name ORF IDs confirmed by seq
+        #   seq_status = 'corrected'  — folder name was WRONG; correct IDs
+        #                               found by sequence search and applied
+        #   seq_status = 'mismatch'   — sequences found in genome but indices
+        #                               differ from folder name (e.g. after
+        #                               re-running Pyrodigal)
+        #   seq_status = 'no_input'   — input JSON absent; name-only fallback
+        #   seq_status = 'no_orfs'    — no genome loaded; cannot verify
+        #
+        # The seq_chains list is parallel to chain_order and carries the
+        # verified protein sequence for each chain (stripped of stop-codon *).
+        seq_status   = 'no_input'
+        seq_chains   = []        # verified sequences, one per chain
+        seq_verified_names = []  # ORF names resolved by sequence (may differ)
+
+        input_seqs = []          # sequences extracted from input JSON
+        if input_json and Path(input_json).is_file():
+            try:
+                with open(input_json, encoding='utf-8') as _f:
+                    _inp = json.load(_f)
+                for _entry in _inp.get('sequences', []):
+                    _pc = _entry.get('proteinChain', {})
+                    _seq = _pc.get('sequence', '').strip().rstrip('*').upper()
+                    if _seq:
+                        input_seqs.append(_seq)
+            except (OSError, json.JSONDecodeError, KeyError, TypeError):
+                pass
+
+        if input_seqs and hasattr(self, 'orfs') and self.orfs:
+            seq_status = 'unmatched'
+            seq_chains = input_seqs
+
+            # Build a lookup: sequence → ORF index (exact match, case-insensitive)
+            # For speed, hash by length first
+            _orfs_by_len: dict = {}
+            for _i, _o in enumerate(self.orfs):
+                _p = _o['protein'].strip().rstrip('*').upper()
+                _orfs_by_len.setdefault(len(_p), []).append((_i, _p))
+
+            def _find_orf_by_seq(seq: str):
+                """Return ORF index matching seq exactly, or -1."""
+                for _idx, _p in _orfs_by_len.get(len(seq), []):
+                    if _p == seq:
+                        return _idx
+                return -1
+
+            verified_indices = [_find_orf_by_seq(s) for s in input_seqs]
+
+            all_found  = all(i >= 0 for i in verified_indices)
+            name_match = ([f"ORF{i+1}" for i in verified_indices]
+                          == orf_names[:len(verified_indices)])
+
+            if all_found:
+                seq_verified_names = [f"ORF{i+1}" for i in verified_indices]
+                if name_match:
+                    seq_status = 'verified'
+                else:
+                    # Sequences found but folder-name ORF IDs are wrong
+                    # → use verified names (handles re-numbering after re-run)
+                    seq_status = 'corrected'
+                    orf_names  = seq_verified_names  # ← authoritative update
+            else:
+                # Some sequences not found → genome may be different
+                seq_status = 'mismatch'
+        elif not (hasattr(self, 'orfs') and self.orfs):
+            seq_status = 'no_orfs'
+
         # Map chain letters → ORF names (A→orf_names[0], B→orf_names[1] …)
         chain_to_orf = {}
         for ci, cid in enumerate(chain_order):
@@ -8573,13 +12319,14 @@ echo "Submitted {n_batches} jobs."
 
         # ── Inter-chain metrics ─────────────────────────────────
         thresh = self._af3a_thresh_spin.value()
-        pair_metrics = {}   # (cid_A, cid_B) → dict
+        pair_metrics   = {}   # (cid_A, cid_B) → dict
         best_pae_inter = None
         best_pair      = ('?', '?')
 
         if pae_matrix and n_chains >= 2:
             try:
                 pae_np = np.array(pae_matrix, dtype=float)
+                best_pae_min = None   # for best-pair selection by PAE_min
                 for i_c, ca in enumerate(chain_order):
                     for j_c, cb in enumerate(chain_order):
                         if i_c >= j_c:
@@ -8592,20 +12339,49 @@ echo "Submitted {n_batches} jobs."
                         c1 = c0 + chain_lens[cb]
                         sub_AB = pae_np[r0:r1, c0:c1]
                         sub_BA = pae_np[c0:c1, r0:r1]
+                        # Global mean PAE (diluted by disordered regions)
                         pi = float((sub_AB.mean() + sub_BA.mean()) / 2)
-                        mA = sub_AB.mean(axis=1)
-                        mB = sub_BA.mean(axis=1)
+                        # Minimum PAE — best single contact point (focal metric)
+                        pae_min_ab = float(sub_AB.min())
+                        pae_min_ba = float(sub_BA.min())
+                        pae_min_pair = min(pae_min_ab, pae_min_ba)
+                        # Contact fraction: residue pairs with PAE < 5Å
+                        contact_frac = float((sub_AB < 5.0).mean())
+                        # Per-row MIN (not mean) to find focal residues correctly
+                        minA = sub_AB.min(axis=1)   # best contact each A-res has w/ any B
+                        minB = sub_BA.min(axis=1)   # best contact each B-res has w/ any A
+                        mA   = sub_AB.mean(axis=1)  # kept for legacy n_contacts count
+                        mB   = sub_BA.mean(axis=1)
                         contacts = int((mA < thresh).sum()
                                        + (mB < thresh).sum())
                         cr = self._af3a_contact_str(
-                            mA, mB,
+                            minA, minB,
                             chain_to_orf.get(ca, ca),
                             chain_to_orf.get(cb, cb),
                             thresh)
-                        pair_metrics[(ca, cb)] = {
-                            'pae_inter': pi, 'n_contacts': contacts,
-                            'contact_region': cr}
-                        if best_pae_inter is None or pi < best_pae_inter:
+                        entry = {
+                            'pae_inter':      pi,
+                            'pae_min':        pae_min_pair,
+                            'contact_frac':   contact_frac,
+                            'n_contacts':     contacts,
+                            'contact_region': cr,
+                        }
+                        # Attach rich summary pair-data if available
+                        try:
+                            if chain_pair_iptm:
+                                entry['pair_iptm'] = float(
+                                    chain_pair_iptm[i_c][j_c])
+                            if chain_pair_pae_min:
+                                # Prefer summary chain_pair_pae_min (more accurate)
+                                entry['pair_pae_min'] = float(
+                                    chain_pair_pae_min[i_c][j_c])
+                                pae_min_pair = entry['pair_pae_min']
+                        except (IndexError, TypeError, ValueError):
+                            pass
+                        pair_metrics[(ca, cb)] = entry
+                        # Select best pair by PAE_min (focal) not global mean
+                        if best_pae_min is None or pae_min_pair < best_pae_min:
+                            best_pae_min   = pae_min_pair
                             best_pae_inter = pi
                             best_pair      = (ca, cb)
             except Exception as e:
@@ -8613,6 +12389,65 @@ echo "Submitted {n_batches} jobs."
 
         best_cr = (pair_metrics[best_pair]['contact_region']
                    if best_pair in pair_metrics else '-')
+
+        # ── ranking_scores.csv (per-sample) ─────────────────────
+        ranking_samples = []
+        if ranking_csv and Path(ranking_csv).is_file():
+            try:
+                with open(ranking_csv, encoding='utf-8') as f:
+                    reader = csv.DictReader(f)
+                    for row in reader:
+                        try:
+                            ranking_samples.append({
+                                'seed':   int(row.get('seed', 0)),
+                                'sample': int(row.get('sample', 0)),
+                                'ranking_score': float(
+                                    row.get('ranking_score', 'nan')),
+                            })
+                        except (TypeError, ValueError):
+                            continue
+            except OSError:
+                pass
+
+        # ── Motif detection (v1.16) ─────────────────────────────
+        # Build a preliminary result dict so _af3a_detect_motifs can
+        # use the standard accessors. Detection runs once at parse time
+        # using the current toolbar settings; re-runs happen on demand
+        # when the user changes a spinbox.
+        prelim = {
+            'pae_matrix':    pae_matrix,
+            'contact_probs': contact_probs,
+            'plddt_arr':     plddt_arr,
+            'token_res_ids': token_res_ids,
+            'chain_order':   chain_order,
+            'chain_lens':    chain_lens,
+            'chain_to_orf':  chain_to_orf,
+        }
+        motifs = []
+        try:
+            # Pull live parameters from the toolbar when already built,
+            # otherwise fall back to class defaults.
+            pae_core = (self._af3a_motif_core_spin.value()
+                        if hasattr(self, '_af3a_motif_core_spin')
+                        else self._AF3_MOTIF_PAE_CORE)
+            pae_ext  = (self._af3a_motif_ext_spin.value()
+                        if hasattr(self, '_af3a_motif_ext_spin')
+                        else self._AF3_MOTIF_PAE_EXT)
+            min_ct   = (self._af3a_motif_contact_spin.value()
+                        if hasattr(self, '_af3a_motif_contact_spin')
+                        else self._AF3_MOTIF_MIN_CONTACT)
+            min_sz   = (self._af3a_motif_size_spin.value()
+                        if hasattr(self, '_af3a_motif_size_spin')
+                        else self._AF3_MOTIF_MIN_SIZE)
+            require_recip = (self._af3a_motif_recip_cb.isChecked()
+                             if hasattr(self, '_af3a_motif_recip_cb')
+                             else True)
+            motifs = self._af3a_detect_motifs(
+                prelim, pae_core, pae_ext, min_ct, min_sz,
+                require_reciprocal=require_recip)
+        except Exception as e:
+            print(f"[AF3 Analysis] motif detection failed for "
+                  f"{job_dir.name}: {e}")
 
         return {
             'job_name':      job_dir.name,
@@ -8622,20 +12457,519 @@ echo "Submitted {n_batches} jobs."
             'chain_lens':    chain_lens,
             'chain_to_orf':  chain_to_orf,
             'n_chains':      n_chains,
+            # Global metrics
             'iptm':          iptm,
             'ptm':           ptm,
             'mean_plddt':    mean_plddt,
             'ranking_score': ranking_score,
+            'fraction_disordered': fraction_disordered,
+            'has_clash':     has_clash,
+            # Per-chain metrics (v1.15)
+            'chain_iptm':    chain_iptm,
+            'chain_ptm':     chain_ptm,
+            # Arrays for plotting
             'pae_matrix':    pae_matrix,
+            'contact_probs': contact_probs,
             'plddt_arr':     plddt_arr,
+            'token_res_ids': token_res_ids,
+            # Pairwise interface metrics
             'pair_metrics':  pair_metrics,
             'pae_inter':     best_pae_inter,
             'best_pair':     best_pair,
             'contact_region': best_cr,
+            # Focal metrics (v2.0) — correctly identify domain-limited interactions
+            'pae_min_inter':  (pair_metrics[best_pair].get('pair_pae_min') or
+                               pair_metrics[best_pair].get('pae_min'))
+                              if best_pair in pair_metrics else None,
+            'cp_iptm_inter':  pair_metrics[best_pair].get('pair_iptm')
+                              if best_pair in pair_metrics else None,
+            'contact_frac':   pair_metrics[best_pair].get('contact_frac')
+                              if best_pair in pair_metrics else None,
+            # Motifs (v1.16)
+            'motifs':        motifs,
+            # Sequence verification (v2.0)
+            'seq_status':    seq_status,
+            'seq_chains':    seq_chains,
+            # Extras
+            'ranking_samples': ranking_samples,
             'partner_name':  (orf_names[1] if len(orf_names) > 1
                               else chain_order[1] if len(chain_order) > 1
                               else '-'),
         }
+
+    def _af3a_derive_token_plddt(self, atom_plddts, token_chain_ids,
+                                  token_res_ids, model_cif):
+        """Aggregate per-atom pLDDT → per-residue (token) pLDDT.
+
+        In current AF3 server outputs only 'atom_plddts' is stored. To
+        obtain per-residue values we need the atom→residue mapping,
+        which is available in the model .cif file (the B_iso column of
+        each ATOM record equals the atom pLDDT).
+
+        Returns a list of length len(token_chain_ids) (mean of atoms in
+        that residue), or None if a reliable mapping cannot be built.
+        """
+        if (not atom_plddts or not token_chain_ids
+                or not token_res_ids or model_cif is None):
+            return None
+        if not Path(model_cif).is_file():
+            return None
+
+        # Parse atom_site records to get (chain, seq_id) per atom.
+        atom_key_order = []   # list of (chain, seq_id) in atom order
+        try:
+            in_atom_loop = False
+            col_names = []
+            with open(model_cif, encoding='utf-8', errors='replace') as f:
+                for line in f:
+                    s = line.strip()
+                    if s.startswith('loop_'):
+                        col_names = []
+                        in_atom_loop = False
+                        continue
+                    if s.startswith('_atom_site.'):
+                        col_names.append(s)
+                        in_atom_loop = False
+                        continue
+                    if col_names and col_names[0] == '_atom_site.group_PDB':
+                        if (line.startswith('ATOM')
+                                or line.startswith('HETATM')):
+                            in_atom_loop = True
+                            parts = line.split()
+                            # Fixed CIF layout from AF3 (verified):
+                            #   parts[6] = label_asym_id (chain)
+                            #   parts[8] = label_seq_id  (residue)
+                            if len(parts) >= 9:
+                                try:
+                                    atom_key_order.append(
+                                        (parts[6], int(parts[8])))
+                                except ValueError:
+                                    atom_key_order.append(None)
+                        elif in_atom_loop and s and not s.startswith('#'):
+                            # End of the atom loop
+                            break
+        except OSError:
+            return None
+
+        if len(atom_key_order) != len(atom_plddts):
+            # Mapping couldn't be built reliably → abort
+            return None
+
+        # Group atom pLDDTs by (chain, seq_id)
+        from collections import defaultdict
+        per_res = defaultdict(list)
+        for key, plddt in zip(atom_key_order, atom_plddts):
+            if key is not None:
+                per_res[key].append(plddt)
+
+        # Build per-token array, ordered by token_chain_ids + token_res_ids
+        out = []
+        for c, r in zip(token_chain_ids, token_res_ids):
+            vs = per_res.get((c, int(r)))
+            if vs:
+                out.append(sum(vs) / len(vs))
+            else:
+                out.append(None)
+        # If too many residues lack mapping, give up (protects the plot)
+        if sum(v is None for v in out) > 0.1 * len(out):
+            return None
+        # Replace any remaining None with 0 (rare)
+        return [v if v is not None else 0.0 for v in out]
+
+    # ────────────────────────────────────────────────────────────────
+    # Motif detection (v1.16)
+    # ────────────────────────────────────────────────────────────────
+    #
+    # Detect 2-D interaction motifs in the off-diagonal quadrants of the
+    # PAE matrix using two confidence tiers + contact_probs validation:
+    #
+    #   core      : PAE < pae_core    (≈ 5 Å, high-confidence interface
+    #               residues — the "nucleus" of the motif)
+    #   extended  : PAE < pae_ext     (≈ 12 Å, exploratory peripheral
+    #               residues adjacent to a core)
+    #   contacts  : contact_probs >= min_contact (3-D proximity, from
+    #               the *_confidences.json; filters out "aligned but far"
+    #               artefacts which low-PAE alone cannot distinguish)
+    #
+    # The algorithm:
+    #   1. Extract the A↔B off-diagonal quadrant (+ B↔A for reciprocity).
+    #   2. Build core_mask = (PAE < pae_core) AND (contact_probs >= min_contact)
+    #                     — contact filter is applied only if the matrix
+    #                       is available, otherwise it defaults to True.
+    #   3. Close small gaps with a 3×3 morphological closing.
+    #   4. Label connected components. Each ≥ (min_size × min_size)
+    #      component is a candidate motif.
+    #   5. For each motif, extend its bounding box with neighboring
+    #      pixels satisfying the extended tier.
+    #   6. Reciprocity: require a B↔A component whose transposed bbox
+    #      overlaps ≥ 50 % of the A↔B bbox.
+    #   7. Score each motif on a 0-100 scale combining PAE, size,
+    #      density, pLDDT and reciprocity.
+    #
+    # The result is stored on each result dict as res['motifs'], sorted
+    # by score descending.
+
+    # Default motif-detection parameters. User overrides these via
+    # spinboxes in the AlphaFold Analysis toolbar.
+    #
+    # Defaults were calibrated against real AF3 server output — a strong
+    # interface (e.g. confirmed Y2H hits) typically has core-tier PAE
+    # < 5 Å over ≥ 5×5 residues; a borderline interface may only have
+    # core-tier PAE < 8 Å. The contact-prob filter is intentionally soft
+    # (0.05) because contact_probs are often < 0.2 even at real interfaces.
+    _AF3_MOTIF_PAE_CORE    = 8.0    # Å — high-confidence tier
+    _AF3_MOTIF_PAE_EXT     = 15.0   # Å — extended / peripheral tier
+    _AF3_MOTIF_MIN_CONTACT = 0.05   # probability, 0 disables the filter
+    _AF3_MOTIF_MIN_SIZE    = 5      # residues — min dimension of a motif
+
+    @staticmethod
+    def _af3a_label_cc(mask):
+        """Label connected components in a 2-D boolean mask.
+
+        Uses scipy.ndimage.label when available (fast C implementation),
+        otherwise falls back to a pure-numpy BFS. 4-connectivity.
+
+        Returns (labels, n) where labels is an int array of the same
+        shape as mask and n is the number of components. Background
+        pixels carry label 0; motifs are labelled 1..n.
+        """
+        if SCIPY_NDIMAGE_AVAILABLE:
+            # Default structuring element is 4-connectivity
+            labels, n = _scipy_ndimage.label(mask)
+            return labels, n
+        # Pure-numpy BFS fallback
+        h, w = mask.shape
+        labels = np.zeros((h, w), dtype=np.int32)
+        cur = 0
+        # Pre-compute neighbour offsets
+        for i in range(h):
+            for j in range(w):
+                if not mask[i, j] or labels[i, j]:
+                    continue
+                cur += 1
+                stack = [(i, j)]
+                labels[i, j] = cur
+                while stack:
+                    y, x = stack.pop()
+                    for dy, dx in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+                        ny, nx = y + dy, x + dx
+                        if (0 <= ny < h and 0 <= nx < w
+                                and mask[ny, nx] and not labels[ny, nx]):
+                            labels[ny, nx] = cur
+                            stack.append((ny, nx))
+        return labels, cur
+
+    @staticmethod
+    def _af3a_binary_closing(mask, iterations=2):
+        """Morphological closing (dilation → erosion) with 3×3 kernel.
+
+        Bridges small gaps so a motif fragmented by one or two noisy
+        high-PAE pixels still registers as a single component.
+        Falls back to a simple numpy implementation if scipy missing.
+        """
+        if SCIPY_NDIMAGE_AVAILABLE:
+            return _scipy_ndimage.binary_closing(mask, iterations=iterations)
+        out = mask.copy()
+        for _ in range(iterations):
+            # dilate
+            d = out.copy()
+            d[1:, :]  |= out[:-1, :]
+            d[:-1, :] |= out[1:, :]
+            d[:, 1:]  |= out[:, :-1]
+            d[:, :-1] |= out[:, 1:]
+            # erode (4-connected erosion = AND of 4 shifted copies + self)
+            e = d.copy()
+            e[1:, :]  &= d[:-1, :]
+            e[:-1, :] &= d[1:, :]
+            e[:, 1:]  &= d[:, :-1]
+            e[:, :-1] &= d[:, 1:]
+            out = e
+        return out
+
+    @classmethod
+    def _af3a_detect_motifs_one_pair(cls, pae_AB, pae_BA, contact_AB,
+                                       plddt_A, plddt_B,
+                                       pae_core, pae_ext, min_contact,
+                                       min_size, require_reciprocal,
+                                       offset_a=0, offset_b=0,
+                                       token_res_A=None,
+                                       token_res_B=None,
+                                       res_id_to_res_num=None):
+        """Detect motifs in a single A↔B quadrant pair.
+
+        Parameters
+        ----------
+        pae_AB : 2-D ndarray (len_A × len_B)
+            Off-diagonal PAE, rows = chain A residues, cols = chain B.
+        pae_BA : 2-D ndarray (len_B × len_A)
+            Transposed quadrant, for reciprocity validation.
+        contact_AB : 2-D ndarray or None (len_A × len_B)
+            Contact probabilities. None disables the contact filter.
+        plddt_A, plddt_B : 1-D ndarray or None
+            Per-residue pLDDT for chains A, B.
+        pae_core, pae_ext : float
+            PAE thresholds in Å for the core (strict) and extended
+            (peripheral) tiers.
+        min_contact : float
+            Minimum contact probability for the core mask. 0 disables.
+        min_size : int
+            Minimum width AND height (in residues) for a surviving motif.
+        require_reciprocal : bool
+            Drop motifs without a matching component in the B↔A quadrant.
+        offset_a, offset_b : int
+            Running positional offset of this quadrant inside the full
+            PAE matrix — used so plot overlays can draw rectangles in
+            the correct absolute position.
+        token_res_A, token_res_B : 1-D ndarray or None
+            The AF3 per-residue numbers for chain A / B (from
+            token_res_ids). When provided, motif positions are reported
+            in the native chain-local numbering (restarting at 1 per
+            chain) that the AF3 server shows.
+
+        Returns
+        -------
+        list[dict]  sorted by `score` desc.
+        """
+        if pae_AB is None or pae_AB.size == 0:
+            return []
+
+        len_A, len_B = pae_AB.shape
+        use_contact = (contact_AB is not None
+                       and contact_AB.shape == pae_AB.shape
+                       and min_contact > 0.0)
+
+        # 1) Core mask — low PAE AND (optionally) high contact prob
+        core_mask = (pae_AB < pae_core)
+        if use_contact:
+            core_mask &= (contact_AB >= min_contact)
+
+        # 2) Close 1-2 pixel gaps
+        core_mask = cls._af3a_binary_closing(core_mask, iterations=1)
+
+        # 3) Reciprocity mask on the transposed quadrant
+        if pae_BA is not None and pae_BA.shape == (len_B, len_A):
+            recip_mask = (pae_BA < pae_core)
+            recip_mask = cls._af3a_binary_closing(recip_mask, iterations=1)
+        else:
+            recip_mask = None
+
+        # 4) Label connected components
+        labels, n_cc = cls._af3a_label_cc(core_mask)
+        if n_cc == 0:
+            return []
+
+        # 5) Extended mask (peripheral residues, for bbox extension)
+        ext_mask = (pae_AB < pae_ext)
+
+        motifs = []
+        for k in range(1, n_cc + 1):
+            comp_rows, comp_cols = np.where(labels == k)
+            if len(comp_rows) == 0:
+                continue
+            r0, r1 = int(comp_rows.min()), int(comp_rows.max())
+            c0, c1 = int(comp_cols.min()), int(comp_cols.max())
+            core_h = r1 - r0 + 1
+            core_w = c1 - c0 + 1
+            if core_h < min_size or core_w < min_size:
+                continue
+
+            # 5a) Extend bbox with contiguous low-PAE peripheral cells
+            #     (grow the bbox while any edge row/col has ≥ 1 ext pixel)
+            while r0 > 0 and ext_mask[r0 - 1, c0:c1 + 1].any():
+                r0 -= 1
+            while r1 < len_A - 1 and ext_mask[r1 + 1, c0:c1 + 1].any():
+                r1 += 1
+            while c0 > 0 and ext_mask[r0:r1 + 1, c0 - 1].any():
+                c0 -= 1
+            while c1 < len_B - 1 and ext_mask[r0:r1 + 1, c1 + 1].any():
+                c1 += 1
+
+            block_pae = pae_AB[r0:r1 + 1, c0:c1 + 1]
+            block_core_mask = (block_pae < pae_core)
+
+            mean_pae = float(block_pae.mean())
+            min_pae  = float(block_pae.min())
+            density  = float(block_core_mask.mean())   # % core pixels
+            h = r1 - r0 + 1
+            w = c1 - c0 + 1
+            area = h * w
+
+            # Mean contact prob in the motif (only if available)
+            if use_contact:
+                mean_contact = float(contact_AB[r0:r1+1, c0:c1+1].mean())
+                max_contact  = float(contact_AB[r0:r1+1, c0:c1+1].max())
+            else:
+                mean_contact = None
+                max_contact  = None
+
+            # Per-chain pLDDT for residues inside the motif
+            plddt_mA = None
+            plddt_mB = None
+            if plddt_A is not None and len(plddt_A) >= r1 + 1:
+                plddt_mA = float(np.mean(plddt_A[r0:r1 + 1]))
+            if plddt_B is not None and len(plddt_B) >= c1 + 1:
+                plddt_mB = float(np.mean(plddt_B[c0:c1 + 1]))
+            plddt_mean = (
+                None if plddt_mA is None and plddt_mB is None
+                else (
+                    (plddt_mA or 0.0) + (plddt_mB or 0.0)
+                ) / max(1, (plddt_mA is not None) + (plddt_mB is not None))
+            )
+
+            # Reciprocity: does the transposed region in B↔A also have
+            # a low-PAE block? Require ≥ 50 % overlap.
+            reciprocal = False
+            recip_overlap = 0.0
+            if recip_mask is not None:
+                recip_block = recip_mask[c0:c1 + 1, r0:r1 + 1]
+                recip_overlap = float(recip_block.mean())
+                reciprocal = recip_overlap >= 0.5
+            if require_reciprocal and recip_mask is not None and not reciprocal:
+                continue
+
+            # Combined score (0-100). Weights chosen to match:
+            #   confidence 35 %, size 20 %, density 20 %,
+            #   pLDDT 15 %, reciprocity 10 %
+            conf_term = max(0.0, 1.0 - mean_pae / max(pae_ext, 0.1))
+            size_term = min(min(h, w) / 50.0, 1.0)   # saturates at 50
+            dens_term = density
+            if plddt_mean is not None:
+                plddt_term = max(0.0, (plddt_mean - 50.0) / 50.0)
+            else:
+                plddt_term = 0.5   # neutral if unknown
+            recip_term = 1.0 if reciprocal else 0.0
+            score = 100.0 * (
+                0.35 * conf_term
+                + 0.20 * size_term
+                + 0.20 * dens_term
+                + 0.15 * plddt_term
+                + 0.10 * recip_term)
+
+            # Convert row/col indices to user-facing residue numbers
+            def _resnum(arr, idx):
+                if arr is not None and 0 <= idx < len(arr):
+                    try:
+                        return int(arr[idx])
+                    except (TypeError, ValueError):
+                        pass
+                return idx + 1  # 1-based running
+
+            a_start = _resnum(token_res_A, r0)
+            a_end   = _resnum(token_res_A, r1)
+            b_start = _resnum(token_res_B, c0)
+            b_end   = _resnum(token_res_B, c1)
+
+            motifs.append({
+                # Bounding box in LOCAL quadrant coordinates
+                'a_row0': r0, 'a_row1': r1,
+                'b_col0': c0, 'b_col1': c1,
+                # Residue numbering (native, per-chain)
+                'a_start': a_start, 'a_end': a_end,
+                'b_start': b_start, 'b_end': b_end,
+                # Global (absolute) indices — for plot overlays
+                'abs_row0': r0 + offset_a, 'abs_row1': r1 + offset_a,
+                'abs_col0': c0 + offset_b, 'abs_col1': c1 + offset_b,
+                # Metrics
+                'width':  w,   'height': h,   'area': area,
+                'mean_pae': mean_pae, 'min_pae': min_pae,
+                'density': density,
+                'mean_contact': mean_contact, 'max_contact': max_contact,
+                'plddt_A': plddt_mA, 'plddt_B': plddt_mB,
+                'plddt_mean': plddt_mean,
+                'reciprocal': reciprocal,
+                'recip_overlap': recip_overlap,
+                'score': score,
+            })
+
+        motifs.sort(key=lambda m: -m['score'])
+        return motifs
+
+    @classmethod
+    def _af3a_detect_motifs(cls, res: dict,
+                             pae_core: float, pae_ext: float,
+                             min_contact: float, min_size: int,
+                             require_reciprocal: bool = True) -> list:
+        """Detect motifs for every off-diagonal pair in one AF3 result.
+
+        Returns a flat list of motifs with a 'pair' key identifying
+        which chain pair the motif belongs to. Sorted by score.
+        """
+        pae_matrix    = res.get('pae_matrix')
+        contact_probs = res.get('contact_probs')
+        plddt_arr     = res.get('plddt_arr')
+        token_res_ids = res.get('token_res_ids')
+        chain_order   = res.get('chain_order') or []
+        chain_lens    = res.get('chain_lens') or {}
+        chain_to_orf  = res.get('chain_to_orf') or {}
+
+        if (not pae_matrix or len(chain_order) < 2
+                or not NUMPY_AVAILABLE):
+            return []
+
+        pae_np = np.array(pae_matrix, dtype=float)
+        contact_np = (np.array(contact_probs, dtype=float)
+                      if contact_probs else None)
+        plddt_np = (np.array(plddt_arr, dtype=float)
+                    if plddt_arr else None)
+        tri_np = (np.array(token_res_ids)
+                  if token_res_ids else None)
+
+        # Running offsets for each chain (for mapping into full matrix)
+        chain_offsets = {}
+        acc = 0
+        for cid in chain_order:
+            chain_offsets[cid] = acc
+            acc += chain_lens.get(cid, 0)
+
+        all_motifs = []
+        for i_c, ca in enumerate(chain_order):
+            for j_c, cb in enumerate(chain_order):
+                if i_c >= j_c:
+                    continue  # only upper-triangle inter-chain
+                r0 = chain_offsets[ca]; r1 = r0 + chain_lens[ca]
+                c0 = chain_offsets[cb]; c1 = c0 + chain_lens[cb]
+
+                pae_AB = pae_np[r0:r1, c0:c1]
+                pae_BA = pae_np[c0:c1, r0:r1]
+                cont_AB = (contact_np[r0:r1, c0:c1]
+                           if contact_np is not None else None)
+                plddt_A = (plddt_np[r0:r1]
+                           if plddt_np is not None else None)
+                plddt_B = (plddt_np[c0:c1]
+                           if plddt_np is not None else None)
+                tri_A   = (tri_np[r0:r1]
+                           if tri_np is not None else None)
+                tri_B   = (tri_np[c0:c1]
+                           if tri_np is not None else None)
+
+                motifs = cls._af3a_detect_motifs_one_pair(
+                    pae_AB, pae_BA, cont_AB,
+                    plddt_A, plddt_B,
+                    pae_core=pae_core, pae_ext=pae_ext,
+                    min_contact=min_contact,
+                    min_size=min_size,
+                    require_reciprocal=require_reciprocal,
+                    offset_a=r0, offset_b=c0,
+                    token_res_A=tri_A, token_res_B=tri_B)
+
+                # Attach pair identity & friendly names
+                name_A = chain_to_orf.get(ca, ca)
+                name_B = chain_to_orf.get(cb, cb)
+                for m in motifs:
+                    m['pair']    = (ca, cb)
+                    m['chain_A'] = ca
+                    m['chain_B'] = cb
+                    m['name_A']  = name_A
+                    m['name_B']  = name_B
+                    m['label']   = (f"{name_A}[{m['a_start']}-{m['a_end']}] "
+                                    f"× {name_B}[{m['b_start']}-{m['b_end']}]")
+                all_motifs.extend(motifs)
+
+        all_motifs.sort(key=lambda m: -m['score'])
+        # Assign stable rank indices (for plot overlay labels)
+        for rank, m in enumerate(all_motifs, start=1):
+            m['rank'] = rank
+        return all_motifs
 
     @staticmethod
     def _af3a_contact_str(mean_A, mean_B, name_A, name_B, thresh):
@@ -8654,13 +12988,15 @@ echo "Submitted {n_batches} jobs."
             ranges.append(f"res{s+1}-{e+1}" if e > s else f"res{s+1}")
             return f"{prefix}: {', '.join(ranges[:3])}"
 
+        # Use the supplied per-residue arrays directly (caller now passes min,
+        # not mean, so low values correctly flag focal-contact residues)
         c5_A  = np.where(mean_A < 5.0)[0]
         c10_A = np.where(mean_A < 10.0)[0]
         c5_B  = np.where(mean_B < 5.0)[0]
         c10_B = np.where(mean_B < 10.0)[0]
 
         if not len(c5_A) and not len(c10_A):
-            return f"not relevant interaction found with {name_B}"
+            return f"no contact detected with {name_B}"
 
         parts = []
         if len(c5_A):
@@ -8675,47 +13011,231 @@ echo "Submitted {n_batches} jobs."
             f"not relevant interaction found with {name_B}")
 
     def _af3a_populate_table(self):
-        self._af3a_table.setRowCount(0)
+        """Populate the results table.
+
+        BUG FIX (v1.15):
+          • Disable sorting during insertion so Qt does not rearrange
+            rows mid-population.
+          • Store the result-list index in UserRole data on col 0 of
+            each row, so `_af3a_on_select` and `_af3a_replot_selected`
+            can retrieve the correct result even after the user
+            re-sorts the table by any column.
+          • Use a small numeric-aware QTableWidgetItem subclass for
+            the float columns (ipTM, ptm, pLDDT, ranking, PAE_inter)
+            so sorting is numeric, not lexicographic.
+        """
+        table = self._af3a_table
+        user_role = self._af3a_user_role()
+
+        # NumericItem: sorts by the stored float, displays formatted text
+        class _NumericItem(QTableWidgetItem):
+            def __init__(self, text: str, value):
+                super().__init__(text)
+                # value may be None → treat as -inf for best-first sort
+                self._val = float(value) if value is not None else float('-inf')
+
+            def __lt__(self, other):
+                try:
+                    return self._val < other._val
+                except AttributeError:
+                    return super().__lt__(other)
+
+        # Disable sort + signals during rebuild
+        was_sortable = table.isSortingEnabled()
+        table.setSortingEnabled(False)
+        table.blockSignals(True)
+        table.setRowCount(0)
+
         def _c(v, thr_good, thr_ok, inv=False):
             if v is None: return None
-            ok = (v <= thr_ok) if inv else (v >= thr_good)
+            ok  = (v <= thr_ok)   if inv else (v >= thr_good)
             mid = (v <= thr_good) if inv else (v >= thr_ok)
             if ok:   return QColor('#C8E6C9')
             if mid:  return QColor('#FFF9C4')
             return QColor('#FFCDD2')
 
-        for res in self._af3_analysis_results:
-            row = self._af3a_table.rowCount()
-            self._af3a_table.insertRow(row)
+        for res_idx, res in enumerate(self._af3_analysis_results):
+            row = table.rowCount()
+            table.insertRow(row)
+
             chains_s = ', '.join(
                 f"{res['chain_to_orf'].get(c, c)}({res['chain_lens'][c]}aa)"
                 for c in res['chain_order'])
-            iptm_s   = f"{res['iptm']:.3f}"  if res.get('iptm')   is not None else '-'
-            ptm_s    = f"{res['ptm']:.3f}"   if res.get('ptm')    is not None else '-'
-            plddt_s  = f"{res['mean_plddt']:.1f}" if res.get('mean_plddt') is not None else '-'
+            iptm_s   = f"{res['iptm']:.3f}"       if res.get('iptm')          is not None else '-'
+            ptm_s    = f"{res['ptm']:.3f}"        if res.get('ptm')           is not None else '-'
+            plddt_s  = f"{res['mean_plddt']:.1f}" if res.get('mean_plddt')    is not None else '-'
             rank_s   = f"{res['ranking_score']:.4f}" if res.get('ranking_score') is not None else '-'
-            pi_s     = f"{res['pae_inter']:.1f}" if res.get('pae_inter') is not None else '-'
+            pi_s     = f"{res['pae_inter']:.1f}"  if res.get('pae_inter')     is not None else '-'
 
-            vals = [res['job_name'], str(res['n_chains']), chains_s,
-                    iptm_s, ptm_s, plddt_s, rank_s, pi_s,
-                    res.get('contact_region', '-')]
-            for col, val in enumerate(vals):
-                item = QTableWidgetItem(str(val))
-                bg = None
-                if col == 3: bg = _c(res.get('iptm'), 0.75, 0.50)
-                if col == 7: bg = _c(res.get('pae_inter'), 8.0, 15.0, inv=True)
-                if bg: item.setBackground(bg)
-                self._af3a_table.setItem(row, col, item)
+            # Column 0: job name — carries the data index in UserRole
+            # Add a sequence-verification badge prefix to the cell text
+            _seq_st   = res.get('seq_status', 'no_input')
+            _seq_icon = {
+                'verified':  '✅',   # folder name confirmed by sequence
+                'corrected': '🔁',   # folder name was wrong; corrected
+                'mismatch':  '⚠️',   # sequences not found in current genome
+                'no_input':  '📂',   # no input JSON available
+                'no_orfs':   '❔',   # no genome loaded
+            }.get(_seq_st, '❔')
+            item0 = QTableWidgetItem(f"{_seq_icon} {res['job_name']}")
+            item0.setData(user_role, res_idx)
+            # QC tooltip with rich summary info
+            tip_parts = []
+            # ── Sequence verification status (first, most important) ──────
+            _seq_msgs = {
+                'verified':  '✅ Sequences verified — folder name matches genome',
+                'corrected': '🔁 ORF IDs corrected by sequence match '
+                             '(folder name differed from current genome numbering)',
+                'mismatch':  '⚠️ SEQUENCE MISMATCH — proteins in input JSON not found '
+                             'in current genome. Results may belong to a different genome.',
+                'no_input':  '📂 No input JSON found — ORF IDs from folder name only '
+                             '(not sequence-verified)',
+                'no_orfs':   '❔ No genome loaded — cannot verify sequences',
+            }
+            tip_parts.append(_seq_msgs.get(_seq_st, '❔ Unknown status'))
+            if res.get('has_clash') is not None:
+                hc = res['has_clash']
+                has = (hc if isinstance(hc, bool) else hc >= 0.5)
+                tip_parts.append(
+                    f"Clash: {'YES ⚠' if has else 'no'}")
+            if res.get('fraction_disordered') is not None:
+                tip_parts.append(
+                    f"Disordered: {res['fraction_disordered']*100:.1f}%")
+            # Best-pair PAE min (from chain_pair_pae_min)
+            bp = res.get('best_pair')
+            if bp and bp in res.get('pair_metrics', {}):
+                pm = res['pair_metrics'][bp]
+                if pm.get('pair_pae_min') is not None:
+                    tip_parts.append(
+                        f"PAE_min(best pair): {pm['pair_pae_min']:.2f} Å")
+                if pm.get('pair_iptm') is not None:
+                    tip_parts.append(
+                        f"pair_ipTM: {pm['pair_iptm']:.2f}")
+            if res.get('chain_iptm'):
+                tip_parts.append(
+                    "chain_iptm: ["
+                    + ", ".join(f"{x:.2f}" for x in res['chain_iptm'])
+                    + "]")
+            if res.get('ranking_samples'):
+                tip_parts.append(
+                    f"{len(res['ranking_samples'])} diffusion sample(s)")
+            if tip_parts:
+                item0.setToolTip("\n".join(tip_parts))
+            # Color the job name cell by verification status
+            _seq_bg = {
+                'verified':  QColor('#E8F5E9'),   # light green
+                'corrected': QColor('#E3F2FD'),   # light blue
+                'mismatch':  QColor('#FFEBEE'),   # light red
+                'no_input':  None,                # default
+                'no_orfs':   None,
+            }.get(_seq_st)
+            if _seq_bg:
+                item0.setBackground(_seq_bg)
+            table.setItem(row, 0, item0)
+
+            # Column 1: n_chains (int; small numbers sort OK as str but still numeric)
+            table.setItem(row, 1, _NumericItem(str(res['n_chains']),
+                                                res['n_chains']))
+            # Column 2: chain description (string)
+            table.setItem(row, 2, QTableWidgetItem(chains_s))
+
+            # Columns 3–7: numeric metrics
+            it_iptm  = _NumericItem(iptm_s,   res.get('iptm'))
+            it_ptm   = _NumericItem(ptm_s,    res.get('ptm'))
+            it_plddt = _NumericItem(plddt_s,  res.get('mean_plddt'))
+            it_rank  = _NumericItem(rank_s,   res.get('ranking_score'))
+            it_paei  = _NumericItem(pi_s,     res.get('pae_inter'))
+
+            bg_iptm = _c(res.get('iptm'),      0.75,  0.50)
+            bg_paei = _c(res.get('pae_inter'), 8.0,  15.0, inv=True)
+            if bg_iptm: it_iptm.setBackground(bg_iptm)
+            if bg_paei: it_paei.setBackground(bg_paei)
+
+            table.setItem(row, 3, it_iptm)
+            table.setItem(row, 4, it_ptm)
+            table.setItem(row, 5, it_plddt)
+            table.setItem(row, 6, it_rank)
+            table.setItem(row, 7, it_paei)
+
+            # ── Columns 8–10: focal interaction metrics (v2.0) ──────────────
+            pae_min_v = res.get('pae_min_inter')
+            cp_iptm_v = res.get('cp_iptm_inter')
+            cfrac_v   = res.get('contact_frac')
+
+            pmin_s  = f"{pae_min_v:.2f}" if pae_min_v is not None else '-'
+            cpip_s  = f"{cp_iptm_v:.2f}" if cp_iptm_v is not None else '-'
+            cfrac_s = f"{cfrac_v*100:.1f}%" if cfrac_v is not None else '-'
+
+            it_pmin = _NumericItem(pmin_s, pae_min_v)
+            it_cpip = _NumericItem(cpip_s, cp_iptm_v)
+            it_cfrc = _NumericItem(cfrac_s, (cfrac_v or 0) * 100)
+
+            # PAE_min coloring: green < 4Å, yellow 4–8Å, red ≥ 8Å
+            bg_pmin = _c(pae_min_v, 4.0, 8.0, inv=True)
+            if bg_pmin: it_pmin.setBackground(bg_pmin)
+            # cp_ipTM coloring same thresholds as global ipTM
+            bg_cpip = _c(cp_iptm_v, 0.65, 0.50)
+            if bg_cpip: it_cpip.setBackground(bg_cpip)
+
+            table.setItem(row, 8,  it_pmin)
+            table.setItem(row, 9,  it_cpip)
+            table.setItem(row, 10, it_cfrc)
+
+            # Column 11: focal contact region description
+            table.setItem(row, 11, QTableWidgetItem(
+                res.get('contact_region', '-')))
+
+            # ── High-confidence highlight (v2.0) ───────────────────────────
+            # Primary criterion: PAE_min < 4Å AND cp_ipTM ≥ 0.50 = FOCAL HIT
+            # Fallback: legacy ipTM > 0.75 AND PAEinter < 8Å
+            iptm_v = res.get('iptm')
+            paei_v = res.get('pae_inter')
+            focal_hit = (pae_min_v is not None and pae_min_v < 4.0
+                         and (cp_iptm_v is None or cp_iptm_v >= 0.50))
+            legacy_hit = (iptm_v is not None and paei_v is not None
+                          and iptm_v > 0.75 and paei_v < 8.0)
+            if focal_hit or legacy_hit:
+                bold = QFont()
+                bold.setBold(True)
+                for c in range(table.columnCount()):
+                    it = table.item(row, c)
+                    if it is not None:
+                        it.setFont(bold)
+
+        table.blockSignals(False)
+        if was_sortable:
+            table.setSortingEnabled(True)
+
+        # Apply any active filters
+        self._af3a_apply_filters()
 
     def _af3a_on_select(self):
+        """Plot the selected job.
+
+        BUG FIX (v1.15): retrieve the data-list index from the
+        UserRole of column 0 instead of using the view row index
+        (which is scrambled whenever the user sorts the table).
+        """
         rows = set(idx.row() for idx in self._af3a_table.selectedIndexes())
         if not rows:
             return
-        row = min(rows)
-        if row >= len(self._af3_analysis_results):
+        view_row = min(rows)
+        item0 = self._af3a_table.item(view_row, 0)
+        if item0 is None:
+            return
+        res_idx = item0.data(self._af3a_user_role())
+        # Defensive fallback: if UserRole is missing (e.g. legacy project
+        # files loaded into this build), fall back to view_row.
+        if res_idx is None:
+            res_idx = view_row
+        try:
+            res_idx = int(res_idx)
+        except (TypeError, ValueError):
+            return
+        if not (0 <= res_idx < len(self._af3_analysis_results)):
             return
 
-        res = self._af3_analysis_results[row]
+        res = self._af3_analysis_results[res_idx]
         self._af3a_plot_job(res)
 
         for orf_name in res.get('orf_names', []):
@@ -8726,38 +13246,106 @@ echo "Submitted {n_batches} jobs."
                     self._select_and_center_orf(idx)
                     break
 
+    def _af3a_on_double_click(self, row: int, _col: int):
+        """Open the AF3 job folder in the OS file manager."""
+        item0 = self._af3a_table.item(row, 0)
+        if item0 is None:
+            return
+        res_idx = item0.data(self._af3a_user_role())
+        if res_idx is None:
+            return
+        try:
+            res = self._af3_analysis_results[int(res_idx)]
+        except (IndexError, TypeError, ValueError):
+            return
+        job_dir = res.get('job_dir', '')
+        if not job_dir or not Path(job_dir).is_dir():
+            QMessageBox.information(
+                self, "Open folder",
+                f"Folder not found:\n{job_dir}")
+            return
+        # Cross-platform folder open
+        try:
+            if sys.platform == 'darwin':
+                subprocess.Popen(['open', job_dir])
+            elif sys.platform.startswith('win'):
+                os.startfile(job_dir)  # noqa: E501 - Windows-only
+            else:
+                subprocess.Popen(['xdg-open', job_dir])
+        except Exception as e:
+            QMessageBox.warning(
+                self, "Open folder",
+                f"Could not open folder:\n{e}")
+
     def _af3a_replot_selected(self):
+        """Re-render plots for the currently selected row, re-using
+        the latest contact threshold.
+
+        BUG FIX (v1.15):
+          • Uses UserRole-stored index (see _af3a_on_select).
+          • Also refreshes the 'Best contact pair' cell in the table
+            so the on-screen text matches the new threshold.
+        """
         rows = set(idx.row() for idx in self._af3a_table.selectedIndexes())
-        if rows:
-            row = min(rows)
-            if row < len(self._af3_analysis_results):
-                # Recompute pair metrics with new threshold
-                res = self._af3_analysis_results[row]
-                try:
-                    thresh = self._af3a_thresh_spin.value()
-                    if res.get('pae_matrix') and res.get('n_chains', 1) >= 2:
-                        pae_np = np.array(res['pae_matrix'], dtype=float)
-                        for (ca, cb) in list(res['pair_metrics'].keys()):
-                            chain_order = res['chain_order']
-                            i_c = chain_order.index(ca)
-                            j_c = chain_order.index(cb)
-                            r0 = sum(res['chain_lens'][chain_order[k]] for k in range(i_c))
-                            r1 = r0 + res['chain_lens'][ca]
-                            c0 = sum(res['chain_lens'][chain_order[k]] for k in range(j_c))
-                            c1 = c0 + res['chain_lens'][cb]
-                            mA = pae_np[r0:r1, c0:c1].mean(axis=1)
-                            mB = pae_np[c0:c1, r0:r1].mean(axis=1)
-                            cr = self._af3a_contact_str(
-                                mA, mB,
-                                res['chain_to_orf'].get(ca, ca),
-                                res['chain_to_orf'].get(cb, cb), thresh)
-                            res['pair_metrics'][(ca, cb)]['contact_region'] = cr
-                except Exception:
-                    pass
-                self._af3a_plot_job(res)
+        if not rows:
+            return
+        view_row = min(rows)
+        item0 = self._af3a_table.item(view_row, 0)
+        if item0 is None:
+            return
+        res_idx = item0.data(self._af3a_user_role())
+        if res_idx is None:
+            return
+        try:
+            res_idx = int(res_idx)
+        except (TypeError, ValueError):
+            return
+        if not (0 <= res_idx < len(self._af3_analysis_results)):
+            return
+
+        res = self._af3_analysis_results[res_idx]
+        try:
+            thresh = self._af3a_thresh_spin.value()
+            if res.get('pae_matrix') and res.get('n_chains', 1) >= 2:
+                pae_np = np.array(res['pae_matrix'], dtype=float)
+                chain_order = res['chain_order']
+                chain_lens  = res['chain_lens']
+                best_pair = res.get('best_pair', ('?', '?'))
+                for (ca, cb) in list(res['pair_metrics'].keys()):
+                    i_c = chain_order.index(ca)
+                    j_c = chain_order.index(cb)
+                    r0 = sum(chain_lens[chain_order[k]] for k in range(i_c))
+                    r1 = r0 + chain_lens[ca]
+                    c0 = sum(chain_lens[chain_order[k]] for k in range(j_c))
+                    c1 = c0 + chain_lens[cb]
+                    mA = pae_np[r0:r1, c0:c1].mean(axis=1)
+                    mB = pae_np[c0:c1, r0:r1].mean(axis=1)
+                    cr = self._af3a_contact_str(
+                        mA, mB,
+                        res['chain_to_orf'].get(ca, ca),
+                        res['chain_to_orf'].get(cb, cb), thresh)
+                    res['pair_metrics'][(ca, cb)]['contact_region'] = cr
+                    res['pair_metrics'][(ca, cb)]['n_contacts'] = int(
+                        (mA < thresh).sum() + (mB < thresh).sum())
+                # Update 'best' contact_region for the table
+                if best_pair in res['pair_metrics']:
+                    res['contact_region'] = (
+                        res['pair_metrics'][best_pair]['contact_region'])
+                    # Refresh the table cell (col 11 = contact_region after v2.0)
+                    cell = self._af3a_table.item(view_row, 11)
+                    if cell is not None:
+                        cell.setText(res['contact_region'])
+        except Exception as e:
+            print(f"[AF3 Analysis] replot threshold update: {e}")
+        self._af3a_plot_job(res)
 
     def _af3a_clear_plots(self):
         self._af3a_active_canvases = []
+        # v1.16: drop motif-highlight references since the canvas they
+        # point to is about to be deleted.
+        self._af3a_last_pae_ax = None
+        self._af3a_last_pae_canvas = None
+        self._af3a_highlight_patches = []
         while self._af3a_plot_layout.count():
             item = self._af3a_plot_layout.takeAt(0)
             w = item.widget()
@@ -8823,12 +13411,97 @@ echo "Submitted {n_batches} jobs."
             "border-radius:4px;")
         self._af3a_plot_layout.addWidget(hdr)
 
-        # Contact regions for each pair
+        # QC line: fraction_disordered + has_clash + per-chain metrics
+        qc_parts = []
+        fd = res.get('fraction_disordered')
+        if fd is not None:
+            colour = '#E65100' if fd > 0.3 else '#2E7D32'
+            qc_parts.append(
+                f"<span style='color:{colour}'>"
+                f"disordered={fd*100:.1f}%</span>")
+        hc = res.get('has_clash')
+        if hc is not None:
+            has = (hc if isinstance(hc, bool) else hc >= 0.5)
+            if has:
+                qc_parts.append(
+                    "<span style='color:#C62828'>⚠ clash</span>")
+            else:
+                qc_parts.append(
+                    "<span style='color:#2E7D32'>no clash</span>")
+        # Per-chain ipTM / ptm breakdown
+        c_iptm = res.get('chain_iptm') or []
+        c_ptm  = res.get('chain_ptm')  or []
+        for i, cid in enumerate(chain_order):
+            bits = []
+            if i < len(c_iptm) and c_iptm[i] is not None:
+                bits.append(f"ipTM={c_iptm[i]:.2f}")
+            if i < len(c_ptm) and c_ptm[i] is not None:
+                bits.append(f"pTM={c_ptm[i]:.2f}")
+            if bits:
+                qc_parts.append(
+                    f"{chain_to_orf.get(cid, cid)}({','.join(bits)})")
+        if qc_parts:
+            qc = QLabel("  " + "   ".join(qc_parts))
+            qc.setStyleSheet(
+                "font-size:10px;padding:1px 8px;color:#455A64;")
+            qc.setTextFormat(
+                Qt.TextFormat.RichText if QT_VERSION == 6
+                else Qt.RichText)
+            self._af3a_plot_layout.addWidget(qc)
+
+        # ── Sequence verification status line ─────────────────────────────
+        _seq_st   = res.get('seq_status', 'no_input')
+        _seq_html = {
+            'verified':  ("<span style='color:#2E7D32;font-weight:500'>"
+                          "✅ Sequences verified</span>"
+                          " — ORF IDs confirmed by exact sequence match "
+                          "with loaded genome"),
+            'corrected': ("<span style='color:#1565C0;font-weight:500'>"
+                          "🔁 ORF IDs corrected</span>"
+                          " — folder name differed from current genome "
+                          "numbering; correct IDs found by sequence match"),
+            'mismatch':  ("<span style='color:#C62828;font-weight:500'>"
+                          "⚠️ SEQUENCE MISMATCH</span>"
+                          " — proteins in this job were NOT found in the "
+                          "current genome. Results may belong to a different "
+                          "genome or a re-analysed sequence. "
+                          "Interpretation may be incorrect."),
+            'no_input':  ("<span style='color:#888'>"
+                          "📂 Not verified</span>"
+                          " — no input JSON found; ORF IDs from folder name only"),
+            'no_orfs':   ("<span style='color:#888'>"
+                          "❔ Cannot verify</span>"
+                          " — no genome loaded"),
+        }.get(_seq_st, "")
+        if _seq_html:
+            seq_lbl = QLabel("  " + _seq_html)
+            seq_lbl.setTextFormat(
+                Qt.TextFormat.RichText if QT_VERSION == 6 else Qt.RichText)
+            seq_lbl.setStyleSheet(
+                "font-size:10px;padding:1px 8px;"
+                "background:#f8f8f8;border-left:3px solid "
+                + {
+                    'verified':  '#2E7D32',
+                    'corrected': '#1565C0',
+                    'mismatch':  '#C62828',
+                }.get(_seq_st, '#ccc') + ";")
+            seq_lbl.setWordWrap(True)
+            self._af3a_plot_layout.addWidget(seq_lbl)
+
+        # Contact regions + per-pair rich metrics
         if res.get('pair_metrics'):
             for (ca, cb), pm in res['pair_metrics'].items():
+                extras = []
+                if pm.get('pair_iptm') is not None:
+                    extras.append(f"ipTM={pm['pair_iptm']:.2f}")
+                if pm.get('pair_pae_min') is not None:
+                    extras.append(f"PAE_min={pm['pair_pae_min']:.1f}Å")
+                if pm.get('pae_inter') is not None:
+                    extras.append(f"PAE_mean={pm['pae_inter']:.1f}Å")
+                extras_s = (" [" + ", ".join(extras) + "]") if extras else ""
                 cr_lbl = QLabel(
                     f"  {chain_to_orf.get(ca,ca)} ↔ "
-                    f"{chain_to_orf.get(cb,cb)}: "
+                    f"{chain_to_orf.get(cb,cb)}{extras_s}: "
                     f"{pm.get('contact_region', '-')}")
                 cr_lbl.setStyleSheet(
                     "font-size:10px;color:#1565C0;padding:1px 8px;")
@@ -8873,24 +13546,59 @@ echo "Submitted {n_batches} jobs."
                 fontsize=9, pad=6)
 
             # Contact residue markers (<thresh Å in off-diag quadrants)
+            #
+            # v1.15 BUG FIX: the previous version drew every contact as
+            # a single dot at the horizontal centre of the off-diagonal
+            # block (x = cum_j + len_b/2), producing a vertical stripe
+            # in the middle of each block instead of marking the actual
+            # residue positions. It also only marked one quadrant per
+            # pair. We now draw a small outline box at each (row_a,
+            # col_b) cell whose inter-chain PAE is below the threshold,
+            # for every (i_c, j_c) off-diagonal block — so both the AB
+            # and BA quadrants are marked.
+            marker_size = max(4, min(18, 900 / max(n_total, 1)))
             cum_i = 0
             for i_c, ca in enumerate(chain_order):
                 len_a = chain_lens.get(ca, 0)
                 cum_j = 0
                 for j_c, cb in enumerate(chain_order):
                     len_b = chain_lens.get(cb, 0)
-                    if i_c != j_c:
-                        sub = pae_np[cum_i:cum_i+len_a,
-                                     cum_j:cum_j+len_b]
+                    if i_c != j_c and len_a > 0 and len_b > 0:
+                        sub = pae_np[cum_i:cum_i + len_a,
+                                     cum_j:cum_j + len_b]
+                        # Per-row mean in this quadrant → rows of chain
+                        # ca that are in contact with chain cb.
                         mA = sub.mean(axis=1)
-                        ci_contact = np.where(mA < thresh)[0]
-                        if len(ci_contact):
-                            ax.scatter(
-                                [cum_j + len_b / 2] * len(ci_contact),
-                                cum_i + ci_contact,
-                                s=max(2, 6 - n_chains),
-                                color='lime', alpha=0.55,
-                                zorder=5, linewidths=0)
+                        contact_rows = np.where(mA < thresh)[0]
+                        if len(contact_rows):
+                            # Draw one horizontal band per contact row,
+                            # spanning the full width of the partner
+                            # chain's block — this is what users expect
+                            # for an "interface" annotation on a PAE map.
+                            for rr in contact_rows:
+                                ax.add_patch(plt.Rectangle(
+                                    (cum_j - 0.5, cum_i + rr - 0.5),
+                                    len_b, 1,
+                                    facecolor='none',
+                                    edgecolor='#00E676',
+                                    linewidth=0.6,
+                                    alpha=0.9,
+                                    zorder=4))
+                            # Emphasize the low-PAE cells themselves
+                            # with small dots in each quadrant.
+                            low = np.argwhere(sub < thresh)
+                            if len(low):
+                                # Sub-sample if too many points
+                                if len(low) > 4000:
+                                    step = max(1, len(low) // 4000)
+                                    low = low[::step]
+                                ax.scatter(
+                                    cum_j + low[:, 1],
+                                    cum_i + low[:, 0],
+                                    s=marker_size * 0.15,
+                                    color='#00E676',
+                                    alpha=0.75,
+                                    zorder=5, linewidths=0)
                     cum_j += len_b
                 cum_i += len_a
 
@@ -8906,10 +13614,12 @@ echo "Submitted {n_batches} jobs."
             chain_lens_ref  = chain_lens
             c2o_ref         = chain_to_orf
             pae_np_ref      = pae_np
+            tri_ref         = res.get('token_res_ids')
 
             def _on_hover(event, _pae=pae_np_ref,
                           _co=chain_order_ref, _cl=chain_lens_ref,
-                          _c2o=c2o_ref, _ax=ax, _lbl=hover_lbl):
+                          _c2o=c2o_ref, _tri=tri_ref,
+                          _ax=ax, _lbl=hover_lbl):
                 if event.inaxes != _ax:
                     _lbl.setText("")
                     return
@@ -8927,14 +13637,75 @@ echo "Submitted {n_batches} jobs."
                         return '?'
                     cx = _chain_of(xi)
                     cy = _chain_of(yi)
+                    # Use real residue numbers from token_res_ids when
+                    # available (restarts at 1 per chain, matching AF3
+                    # server display). Fall back to running index+1.
+                    if _tri and len(_tri) == n:
+                        rx = int(_tri[xi])
+                        ry = int(_tri[yi])
+                    else:
+                        rx = xi + 1
+                        ry = yi + 1
                     _lbl.setText(
-                        f"  PAE  scored={cx} res{xi+1}  "
-                        f"aligned={cy} res{yi+1}  →  "
+                        f"  PAE  scored={cx} res{rx}  "
+                        f"aligned={cy} res{ry}  →  "
                         f"{val:.2f} Å")
 
+            # ── Motif overlays (v1.16) ────────────────────────────
+            # Draw a numbered rectangle around every detected motif on
+            # BOTH off-diagonal quadrants (A↔B solid, B↔A dashed mirror).
+            # The number is the motif's global rank in the job. Uses a
+            # warm red that is clearly visible against the blue PAE.
+            motifs = res.get('motifs') or []
+            for m in motifs:
+                r0 = m['abs_row0']; r1 = m['abs_row1']
+                c0 = m['abs_col0']; c1 = m['abs_col1']
+                # Pick colour by score: green (strong) → amber → red
+                if   m['score'] >= 60: colr = '#00C853'
+                elif m['score'] >= 40: colr = '#FFAB00'
+                else:                  colr = '#FF1744'
+                # A↔B quadrant
+                ax.add_patch(plt.Rectangle(
+                    (c0 - 0.5, r0 - 0.5),
+                    c1 - c0 + 1, r1 - r0 + 1,
+                    facecolor='none', edgecolor=colr,
+                    linewidth=1.6, zorder=7))
+                # Rank label above upper-left corner, readable on any bg
+                ax.annotate(
+                    f"#{m['rank']}",
+                    xy=(c0 - 0.5, r0 - 0.5),
+                    xytext=(c0 + 1, r0 - 3),
+                    fontsize=8, fontweight='bold',
+                    color=colr,
+                    bbox=dict(boxstyle='round,pad=0.15',
+                              facecolor='white', edgecolor=colr,
+                              linewidth=0.8, alpha=0.9),
+                    zorder=8)
+                # Mirrored B↔A quadrant (dashed, no label, lower alpha)
+                ax.add_patch(plt.Rectangle(
+                    (r0 - 0.5, c0 - 0.5),
+                    r1 - r0 + 1, c1 - c0 + 1,
+                    facecolor='none', edgecolor=colr,
+                    linewidth=1.0, linestyle='--',
+                    alpha=0.75, zorder=7))
+
             canvas.mpl_connect('motion_notify_event', _on_hover)
+
+            # ── Right-click context menu on PAE canvas ────────────────────
+            job_name_ref = res['job_name']
+            def _pae_right_click(event, _fig=fig, _name=job_name_ref):
+                if event.button != 3:   # 3 = right mouse button
+                    return
+                self._af3a_canvas_context_menu(_fig, _name + '_PAE')
+            canvas.mpl_connect('button_press_event', _pae_right_click)
+
             self._af3a_active_canvases.append((fig, canvas,
                                                 res['job_name'] + '_PAE'))
+            # Stash refs so the motif-table click handler can draw a
+            # highlight on the SAME axes without rebuilding the plot.
+            self._af3a_last_pae_ax = ax
+            self._af3a_last_pae_canvas = canvas
+            self._af3a_highlight_patches = []
             plt.close(fig)
             self._af3a_plot_layout.addWidget(canvas)
 
@@ -8985,12 +13756,157 @@ echo "Submitted {n_batches} jobs."
 
             canvas2 = FigureCanvas(fig2)
             canvas2.setMinimumHeight(220)
+
+            # ── Right-click context menu on pLDDT canvas ─────────────────
+            def _plddt_right_click(event, _fig=fig2,
+                                   _name=res['job_name'] + '_pLDDT'):
+                if event.button != 3:
+                    return
+                self._af3a_canvas_context_menu(_fig, _name)
+            canvas2.mpl_connect('button_press_event', _plddt_right_click)
+
             self._af3a_active_canvases.append((fig2, canvas2,
                                                 res['job_name'] + '_pLDDT'))
             plt.close(fig2)
             self._af3a_plot_layout.addWidget(canvas2)
 
+        # ── Motif table (v1.16) ─────────────────────────────────────
+        # Must come after both plots so it renders below them.
+        try:
+            self._af3a_build_motif_table(res)
+        except Exception as e:
+            print(f"[AF3 Analysis] motif table build failed: {e}")
+
         self._af3a_plot_layout.addStretch()
+
+    def _af3a_canvas_context_menu(self, fig, default_name: str):
+        """Show a right-click context menu on a matplotlib canvas.
+        Allows saving/exporting the figure as PNG, PDF, SVG, or TIFF."""
+        menu = QMenu(self)
+
+        # ── PNG (high-res, lossless) ──────────────────────────────────────
+        act_png = menu.addAction("🖼  Save as PNG (300 dpi)…")
+        act_png.setToolTip("High-resolution raster image — best for presentations and papers.")
+
+        act_png_screen = menu.addAction("🖼  Save as PNG (screen resolution)…")
+        act_png_screen.setToolTip("Exact screen resolution — smaller file, good for quick sharing.")
+
+        menu.addSeparator()
+
+        # ── PDF (vector) ──────────────────────────────────────────────────
+        act_pdf = menu.addAction("📄  Save as PDF (vector)…")
+        act_pdf.setToolTip("Scalable vector PDF — best for publications and figure editors.")
+
+        # ── SVG (vector) ──────────────────────────────────────────────────
+        act_svg = menu.addAction("📐  Save as SVG (vector)…")
+        act_svg.setToolTip("Scalable Vector Graphics — editable in Inkscape / Illustrator.")
+
+        menu.addSeparator()
+
+        # ── TIFF ─────────────────────────────────────────────────────────
+        act_tif = menu.addAction("🔬  Save as TIFF (600 dpi, publication)…")
+        act_tif.setToolTip("High-resolution TIFF at 600 dpi — standard format for journal submission.")
+
+        menu.addSeparator()
+
+        # ── Copy to clipboard ─────────────────────────────────────────────
+        act_clip = menu.addAction("📋  Copy to clipboard (PNG)…")
+        act_clip.setToolTip("Render to PNG and copy to system clipboard.")
+
+        menu.addSeparator()
+
+        # ── Export all canvases ───────────────────────────────────────────
+        act_all_pdf = menu.addAction("📑  Export all plots to PDF…")
+        act_all_pdf.setToolTip("Combine all currently visible PAE/pLDDT plots into one PDF.")
+
+        chosen = menu.exec(
+            QCursor.pos() if QT_VERSION == 6
+            else QCursor.pos())
+        if chosen is None:
+            return
+
+        safe = re.sub(r'[^\w\-.]', '_', default_name)
+
+        if chosen == act_png:
+            path, _ = QFileDialog.getSaveFileName(
+                self, "Save as PNG", f"{safe}.png",
+                "PNG Image (*.png);;All (*)")
+            if path:
+                try:
+                    fig.savefig(path, dpi=300, bbox_inches='tight',
+                                facecolor='white')
+                    self._status.showMessage(f"✓ Saved: {path}")
+                except Exception as e:
+                    QMessageBox.critical(self, "Save PNG", str(e))
+
+        elif chosen == act_png_screen:
+            path, _ = QFileDialog.getSaveFileName(
+                self, "Save as PNG (screen)", f"{safe}_screen.png",
+                "PNG Image (*.png);;All (*)")
+            if path:
+                try:
+                    fig.savefig(path, dpi=fig.dpi, bbox_inches='tight',
+                                facecolor='white')
+                    self._status.showMessage(f"✓ Saved: {path}")
+                except Exception as e:
+                    QMessageBox.critical(self, "Save PNG", str(e))
+
+        elif chosen == act_pdf:
+            path, _ = QFileDialog.getSaveFileName(
+                self, "Save as PDF", f"{safe}.pdf",
+                "PDF (*.pdf);;All (*)")
+            if path:
+                try:
+                    fig.savefig(path, bbox_inches='tight',
+                                facecolor='white')
+                    self._status.showMessage(f"✓ Saved: {path}")
+                except Exception as e:
+                    QMessageBox.critical(self, "Save PDF", str(e))
+
+        elif chosen == act_svg:
+            path, _ = QFileDialog.getSaveFileName(
+                self, "Save as SVG", f"{safe}.svg",
+                "SVG (*.svg);;All (*)")
+            if path:
+                try:
+                    fig.savefig(path, bbox_inches='tight',
+                                facecolor='white')
+                    self._status.showMessage(f"✓ Saved: {path}")
+                except Exception as e:
+                    QMessageBox.critical(self, "Save SVG", str(e))
+
+        elif chosen == act_tif:
+            path, _ = QFileDialog.getSaveFileName(
+                self, "Save as TIFF", f"{safe}.tiff",
+                "TIFF (*.tiff *.tif);;All (*)")
+            if path:
+                try:
+                    fig.savefig(path, dpi=600, bbox_inches='tight',
+                                facecolor='white')
+                    self._status.showMessage(f"✓ Saved: {path}")
+                except Exception as e:
+                    QMessageBox.critical(self, "Save TIFF", str(e))
+
+        elif chosen == act_clip:
+            try:
+                import io
+                buf = io.BytesIO()
+                fig.savefig(buf, format='png', dpi=150, bbox_inches='tight',
+                            facecolor='white')
+                buf.seek(0)
+                try:
+                    from PyQt6.QtGui import QImage
+                except ImportError:
+                    from PyQt5.QtGui import QImage
+                data = buf.read()
+                img  = QImage.fromData(data)
+                QApplication.clipboard().setImage(img)
+                self._status.showMessage("✓ PAE plot copied to clipboard")
+            except Exception as e:
+                QMessageBox.critical(self, "Copy to Clipboard", str(e))
+
+        elif chosen == act_all_pdf:
+            self._af3a_export_pdf()
 
     def _af3a_export_pdf(self):
         """Export all active PAE/pLDDT figures to a single PDF."""
@@ -9020,10 +13936,770 @@ echo "Submitted {n_batches} jobs."
             QMessageBox.critical(self, "Export PDF",
                                  f"Error:\n{e}")
 
+    def _af3a_apply_filters(self):
+        """Hide rows that fail the min-ipTM / max-PAEinter filters.
+
+        Rows with None values in the filtered metric are shown only when
+        the filter is at its permissive default (ipTM >= 0.0 or
+        PAEinter <= 32.0). This prevents surprise hiding of legacy
+        jobs that lack a given metric.
+        """
+        if not hasattr(self, '_af3a_filter_iptm'):
+            return
+        min_iptm = self._af3a_filter_iptm.value()
+        max_paei = self._af3a_filter_paei.value()
+        user_role = self._af3a_user_role()
+        n_vis = 0
+        for row in range(self._af3a_table.rowCount()):
+            item0 = self._af3a_table.item(row, 0)
+            if item0 is None:
+                continue
+            idx = item0.data(user_role)
+            try:
+                res = self._af3_analysis_results[int(idx)]
+            except (IndexError, TypeError, ValueError):
+                continue
+            iptm = res.get('iptm')
+            paei = res.get('pae_inter')
+            hide = False
+            if min_iptm > 0.0:
+                if iptm is None or iptm < min_iptm:
+                    hide = True
+            if not hide and max_paei < 32.0:
+                if paei is None or paei > max_paei:
+                    hide = True
+            self._af3a_table.setRowHidden(row, hide)
+            if not hide:
+                n_vis += 1
+        total = self._af3a_table.rowCount()
+        if total:
+            extra = (f"  ({n_vis}/{total} shown)"
+                     if n_vis != total else "")
+            txt = self._af3a_status.text()
+            # Strip any previous "(x/y shown)" suffix
+            base = re.sub(r'\s*\(\d+/\d+ shown\)\s*$', '', txt)
+            self._af3a_status.setText(base + extra)
+
+    def _af3a_export_tsv(self):
+        """Export the full AF3 Analysis results table to a TSV file."""
+        results = getattr(self, '_af3_analysis_results', [])
+        if not results:
+            QMessageBox.information(
+                self, "Export TSV",
+                "No results to export.\nLoad an AF3 results folder first.")
+            return
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export AF3 results to TSV",
+            "af3_analysis.tsv",
+            "TSV (*.tsv);;All (*)")
+        if not path:
+            return
+        headers = [
+            'job_name', 'job_dir', 'n_chains', 'chains',
+            'iptm', 'ptm', 'mean_pLDDT', 'ranking_score',
+            'pae_inter_mean', 'pae_min_inter', 'cp_iptm_inter', 'contact_frac_pct',
+            'pae_min_best_pair', 'pair_iptm_best_pair',
+            'best_pair', 'contact_region',
+            'chain_iptm', 'chain_ptm',
+            'fraction_disordered', 'has_clash',
+            'n_diffusion_samples',
+            'high_confidence',
+        ]
+
+        def _fmt(v, fmt='{:.4f}'):
+            if v is None:
+                return ''
+            try:
+                return fmt.format(v)
+            except (TypeError, ValueError):
+                return str(v)
+
+        try:
+            with open(path, 'w', encoding='utf-8') as f:
+                f.write('\t'.join(headers) + '\n')
+                for res in results:
+                    chains = ';'.join(
+                        f"{res['chain_to_orf'].get(c, c)}({res['chain_lens'][c]})"
+                        for c in res.get('chain_order', []))
+                    bp = res.get('best_pair', ('?', '?'))
+                    bp_str = (f"{res['chain_to_orf'].get(bp[0], bp[0])}"
+                              f"-{res['chain_to_orf'].get(bp[1], bp[1])}"
+                              if isinstance(bp, tuple) and len(bp) == 2
+                              else '')
+                    iptm = res.get('iptm')
+                    paei = res.get('pae_inter')
+                    hc = ('yes' if (iptm is not None and paei is not None
+                                    and iptm > 0.75 and paei < 8.0)
+                          else 'no')
+                    # Rich per-pair metrics for best pair
+                    bp_pm = res.get('pair_metrics', {}).get(bp, {})
+                    pae_min_s     = _fmt(bp_pm.get('pair_pae_min'), '{:.3f}')
+                    cp_iptm_s     = _fmt(res.get('cp_iptm_inter'), '{:.3f}')
+                    contact_frac_s= _fmt((res.get('contact_frac') or 0) * 100, '{:.1f}')
+                    pair_iptm_s = _fmt(bp_pm.get('pair_iptm'), '{:.3f}')
+                    # Per-chain metric stringification
+                    ci_s = (';'.join(_fmt(x, '{:.3f}')
+                                     for x in res['chain_iptm'])
+                            if res.get('chain_iptm') else '')
+                    cp_s = (';'.join(_fmt(x, '{:.3f}')
+                                     for x in res['chain_ptm'])
+                            if res.get('chain_ptm') else '')
+                    has_clash = res.get('has_clash')
+                    clash_s = ('yes' if (has_clash is True
+                                         or (isinstance(has_clash,
+                                                         (int, float))
+                                             and has_clash >= 0.5))
+                               else ('no' if has_clash is not None else ''))
+                    row = [
+                        res.get('job_name', ''),
+                        res.get('job_dir', ''),
+                        str(res.get('n_chains', '')),
+                        chains,
+                        _fmt(iptm),
+                        _fmt(res.get('ptm')),
+                        _fmt(res.get('mean_plddt'), '{:.2f}'),
+                        _fmt(res.get('ranking_score')),
+                        _fmt(paei, '{:.3f}'),
+                        pae_min_s,
+                        cp_iptm_s,
+                        contact_frac_s,
+                        pair_iptm_s,
+                        bp_str,
+                        (res.get('contact_region') or '')
+                            .replace('\t', ' ').replace('\n', ' '),
+                        ci_s,
+                        cp_s,
+                        _fmt(res.get('fraction_disordered'), '{:.4f}'),
+                        clash_s,
+                        str(len(res.get('ranking_samples', []))),
+                        hc,
+                    ]
+                    f.write('\t'.join(row) + '\n')
+            self._status.showMessage(
+                f"✓ Exported {len(results)} row(s) → {Path(path).name}")
+        except Exception as e:
+            QMessageBox.critical(self, "Export TSV",
+                                 f"Error:\n{e}")
+
+    # ═══════════════════════════════════════════════════════════
+    # Motif detection — UI handlers (v1.16)
+    # ═══════════════════════════════════════════════════════════
+
+    def _af3a_rerun_motifs(self):
+        """Re-run motif detection on all loaded jobs and refresh UI.
+
+        Called when any motif-control spinbox / checkbox changes. Also
+        called after a job table selection to make sure the motif table
+        and plot overlays are synced with the selected job.
+
+        We do this in-place (mutating res['motifs']) so that the motif
+        count label and any export reflects the current tier settings
+        without requiring a folder re-scan.
+        """
+        results = getattr(self, '_af3_analysis_results', [])
+        if not results:
+            self._af3a_motif_count_lbl.setText("—")
+            return
+        try:
+            pae_core = self._af3a_motif_core_spin.value()
+            pae_ext  = self._af3a_motif_ext_spin.value()
+            min_ct   = self._af3a_motif_contact_spin.value()
+            min_sz   = self._af3a_motif_size_spin.value()
+            recip    = self._af3a_motif_recip_cb.isChecked()
+        except AttributeError:
+            return
+
+        # Enforce extended > core (otherwise extension is a no-op)
+        if pae_ext <= pae_core:
+            pae_ext = pae_core + 1.0
+
+        total = 0
+        with_motifs = 0
+        for res in results:
+            try:
+                motifs = self._af3a_detect_motifs(
+                    res, pae_core, pae_ext, min_ct, min_sz,
+                    require_reciprocal=recip)
+            except Exception as e:
+                print(f"[AF3 Analysis] motif rerun failed for "
+                      f"{res.get('job_name','?')}: {e}")
+                motifs = []
+            res['motifs'] = motifs
+            total += len(motifs)
+            if motifs:
+                with_motifs += 1
+
+        self._af3a_motif_count_lbl.setText(
+            f"{total} motif(s) across {with_motifs}/{len(results)} job(s)")
+
+        # Refresh the currently-selected job's plots + motif table
+        self._af3a_replot_selected()
+
+    def _af3a_export_motifs_tsv(self):
+        """Export every detected motif from every loaded job to TSV."""
+        results = getattr(self, '_af3_analysis_results', [])
+        if not results:
+            QMessageBox.information(
+                self, "Export motifs TSV",
+                "No results loaded.")
+            return
+        # Count motifs up front so we don't prompt for a path then
+        # write an empty file.
+        total = sum(len(r.get('motifs') or []) for r in results)
+        if total == 0:
+            QMessageBox.information(
+                self, "Export motifs TSV",
+                "No motifs detected with the current thresholds.\n"
+                "Try relaxing 'core PAE' or 'min contact'.")
+            return
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export motifs TSV",
+            "af3_motifs.tsv",
+            "TSV (*.tsv);;All (*)")
+        if not path:
+            return
+
+        def _fmt(v, f='{:.4f}'):
+            if v is None: return ''
+            try: return f.format(v)
+            except (TypeError, ValueError): return str(v)
+
+        headers = [
+            'job_name', 'rank', 'score',
+            'chain_A', 'orf_A', 'a_start', 'a_end', 'len_A_motif',
+            'chain_B', 'orf_B', 'b_start', 'b_end', 'len_B_motif',
+            'mean_PAE', 'min_PAE', 'density',
+            'mean_contact', 'max_contact',
+            'plddt_A', 'plddt_B', 'plddt_mean',
+            'reciprocal', 'recip_overlap',
+            'label',
+        ]
+        try:
+            with open(path, 'w', encoding='utf-8') as f:
+                f.write('\t'.join(headers) + '\n')
+                for res in results:
+                    for m in (res.get('motifs') or []):
+                        row = [
+                            res.get('job_name', ''),
+                            str(m.get('rank', '')),
+                            _fmt(m.get('score'), '{:.2f}'),
+                            m.get('chain_A', ''),
+                            m.get('name_A', ''),
+                            str(m.get('a_start', '')),
+                            str(m.get('a_end', '')),
+                            str(m.get('height', '')),
+                            m.get('chain_B', ''),
+                            m.get('name_B', ''),
+                            str(m.get('b_start', '')),
+                            str(m.get('b_end', '')),
+                            str(m.get('width', '')),
+                            _fmt(m.get('mean_pae'), '{:.3f}'),
+                            _fmt(m.get('min_pae'),  '{:.3f}'),
+                            _fmt(m.get('density'),  '{:.3f}'),
+                            _fmt(m.get('mean_contact')),
+                            _fmt(m.get('max_contact')),
+                            _fmt(m.get('plddt_A'), '{:.2f}'),
+                            _fmt(m.get('plddt_B'), '{:.2f}'),
+                            _fmt(m.get('plddt_mean'), '{:.2f}'),
+                            'yes' if m.get('reciprocal') else 'no',
+                            _fmt(m.get('recip_overlap'), '{:.2f}'),
+                            m.get('label', ''),
+                        ]
+                        f.write('\t'.join(row) + '\n')
+            self._status.showMessage(
+                f"✓ Exported {total} motif(s) → {Path(path).name}")
+        except OSError as e:
+            QMessageBox.critical(self, "Export motifs TSV",
+                                 f"Error:\n{e}")
+
+    def _af3a_build_motif_table(self, res: dict):
+        """Build a QTableWidget listing every detected motif for the
+        selected job. Appended to the plot layout below the pLDDT plot.
+
+        Clicking a row highlights that motif on the PAE heatmap.
+        """
+        motifs = res.get('motifs') or []
+        lbl = QLabel(
+            f"<b>🎯 Detected interaction motifs</b>  "
+            f"— {len(motifs)} found"
+            + ("" if motifs
+               else "  <span style='color:#888'>(try relaxing thresholds)</span>"))
+        lbl.setStyleSheet(
+            "font-size:11px;padding:6px 8px;"
+            "background:#ECEFF1;border-radius:4px;margin-top:8px;")
+        lbl.setTextFormat(
+            Qt.TextFormat.RichText if QT_VERSION == 6 else Qt.RichText)
+        self._af3a_plot_layout.addWidget(lbl)
+
+        if not motifs:
+            return
+
+        table = QTableWidget()
+        # NB: no sorting — rows are already sorted by score desc and the
+        # row index must match `motifs[i]` for the highlight click.
+        table.setColumnCount(10)
+        table.setHorizontalHeaderLabels([
+            '#', 'Score', 'ORF A region', 'ORF B region',
+            'Size (aa)', 'PAE mean', 'PAE min',
+            'Density', 'pLDDT', 'Recip.'])
+        table.setRowCount(len(motifs))
+        table.setAlternatingRowColors(True)
+        table.setSelectionBehavior(
+            QAbstractItemView.SelectionBehavior.SelectRows
+            if QT_VERSION == 6 else QAbstractItemView.SelectRows)
+        table.setEditTriggers(
+            QAbstractItemView.EditTrigger.NoEditTriggers
+            if QT_VERSION == 6 else QAbstractItemView.NoEditTriggers)
+        table.verticalHeader().setVisible(False)
+        # Compact; it sits below the plots and is scrollable via parent
+        row_h = 22
+        table.setMaximumHeight(
+            min(8, len(motifs)) * row_h + table.horizontalHeader().height()
+            + 4)
+
+        def _plddt_color(v):
+            if v is None: return None
+            if v >= 90: return QColor('#0D47A1')   # very high
+            if v >= 70: return QColor('#1976D2')   # confident
+            if v >= 50: return QColor('#FBC02D')   # low
+            return QColor('#E64A19')               # very low
+
+        for i, m in enumerate(motifs):
+            size_s = f"{m['height']}×{m['width']}"
+            pae_mean_s = f"{m['mean_pae']:.1f}"
+            pae_min_s  = f"{m['min_pae']:.1f}"
+            dens_s     = f"{m['density']*100:.0f}%"
+            plddt_s    = (f"{m['plddt_mean']:.0f}"
+                          if m.get('plddt_mean') is not None else '-')
+            recip_s    = ('✓ {:.0%}'.format(m['recip_overlap'])
+                          if m.get('reciprocal') else '✗')
+            cells = [
+                f"#{m['rank']}",
+                f"{m['score']:.1f}",
+                f"{m['name_A']} {m['a_start']}-{m['a_end']}",
+                f"{m['name_B']} {m['b_start']}-{m['b_end']}",
+                size_s,
+                pae_mean_s, pae_min_s, dens_s, plddt_s, recip_s,
+            ]
+            for c, val in enumerate(cells):
+                it = QTableWidgetItem(val)
+                it.setTextAlignment(
+                    Qt.AlignmentFlag.AlignCenter if QT_VERSION == 6
+                    else Qt.AlignCenter)
+                if c == 1:   # Score column — colour by value
+                    if m['score'] >= 60:
+                        it.setBackground(QColor('#C8E6C9'))
+                    elif m['score'] >= 40:
+                        it.setBackground(QColor('#FFF9C4'))
+                    else:
+                        it.setBackground(QColor('#FFCDD2'))
+                if c == 8 and m.get('plddt_mean') is not None:
+                    pc = _plddt_color(m['plddt_mean'])
+                    if pc is not None:
+                        f = it.font(); f.setBold(True); it.setFont(f)
+                        it.setForeground(pc)
+                table.setItem(i, c, it)
+        table.resizeColumnsToContents()
+        table.horizontalHeader().setStretchLastSection(True)
+        self._af3a_plot_layout.addWidget(table)
+
+        # Clicking a row highlights the motif in the PAE heatmap. We
+        # do this by storing the latest PAE axes reference on self and
+        # drawing a highlight rectangle that survives until another
+        # motif is clicked.
+        def _on_motif_select():
+            rows = set(idx.row() for idx in table.selectedIndexes())
+            if not rows:
+                return
+            i = min(rows)
+            if 0 <= i < len(motifs):
+                self._af3a_highlight_motif(motifs[i])
+        table.selectionModel().selectionChanged.connect(
+            lambda *_: _on_motif_select())
+
+    def _af3a_highlight_motif(self, motif: dict):
+        """Flash a highlight rectangle around a motif on the PAE axes.
+
+        Uses the matplotlib axes reference stashed on self during the
+        last plot, if any.
+        """
+        ax = getattr(self, '_af3a_last_pae_ax', None)
+        canvas = getattr(self, '_af3a_last_pae_canvas', None)
+        if ax is None or canvas is None:
+            return
+        # Remove previous highlight if any
+        prev = getattr(self, '_af3a_highlight_patches', [])
+        for p in prev:
+            try: p.remove()
+            except Exception: pass
+        patches = []
+        # Draw on A↔B quadrant
+        r0 = motif['abs_row0']; r1 = motif['abs_row1']
+        c0 = motif['abs_col0']; c1 = motif['abs_col1']
+        patches.append(ax.add_patch(plt.Rectangle(
+            (c0 - 0.5, r0 - 0.5), c1 - c0 + 1, r1 - r0 + 1,
+            facecolor='none', edgecolor='#FF1744',
+            linewidth=2.5, linestyle='-', zorder=10)))
+        # And the mirrored B↔A quadrant (show the user both sides)
+        patches.append(ax.add_patch(plt.Rectangle(
+            (r0 - 0.5, c0 - 0.5), r1 - r0 + 1, c1 - c0 + 1,
+            facecolor='none', edgecolor='#FF1744',
+            linewidth=2.5, linestyle='--', alpha=0.8, zorder=10)))
+        self._af3a_highlight_patches = patches
+        canvas.draw_idle()
 
     # ═══════════════════════════════════════════════════════════
     # HPC SERVER TAB (generic)
     # ═══════════════════════════════════════════════════════════
+
+    # ══════════════════════════════════════════════════════════════════════
+    # PPI GENOMIC ARC MAP TAB  (Tab 11, v2.0)
+    # Shows all AF3-predicted interactions as arcs drawn above a linear
+    # genome map. Arcs are coloured by PAE_min / ipTM and height-scaled
+    # by genomic distance between the two partners.
+    # ══════════════════════════════════════════════════════════════════════
+
+    def _create_ppi_arc_map_tab(self):
+        w = QWidget()
+        self._ppi_map_tab_widget = w
+        lay = QVBoxLayout(w)
+        lay.setContentsMargins(2, 2, 2, 2)
+        lay.setSpacing(2)
+
+        # ── toolbar ─────────────────────────────────────────────────────
+        tb = QHBoxLayout()
+        tb.setSpacing(4)
+
+        tb.addWidget(QLabel("Show:"))
+        self._ppi_arc_filter_combo = QComboBox()
+        self._ppi_arc_filter_combo.addItems([
+            "All results",
+            "HIGH only  (PAE_min < 4 Å)",
+            "HIGH + MED  (PAE_min < 8 Å)",
+            "Focal hits  (PAE_min < 4 Å & cp_ipTM ≥ 0.50)",
+        ])
+        self._ppi_arc_filter_combo.setToolTip(
+            "Filter which interaction arcs are drawn.\n"
+            "HIGH = PAE_min < 4 Å (focal domain contact confirmed)\n"
+            "MED  = PAE_min 4–8 Å (possible contact, check motifs)\n"
+            "Focal = HIGH AND cp_ipTM ≥ 0.50 (strictest)")
+        self._ppi_arc_filter_combo.currentIndexChanged.connect(
+            self._ppi_arc_map_refresh)
+        tb.addWidget(self._ppi_arc_filter_combo)
+
+        tb.addWidget(QLabel("Color by:"))
+        self._ppi_arc_color_combo = QComboBox()
+        self._ppi_arc_color_combo.addItems(
+            ["PAE_min ★", "ipTM", "cp_ipTM ★", "Contact%"])
+        self._ppi_arc_color_combo.setToolTip(
+            "Metric used to determine arc colour:\n"
+            "  PAE_min ★ — minimum inter-chain PAE (recommended)\n"
+            "  ipTM      — global interface pTM score\n"
+            "  cp_ipTM ★ — chain-pair ipTM (focal, from summary JSON)\n"
+            "  Contact%  — fraction of residue pairs with PAE < 5 Å")
+        self._ppi_arc_color_combo.currentIndexChanged.connect(
+            self._ppi_arc_map_refresh)
+        tb.addWidget(self._ppi_arc_color_combo)
+
+        tb.addWidget(QLabel("Arc height:"))
+        self._ppi_arc_height_combo = QComboBox()
+        self._ppi_arc_height_combo.addItems(
+            ["By genomic distance", "By score (better = lower)", "Fixed"])
+        self._ppi_arc_height_combo.setToolTip(
+            "How arc height is determined:\n"
+            "  By genomic distance — neighboring ORFs get low arcs,\n"
+            "    distant ORFs get tall arcs (like published operon figures)\n"
+            "  By score — high-confidence interactions drawn lower/closer\n"
+            "  Fixed — all arcs same height")
+        self._ppi_arc_height_combo.currentIndexChanged.connect(
+            self._ppi_arc_map_refresh)
+        tb.addWidget(self._ppi_arc_height_combo)
+
+        btn_refresh = QPushButton("⟳ Refresh")
+        btn_refresh.setToolTip("Rebuild the arc map from current AF3 results")
+        btn_refresh.clicked.connect(self._ppi_arc_map_refresh)
+        btn_refresh.setStyleSheet(
+            "QPushButton{background:#2e7d32;color:white;font-weight:bold;"
+            "border-radius:4px;padding:2px 8px;}"
+            "QPushButton:hover{background:#388e3c;}")
+        tb.addWidget(btn_refresh)
+
+        btn_svg = QPushButton("↓ Export SVG")
+        btn_svg.setToolTip("Export the arc map as a scalable vector SVG file")
+        btn_svg.clicked.connect(self._ppi_arc_map_export_svg)
+        tb.addWidget(btn_svg)
+
+        btn_tsv = QPushButton("↓ Export TSV")
+        btn_tsv.setToolTip("Export the displayed interactions as a TSV table")
+        btn_tsv.clicked.connect(self._ppi_arc_map_export_tsv)
+        tb.addWidget(btn_tsv)
+
+        tb.addStretch()
+        self._ppi_arc_count_lbl = QLabel("0 interactions")
+        self._ppi_arc_count_lbl.setStyleSheet(
+            "font-weight:500;color:#1D9E75;")
+        tb.addWidget(self._ppi_arc_count_lbl)
+
+        lay.addLayout(tb)
+
+        # ── info label (shows hovered/clicked arc) ───────────────────────
+        self._ppi_arc_info_lbl = QLabel(
+            "Click an arc to see interaction details  |  "
+            "Click an ORF to center genome map  |  "
+            "Scroll = zoom  ·  Drag = pan")
+        self._ppi_arc_info_lbl.setStyleSheet(
+            "font-size:11px; color:#085041; background:#E1F5EE;"
+            "padding:3px 7px; border-bottom:1px solid #9FE1CB;")
+        self._ppi_arc_info_lbl.setWordWrap(True)
+        lay.addWidget(self._ppi_arc_info_lbl)
+
+        # ── arc map canvas ────────────────────────────────────────────────
+        self._ppi_arc_widget = _PpiArcMapWidget(self)
+        self._ppi_arc_widget.arc_clicked.connect(self._ppi_arc_on_click)
+        self._ppi_arc_widget.orf_clicked.connect(self._ppi_arc_on_orf_click)
+        self._ppi_arc_widget.arc_hovered.connect(self._ppi_arc_on_hover)
+        lay.addWidget(self._ppi_arc_widget, stretch=1)
+
+        # ── legend ────────────────────────────────────────────────────────
+        leg = QHBoxLayout()
+        leg.setSpacing(12)
+
+        def _leg_line(color, dash=False):
+            lbl = QLabel()
+            lbl.setFixedSize(32, 12)
+            lbl.setStyleSheet(
+                f"border-top: {'3px solid' if not dash else '2px dashed'} {color};"
+                f"margin-top:5px;")
+            return lbl
+
+        def _leg_rect(color, border):
+            lbl = QLabel()
+            lbl.setFixedSize(14, 10)
+            lbl.setStyleSheet(
+                f"background:{color};border:1px solid {border};"
+                f"border-radius:2px;margin-top:1px;")
+            return lbl
+
+        for widget, text in [
+            (_leg_line("#1D9E75"),          "PAE_min < 4 Å (HIGH)"),
+            (_leg_line("#BA7517", dash=True),"PAE_min 4–8 Å (MED)"),
+            (_leg_line("#E24B4A", dash=True),"PAE_min > 8 Å (LOW)"),
+            (_leg_rect("#9FE1CB","#0F6E56"), "HMM hit ORF"),
+            (_leg_rect("#FAC775","#BA7517"), "Custom / other"),
+            (_leg_rect("#D3D1C7","#888780"), "No annotation"),
+        ]:
+            row = QHBoxLayout()
+            row.setSpacing(4)
+            row.addWidget(widget)
+            row.addWidget(QLabel(text))
+            leg.addLayout(row)
+        leg.addStretch()
+
+        leg_widget = QWidget()
+        leg_widget.setLayout(leg)
+        leg_widget.setStyleSheet(
+            "background:var(--color-background-secondary);"
+            "border-top:0.5px solid #ddd;padding:3px 0;")
+        lay.addWidget(leg_widget)
+
+        self._tabs.addTab(w, "🧬 Genomic PPI Map")
+
+    def _ppi_arc_map_refresh(self):
+        """Rebuild arc data from _af3_analysis_results and repaint."""
+        results = getattr(self, '_af3_analysis_results', [])
+        orfs    = getattr(self, 'orfs', [])
+
+        filter_idx = self._ppi_arc_filter_combo.currentIndex()
+        color_by   = self._ppi_arc_color_combo.currentText()
+        height_by  = self._ppi_arc_height_combo.currentText()
+
+        arcs = []
+        for res in results:
+            names = res.get('orf_names', [])
+            if len(names) < 2:
+                continue
+            pae_min  = res.get('pae_min_inter')
+            cp_iptm  = res.get('cp_iptm_inter')
+            iptm     = res.get('iptm') or 0
+            cfrac    = res.get('contact_frac') or 0
+
+            # Apply filter
+            if filter_idx == 1 and (pae_min is None or pae_min >= 4.0):
+                continue
+            if filter_idx == 2 and (pae_min is None or pae_min >= 8.0):
+                continue
+            if filter_idx == 3 and (pae_min is None or pae_min >= 4.0
+                                    or (cp_iptm is not None and cp_iptm < 0.50)):
+                continue
+
+            # Resolve ORF positions — extract numeric index from name "ORF1234"
+            def _find_orf(name, _orfs=orfs):
+                # Primary: exact "ORF{n}" match
+                if name.upper().startswith('ORF'):
+                    try:
+                        idx = int(name[3:]) - 1
+                        if 0 <= idx < len(_orfs):
+                            return idx, _orfs[idx]
+                    except (ValueError, TypeError):
+                        pass
+                # Secondary: any digit run in the name
+                try:
+                    import re as _re
+                    nums = _re.findall(r'\d+', name)
+                    if nums:
+                        idx = int(nums[-1]) - 1
+                        if 0 <= idx < len(_orfs):
+                            return idx, _orfs[idx]
+                except (ValueError, TypeError):
+                    pass
+                return -1, None
+
+            i_a, o_a = _find_orf(names[0])
+            i_b, o_b = _find_orf(names[1])
+            if o_a is None or o_b is None:
+                continue
+
+            # Score for colour
+            if color_by.startswith("PAE_min"):
+                score = pae_min
+                score_inv = True   # lower = better = greener
+            elif color_by.startswith("cp_ipTM"):
+                score = cp_iptm
+                score_inv = False
+            elif color_by.startswith("Contact"):
+                score = cfrac * 100
+                score_inv = False
+            else:
+                score = iptm
+                score_inv = False
+
+            arcs.append({
+                'name_a':   names[0],
+                'name_b':   names[1],
+                'orf_idx_a': i_a,
+                'orf_idx_b': i_b,
+                'start_a':  o_a['start'],
+                'end_a':    o_a['end'],
+                'start_b':  o_b['start'],
+                'end_b':    o_b['end'],
+                'pae_min':  pae_min,
+                'iptm':     iptm,
+                'cp_iptm':  cp_iptm,
+                'contact_frac': cfrac,
+                'score':    score,
+                'score_inv': score_inv,
+                'job_name': res.get('job_name', ''),
+                'contact_region': res.get('contact_region', ''),
+                'height_mode': height_by,
+            })
+
+        self._ppi_arc_widget.set_data(
+            dna_length=len(getattr(self, 'dna_sequence', '') or ''),
+            orfs=orfs,
+            hmm_profiles=getattr(self, 'hmm_profiles', []),
+            arcs=arcs,
+        )
+        self._ppi_arc_count_lbl.setText(
+            f"{len(arcs)} interaction{'s' if len(arcs) != 1 else ''}")
+
+    def _ppi_arc_on_click(self, arc_idx: int):
+        """User clicked an arc — show details in info label."""
+        arcs = self._ppi_arc_widget._arcs
+        if not (0 <= arc_idx < len(arcs)):
+            return
+        a = arcs[arc_idx]
+        pmin = f"{a['pae_min']:.2f} Å" if a['pae_min'] is not None else "—"
+        cpip = f"{a['cp_iptm']:.2f}"   if a['cp_iptm'] is not None else "—"
+        cfrc = f"{a['contact_frac']*100:.1f}%" if a['contact_frac'] is not None else "—"
+        conf = ("HIGH ★" if a['pae_min'] is not None and a['pae_min'] < 4.0 else
+                "MED"    if a['pae_min'] is not None and a['pae_min'] < 8.0 else "LOW")
+        self._ppi_arc_info_lbl.setText(
+            f"▶  {a['name_a']} ↔ {a['name_b']}   "
+            f"ipTM={a['iptm']:.3f}  PAE_min={pmin}  cp_ipTM={cpip}  "
+            f"Contact%={cfrc}  [{conf}]   "
+            f"Contact zone: {a['contact_region'] or '—'}")
+        # Also select in Interaction Results table
+        for row in range(self._af3a_table.rowCount()):
+            item = self._af3a_table.item(row, 0)
+            if item and a['job_name'] in item.text():
+                self._af3a_table.selectRow(row)
+                break
+
+    def _ppi_arc_on_orf_click(self, orf_idx: int):
+        """User clicked an ORF node — center main genome map."""
+        self._select_and_center_orf(orf_idx)
+
+    def _ppi_arc_on_hover(self, arc_idx: int):
+        """User hovered an arc — show lightweight tooltip in info label."""
+        arcs = self._ppi_arc_widget._arcs
+        if arc_idx < 0 or arc_idx >= len(arcs):
+            self._ppi_arc_info_lbl.setText(
+                "Click an arc to see interaction details  |  "
+                "Click an ORF to center genome map  |  "
+                "Scroll = zoom  ·  Drag = pan")
+            return
+        a = arcs[arc_idx]
+        pmin = f"{a['pae_min']:.2f}" if a['pae_min'] is not None else "—"
+        self._ppi_arc_info_lbl.setText(
+            f"  {a['name_a']} ↔ {a['name_b']}  "
+            f"PAE_min={pmin} Å  ipTM={a['iptm']:.2f}  "
+            f"— click to select")
+
+    def _ppi_arc_map_export_svg(self):
+        """Export the arc map as SVG using QSvgGenerator."""
+        try:
+            from PyQt6.QtSvg import QSvgGenerator
+        except ImportError:
+            try:
+                from PyQt5.QtSvg import QSvgGenerator
+            except ImportError:
+                QMessageBox.warning(self, "SVG Export",
+                    "PyQt SVG module not available. Install PyQt6-Qt6 or PyQt5-sip.")
+                return
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export PPI Arc Map as SVG", "", "SVG (*.svg)")
+        if not path:
+            return
+        gen = QSvgGenerator()
+        gen.setFileName(path)
+        gen.setSize(self._ppi_arc_widget.size())
+        painter = QPainter(gen)
+        self._ppi_arc_widget.render(painter)
+        painter.end()
+        self._status.showMessage(f"✓ PPI arc map exported: {path}")
+
+    def _ppi_arc_map_export_tsv(self):
+        """Export displayed arcs as a TSV file."""
+        arcs = self._ppi_arc_widget._arcs
+        if not arcs:
+            QMessageBox.information(self, "Export TSV",
+                "No interactions to export. Click Refresh first.")
+            return
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Export PPI Map interactions as TSV", "", "TSV (*.tsv *.txt)")
+        if not path:
+            return
+        headers = ["orf_a", "orf_b", "iptm", "pae_min_inter",
+                   "cp_iptm_inter", "contact_frac_pct", "contact_region", "job_name"]
+        rows = []
+        for a in arcs:
+            rows.append([
+                a['name_a'], a['name_b'],
+                f"{a['iptm']:.3f}" if a['iptm'] else "",
+                f"{a['pae_min']:.3f}" if a['pae_min'] is not None else "",
+                f"{a['cp_iptm']:.3f}" if a['cp_iptm'] is not None else "",
+                f"{a['contact_frac']*100:.1f}" if a['contact_frac'] is not None else "",
+                a.get('contact_region', ''),
+                a.get('job_name', ''),
+            ])
+        try:
+            with open(path, 'w', encoding='utf-8') as f:
+                f.write('\t'.join(headers) + '\n')
+                for r in rows:
+                    f.write('\t'.join(r) + '\n')
+            self._status.showMessage(f"✓ {len(rows)} interactions exported: {path}")
+        except OSError as e:
+            QMessageBox.warning(self, "Export TSV", str(e))
 
     def _create_hpc_server_tab(self):
         """Build the generic HPC Server tab with 4 sub-tabs:
@@ -9059,11 +14735,15 @@ echo "Submitted {n_batches} jobs."
         top_bar.addWidget(self._dv_disconnect_btn)
         root.addLayout(top_bar)
 
-        # Sub-tabs
-        self._dv_tabs = QTabWidget()
+        # Sub-tabs (DetachableTabWidget — right-click or double-click
+        # a tab to open it in its own resizable window)
+        self._dv_tabs = DetachableTabWidget()
         self._dv_tabs.setTabPosition(QTabWidget.TabPosition.North
                                       if QT_VERSION == 6
                                       else QTabWidget.North)
+        self._dv_tabs.setToolTip(
+            "Tip: right-click any sub-tab (or double-click it) to open "
+            "it in a separate window for more room.")
         root.addWidget(self._dv_tabs)
 
         self._dv_build_connect_tab()
@@ -9351,97 +15031,50 @@ echo "Submitted {n_batches} jobs."
             act_row.addWidget(b)
         lay.addLayout(act_row)
 
-        # ── AF3 Advanced Options ──────────────────────────────
-        af3_g = QGroupBox("⚗ AF3 Advanced Options")
-        af3_g.setCheckable(True)
-        af3_g.setChecked(False)   # collapsed by default
-        af3_g.setToolTip(
-            "Expand to control AlphaFold 3 prediction quality and speed.\n"
-            "Changes here are injected into the batch JSON and/or the\n"
-            "af3_run command before submission.")
-        af3_l = QGridLayout(af3_g)
-        af3_l.setSpacing(5)
+        # ── AF3 JSON modifications (modelSeeds + templates) ────────
+        # Small group containing options that affect the JSON CONTENT
+        # (not the command).  Kept separate so they're not duplicated
+        # in every command-template profile.
+        json_g = QGroupBox("⚗ AF3 JSON modifications  (modelSeeds, templates)")
+        json_g.setCheckable(True)
+        json_g.setChecked(False)
+        json_g.setToolTip(
+            "These options modify the AF3 batch JSON before upload:\n"
+            "  • Model seeds  → injected into 'modelSeeds[]'\n"
+            "  • Use templates → strip 'templates' from each chain\n"
+            "They are independent from the command-template profile.")
+        json_l = QGridLayout(json_g)
+        json_l.setSpacing(5)
 
-        # Row 0: Preset selector
-        af3_l.addWidget(QLabel("Preset:"), 0, 0)
-        self._dv_af3_preset = QComboBox()
-        self._dv_af3_preset.addItems([
-            "Balanced (default)",
-            "Fast  — 1 seed, no templates",
-            "Accurate  — 5 seeds, templates ON",
-            "Custom",
-        ])
-        self._dv_af3_preset.setToolTip(
-            "Fast:     1 seed, templates disabled — good for screening.\n"
-            "Balanced: 1 seed, templates auto — default AlphaFold3 run.\n"
-            "Accurate: 5 seeds, templates ON, pick best model — slower.\n"
-            "Custom:   set each parameter manually below.")
-        self._dv_af3_preset.currentIndexChanged.connect(
-            self._dv_af3_apply_preset)
-        af3_l.addWidget(self._dv_af3_preset, 0, 1, 1, 3)
-
-        # Row 1: Num seeds + Num models
-        af3_l.addWidget(QLabel("Model seeds (n):"), 1, 0)
+        json_l.addWidget(QLabel("Model seeds (n):"), 0, 0)
         self._dv_af3_seeds = QSpinBox()
         self._dv_af3_seeds.setRange(1, 10)
         self._dv_af3_seeds.setValue(1)
         self._dv_af3_seeds.setToolTip(
-            "Number of random seeds for af3_run.\n"
+            "Number of random seeds injected into JSON 'modelSeeds[]'.\n"
             "More seeds = ensemble of independent models → pick best ipTM.\n"
             "1 = fastest;  5 = recommended for final confident predictions.")
         self._dv_af3_seeds.valueChanged.connect(self._dv_refresh_cmd_preview)
-        af3_l.addWidget(self._dv_af3_seeds, 1, 1)
+        json_l.addWidget(self._dv_af3_seeds, 0, 1)
 
-        af3_l.addWidget(QLabel("Num models:"), 1, 2)
-        self._dv_af3_num_models = QSpinBox()
-        self._dv_af3_num_models.setRange(1, 5)
-        self._dv_af3_num_models.setValue(1)
-        self._dv_af3_num_models.setToolTip(
-            "Number of AF3 diffusion models to run per job\n"
-            "(--num_predictions flag if supported by your af3_run).\n"
-            "5 models × 1 seed = 5 structures to rank by confidence.")
-        self._dv_af3_num_models.valueChanged.connect(
-            self._dv_refresh_cmd_preview)
-        af3_l.addWidget(self._dv_af3_num_models, 1, 3)
+        self._dv_af3_use_templates = QCheckBox("Use templates")
+        self._dv_af3_use_templates.setChecked(True)
+        self._dv_af3_use_templates.setToolTip(
+            "If unchecked, the 'templates' array is wiped from every\n"
+            "proteinChain in the batch JSON before upload — useful for\n"
+            "ab-initio screening or to avoid template bias.")
+        json_l.addWidget(self._dv_af3_use_templates, 0, 2, 1, 2)
 
-        # Row 2: Seeds info label (templates are not configurable via af3_run CLI)
-        _note = QLabel(
-            "ℹ  Seeds are injected into JSON modelSeeds[ ].  "
-            "Templates are controlled by the server's AF3 installation.")
-        _note.setStyleSheet("font-size:10px; color:#666;")
-        _note.setWordWrap(True)
-        af3_l.addWidget(_note, 2, 0, 1, 4)
+        lay.addWidget(json_g)
 
-        # Row 3: SLURM partition + extra flags
-        af3_l.addWidget(QLabel("SLURM partition:"), 3, 0)
-        self._dv_af3_partition = QLineEdit()
-        self._dv_af3_partition.setPlaceholderText("e.g. gpu, batch, compute  (server default if blank)")
-        self._dv_af3_partition.setToolTip(
-            "SLURM partition to submit to (passed as --partition <name>).\n"
-            "Leave blank to use the server default partition.")
-        self._dv_af3_partition.textChanged.connect(self._dv_refresh_cmd_preview)
-        af3_l.addWidget(self._dv_af3_partition, 3, 1, 1, 3)
-
-        af3_l.addWidget(QLabel("Extra af3_run flags:"), 4, 0)
-        self._dv_af3_extra_flags = QLineEdit()
-        self._dv_af3_extra_flags.setPlaceholderText(
-            "e.g. --slurm-time 12:00:00  --slurm-mem 64G  --slurm-gres gpu:a100:1")
-        self._dv_af3_extra_flags.setToolTip(
-            "Real af3_run SLURM flags (from af3_run --help):\n"
-            "  --slurm-partition <p>  queue/partition name\n"
-            "  --slurm-time HH:MM:SS  max wall time\n"
-            "  --slurm-mem MG         RAM (e.g. 64G)\n"
-            "  --slurm-gres gpu:a100:1 GPU type\n"
-            "  --slurm-nodes N        number of nodes\n"
-            "  --slurm-ntasks N       tasks per node\n"
-            "  --workdir /path        override workdir\n"
-            "  --force                overwrite existing output\n"
-            "  --dry-run              preview without submitting")
-        self._dv_af3_extra_flags.textChanged.connect(
-            self._dv_refresh_cmd_preview)
-        af3_l.addWidget(self._dv_af3_extra_flags, 4, 1, 1, 3)
-
-        lay.addWidget(af3_g)
+        # ── AF3 Server Submission — Terminal & Profiles ──────────
+        # Terminal-style command editor where the user types the AF3
+        # command(s) for their own server.  No server-specific defaults
+        # are shipped — the user saves their own commands as named
+        # profiles in ~/.ppigfinder/af3_server_profiles.json
+        self._dv_af3_widget = FlexibleAF3SubmitWidget(parent=w)
+        self._dv_af3_widget.commandChanged.connect(self._dv_refresh_cmd_preview)
+        lay.addWidget(self._dv_af3_widget)
 
         # Command preview
         cmd_g = QGroupBox("Command preview (editable)")
@@ -10344,140 +15977,125 @@ echo "Submitted {n_batches} jobs."
 
     # ── AF3 preset helper ──────────────────────────────────────
     def _dv_af3_apply_preset(self, idx: int):
-        """Fill AF3 parameter widgets according to the chosen preset.
+        """Legacy no-op stub.
 
-        idx:  0 = Balanced (default)
-              1 = Fast
-              2 = Accurate
-              3 = Custom  (no change — user edits manually)
+        The preset selector was removed when the AF3 Advanced Options
+        panel was replaced by the FlexibleAF3SubmitWidget.  This method
+        is kept as a no-op for backward compatibility — older project
+        files (saved before v2.0) may still try to call it.
         """
-        if not hasattr(self, '_dv_af3_seeds'):
-            return  # widgets not yet built
-        # Extra flags use real af3_run SLURM flag names
-        presets = {
-            0: dict(seeds=1, models=1, templates=True,  tpl_date='', extra=''),
-            1: dict(seeds=1, models=1, templates=False, tpl_date='', extra='--slurm-time 04:00:00'),
-            2: dict(seeds=5, models=5, templates=True,  tpl_date='', extra='--slurm-time 24:00:00'),
-        }
-        if idx not in presets:
-            return   # Custom — leave current values
-        p = presets[idx]
-        self._dv_af3_seeds.setValue(p['seeds'])
-        self._dv_af3_num_models.setValue(p['models'])
-        self._dv_af3_use_templates.setChecked(p['templates'])
-        self._dv_af3_tpl_date.setText(p['tpl_date'])
-        self._dv_af3_extra_flags.setText(p['extra'])
-        self._dv_refresh_cmd_preview()
+        return  # FlexibleAF3SubmitWidget handles profiles now
 
     def _dv_refresh_cmd_preview(self):
-        """Rebuild the command preview including AF3 advanced flags.
+        """Rebuild the command preview using the FlexibleAF3SubmitWidget.
 
-        When multiple partitions are staged (anti-OOM split), every
-        partition's af3_run call is shown so the user can see all job codes.
+        The user-selected profile + template + parameters define the
+        actual command. This function only resolves them against the
+        runtime context (json_path, job_name, parent_dir, etc.) and
+        formats the result for the master command-preview widget.
 
-        Correct af3_run usage:
-          cd <parent_dir>
-          af3_run --json_path <fname>.json --job-name <prefix>
-                  [--num_seeds N] [--num_predictions N]
-                  [--notemplate] [--max_template_date YYYY-MM-DD]
-                  [--partition <p>] [<extra_flags>]
+        For multi-partition scenarios (anti-OOM split), every partition's
+        resolved command is shown so the user can see all job codes.
         """
         prefix   = self._dv_job_prefix.text().strip() or "af3_batch"
         base     = self._dv_base_path.text().strip().rstrip('/')
         rdir     = (self._dv_remote_dir.text().strip()
                     or datetime.now().strftime('%Y-%m-%d'))
-        cmd      = self._dv_af3cmd.text().strip() or "af3_run"
         mod_name = self._dv_module_cmd.text().strip()
         jobs     = getattr(self, '_dv_pending_jobs', [])
         n_jobs   = len(jobs)
-        use_ts   = getattr(self, '_dv_ts_check', None) and \
-                   self._dv_ts_check.isChecked()
+        use_ts   = (getattr(self, '_dv_ts_check', None)
+                    and self._dv_ts_check.isChecked())
 
         ts          = datetime.now().strftime('%Y%m%d_%H%M%S') if use_ts else ''
         parent_dir  = f"{base}/{rdir}"
-
-        # ── Collect AF3 advanced flags ────────────────────────
-        af3_flags = []
-        if hasattr(self, '_dv_af3_seeds'):
-            n_seeds = self._dv_af3_seeds.value()
-            if n_seeds > 1:
-                af3_flags.append(f"# {n_seeds} seeds injected into JSON modelSeeds")
-        if hasattr(self, '_dv_af3_num_models'):
-            n_models = self._dv_af3_num_models.value()
-            if n_models > 1:
-                af3_flags.append(f"# {n_models} models via JSON numDiffusionSamples")
-        if hasattr(self, '_dv_af3_partition'):
-            part = self._dv_af3_partition.text().strip()
-            if part:
-                af3_flags.append(f"--slurm-partition {part}")
-        if hasattr(self, '_dv_af3_extra_flags'):
-            extra = self._dv_af3_extra_flags.text().strip()
-            if extra:
-                af3_flags.append(extra)
 
         # ── Build preview lines ───────────────────────────────
         lines = []
         if mod_name:
             lines.append(f"# module loaded: {mod_name}")
-        lines.append(f"cd {parent_dir}")
-        lines.append("")
+
+        # JSON-level annotations (modelSeeds + templates)
+        if hasattr(self, '_dv_af3_seeds'):
+            n_seeds = self._dv_af3_seeds.value()
+            if n_seeds > 1:
+                lines.append(
+                    f"# {n_seeds} seeds will be injected into JSON modelSeeds")
+        if (hasattr(self, '_dv_af3_use_templates')
+                and not self._dv_af3_use_templates.isChecked()):
+            lines.append("# templates will be stripped from JSON")
 
         # Detect multi-partition scenario
         is_partitioned = (n_jobs > 1 and jobs
                           and jobs[0].get('_is_batch')
                           and jobs[0].get('_n_parts', 1) > 1)
 
+        # Helper: assemble runtime context for one batch
+        def _ctx_for(json_fname, job_name):
+            return {
+                "prefix":     prefix,
+                "parent_dir": parent_dir,
+                "json_path":  json_fname,
+                "job_name":   job_name,
+                "output_dir": f"{parent_dir}/{job_name}/output",
+                "date":       datetime.now().strftime('%Y-%m-%d'),
+                "timestamp":  ts or datetime.now().strftime('%Y%m%d_%H%M%S'),
+            }
+
         if is_partitioned:
-            n_parts   = jobs[0]['_n_parts']
+            n_parts      = jobs[0]['_n_parts']
             total_afjobs = sum(j.get('_n_jobs', 0) for j in jobs)
+            partition_sz = getattr(
+                self, '_dv_partition_size',
+                getattr(self, '_AF3_PARTITION_SIZE', 50))
             lines.append(
                 f"# {total_afjobs} AF3 jobs → {n_parts} partitions "
-                f"(≤{getattr(self, '_dv_partition_size', self._AF3_PARTITION_SIZE)}/batch, anti-OOM)")
-            lines.append(
-                "# Submitted sequentially — one SLURM job at a time")
+                f"(≤{partition_sz}/batch, anti-OOM)")
+            lines.append("# Submitted sequentially — one job at a time")
             lines.append("")
             for idx, j in enumerate(jobs):
                 p_name      = j['name']
                 json_fname  = f"{p_name}.json"
                 job_name    = f"{p_name}_{ts}" if ts else p_name
-                job_name    = re.sub(r'[()\[\]{}|;&!\s]+', '_', job_name).strip('_')
-                base_cmd    = (f"{cmd} --json_path {json_fname} "
-                               f"--job-name {job_name}")
+                job_name    = re.sub(r'[()\[\]{}|;&!\s]+', '_',
+                                      job_name).strip('_')
                 lines.append(f"# ── Partition {idx+1}/{n_parts} "
                               f"({j.get('_n_jobs', '?')} jobs) ──")
-                if af3_flags:
-                    lines.append(base_cmd + " \\")
-                    for fi, flag in enumerate(af3_flags):
-                        suffix = " \\" if fi < len(af3_flags) - 1 else ""
-                        lines.append(f"    {flag}{suffix}")
+                if hasattr(self, '_dv_af3_widget'):
+                    lines.append(self._dv_af3_widget.build_command(
+                        _ctx_for(json_fname, job_name)))
                 else:
-                    lines.append(base_cmd)
-                lines.append(
-                    f"# Output → {parent_dir}/{job_name}/output/")
+                    # Fallback: legacy bare command
+                    cmd = self._dv_af3cmd.text().strip() or "af3_run"
+                    lines.append(f"cd {parent_dir} && {cmd} "
+                                 f"--json_path {json_fname} "
+                                 f"--job-name {job_name}")
+                lines.append(f"# Output → {parent_dir}/{job_name}/output/")
                 lines.append("")
         else:
             # Single batch or individual jobs
-            json_fname  = f"{prefix}_all_jobs.json"
-            job_name    = f"{prefix}_{ts}" if ts else prefix
-            job_name    = re.sub(r'[()\[\]{}|;&!\s]+', '_', job_name).strip('_')
-            base_cmd    = (f"{cmd} --json_path {json_fname} "
-                           f"--job-name {job_name}")
-            if af3_flags:
-                lines.append(base_cmd + " \\")
-                for i, flag in enumerate(af3_flags):
-                    suffix = " \\" if i < len(af3_flags) - 1 else ""
-                    lines.append(f"    {flag}{suffix}")
+            json_fname = f"{prefix}_all_jobs.json"
+            job_name   = f"{prefix}_{ts}" if ts else prefix
+            job_name   = re.sub(r'[()\[\]{}|;&!\s]+', '_',
+                                 job_name).strip('_')
+            if hasattr(self, '_dv_af3_widget'):
+                lines.append(self._dv_af3_widget.build_command(
+                    _ctx_for(json_fname, job_name)))
             else:
-                lines.append(base_cmd)
+                cmd = self._dv_af3cmd.text().strip() or "af3_run"
+                lines.append(f"cd {parent_dir} && {cmd} "
+                             f"--json_path {json_fname} "
+                             f"--job-name {job_name}")
             lines.append(f"# Output → {parent_dir}/{job_name}/output/")
             if n_jobs:
                 lines.append(f"# {n_jobs} job(s) bundled in batch JSON")
 
-        if af3_flags:
-            preset_names = ["Balanced", "Fast", "Accurate", "Custom"]
-            pidx = getattr(self, '_dv_af3_preset', None)
-            pname = preset_names[pidx.currentIndex()] if pidx else "Custom"
-            lines.append(f"# AF3 preset: {pname}")
+        # Append profile summary
+        if hasattr(self, '_dv_af3_widget'):
+            summary = self._dv_af3_widget.current_profile_summary()
+            if summary:
+                lines.append(summary)
+
         self._dv_cmd_preview.setPlainText('\n'.join(lines))
 
     def _dv_upload_only(self):
@@ -10534,16 +16152,12 @@ echo "Submitted {n_batches} jobs."
         model_seeds = ([random.randint(1, 2**31 - 1) for _ in range(n_seeds)]
                        if n_seeds > 1 else [])
 
-        _af3_flags = []
-        if hasattr(self, '_dv_af3_partition'):
-            _pt = self._dv_af3_partition.text().strip()
-            if _pt:
-                _af3_flags.append(f"--slurm-partition {_pt}")
-        if hasattr(self, '_dv_af3_extra_flags'):
-            _ex = self._dv_af3_extra_flags.text().strip()
-            if _ex:
-                _af3_flags.append(_ex)
-        _flags_str = (" " + " ".join(_af3_flags)) if _af3_flags else ""
+        # Note: command-line flags / partition / extra_flags are now
+        # handled by self._dv_af3_widget (FlexibleAF3SubmitWidget) — the
+        # whole af3_run command is built from the user-selected profile.
+        # Only the JSON-level params (model_seeds, use_templates) remain
+        # as separate widgets because they modify the JSON CONTENT, not
+        # the command.
 
         mod_prefix_str = self._dv_build_activation_prefix()
 
@@ -10615,18 +16229,57 @@ echo "Submitted {n_batches} jobs."
             return batch_fname, batch_list, file_kb
 
         def _submit_one(batch_fname, job_name_full):
-            """Run af3_run for a single partition JSON on the server."""
-            _inner_cmd = (
-                f"{mod_prefix_str}"
-                f"cd {parent_dir} && "
-                f"{cmd} "
-                f"--json_path {batch_fname} "
-                f'--job-name "{job_name_full}"'
-                f"{_flags_str}"
-            )
+            """Run the user-defined AF3 command for a single partition JSON.
+
+            The command is built by the FlexibleAF3SubmitWidget — i.e. the
+            user-selected profile/template, with placeholders resolved
+            against the runtime context (json_path, job_name, parent_dir,
+            output_dir, prefix, date, timestamp).
+            """
+            ctx = {
+                "prefix":     prefix,
+                "parent_dir": parent_dir,
+                "json_path":  batch_fname,
+                "job_name":   job_name_full,
+                "output_dir": f"{parent_dir}/{job_name_full}/output",
+                "date":       datetime.now().strftime('%Y-%m-%d'),
+                "timestamp":  ts or datetime.now().strftime('%Y%m%d_%H%M%S'),
+            }
+
+            if hasattr(self, '_dv_af3_widget'):
+                af3_cmd_resolved = self._dv_af3_widget.build_command(ctx)
+            else:
+                # Defensive fallback: legacy bare af3_run command.
+                af3_cmd_resolved = (
+                    f"cd {parent_dir} && "
+                    f"{cmd} --json_path {batch_fname} "
+                    f'--job-name "{job_name_full}"'
+                )
+
+            # Strip '# comment' lines from the resolved template — they're
+            # fine in shell but pollute the bash -lc string.  Also collapse
+            # line continuations so multi-line templates work as one cmd.
+            cmd_lines = []
+            for ln in af3_cmd_resolved.splitlines():
+                stripped = ln.strip()
+                if not stripped or stripped.startswith('#'):
+                    continue
+                cmd_lines.append(ln.rstrip(' \\'))
+            inner = ' '.join(cmd_lines) if cmd_lines else ''
+
+            _inner_cmd = f"{mod_prefix_str}{inner}"
             run_cmd = f'bash -lc "{_inner_cmd}"'
             out, err, rc = self._dv_ssh_exec(run_cmd, timeout=60)
-            m = re.search(r'batch job\s+(\d+)', out + err, re.IGNORECASE)
+
+            # Match SLURM "Submitted batch job N", "batch job N",
+            # PBS "<id>.<host>", LSF "Job <id> ..."
+            m = re.search(
+                r'(?:Submitted batch job|batch job|Job)\s+(\d+)',
+                out + err, re.IGNORECASE)
+            if m:
+                return m.group(1), 'submitted', False
+            # PBS-style "12345.cluster"
+            m = re.search(r'^(\d+)\.[a-zA-Z]', out.strip())
             if m:
                 return m.group(1), 'submitted', False
             combined = (out + err).lower()
@@ -11467,13 +17120,174 @@ def _apply_text_fallback():
 
 
 # ═══════════════════════════════════════════════════════════════
+# STARTUP DEPENDENCY CHECK
+# ═══════════════════════════════════════════════════════════════
+def _check_dependencies_at_startup():
+    """Check for missing or outdated packages and show a console warning
+    (or a Qt dialog if Qt is available) before the main window opens.
+    Does NOT block startup — informational only."""
+    import importlib
+
+    CHECKS = [
+        # (import_name, pip_name, min_ver_tuple, required)
+        ("matplotlib", "matplotlib>=3.5",  (3, 5),  True),
+        ("numpy",      "numpy>=1.21",      (1, 21), True),
+        ("pyrodigal",  "pyrodigal>=2.0",   (2, 0),  False),
+        ("paramiko",   "paramiko>=2.9",    (2, 9),  False),
+        ("scipy",      "scipy>=1.7",       (1, 7),  False),
+    ]
+
+    missing_req  = []
+    missing_opt  = []
+    outdated     = []
+
+    for imp, pip_name, min_ver, required in CHECKS:
+        try:
+            m = importlib.import_module(imp)
+            ver_str = getattr(m, '__version__', '0')
+            ver_tup = tuple(int(x) for x in ver_str.split('.')[:2]
+                            if x.isdigit())
+            if ver_tup and ver_tup < min_ver:
+                outdated.append(
+                    f"{imp} {ver_str} (need >={'.'.join(map(str,min_ver))})"
+                    f" — pip install \"{pip_name}\"")
+        except ImportError:
+            if required:
+                missing_req.append(pip_name)
+            else:
+                missing_opt.append(pip_name)
+
+    # Qt is already loaded at this point — use it for the dialog
+    if missing_req or outdated:
+        lines = ["ppigFinder dependency warning:\n"]
+        if missing_req:
+            lines.append("REQUIRED (app may crash without these):")
+            for p in missing_req:
+                lines.append(f"  pip install {p}")
+        if outdated:
+            lines.append("\nOUTDATED (update recommended):")
+            for p in outdated:
+                lines.append(f"  {p}")
+        lines.append(
+            "\nRun install_ppigfinder.py to fix all issues automatically.")
+        try:
+            from PyQt6.QtWidgets import QMessageBox
+        except ImportError:
+            from PyQt5.QtWidgets import QMessageBox
+        mb = QMessageBox()
+        mb.setIcon(QMessageBox.Icon.Warning
+                   if hasattr(QMessageBox, 'Icon')
+                   else QMessageBox.Warning)
+        mb.setWindowTitle("ppigFinder — Missing dependencies")
+        mb.setText("\n".join(lines))
+        mb.exec() if hasattr(mb, 'exec') and callable(mb.exec) else mb.exec_()
+
+    if missing_opt:
+        print(
+            f"[ppigFinder] Optional packages not installed "
+            f"(some features disabled): {', '.join(missing_opt)}\n"
+            f"  Install with: pip install {' '.join(missing_opt)}")
+
+
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     app.setApplicationName('ppigFinder')
     app.setApplicationDisplayName('ppigFinder — Protein-Protein Interaction Genomic Finder')
-    app.setApplicationVersion('2.00')
+    app.setApplicationVersion('2.0')
     app.setStyle('Fusion')
     _setup_emoji_font(app)
+    _check_dependencies_at_startup()
     window = ppigFinderApp()
     window.show()
     sys.exit(app.exec() if QT_VERSION == 6 else app.exec_())
+
+
+# === ppigFinder optional runtime startup profiler ===
+def _ppig_enable_runtime_startup_profiler():
+    """
+    Optional constructor profiler for the legacy single-file interface.
+
+    Enabled only when:
+        PPIG_PROFILE_STARTUP=1
+
+    It wraps custom QWidget/QMainWindow/QDialog subclasses defined in this module
+    and records constructor elapsed time. This helps identify which UI component
+    makes startup slow after imports have already been optimized.
+    """
+    try:
+        import os as _os
+        import time as _time
+        from pathlib import Path as _Path
+    except Exception:
+        return
+
+    if _os.environ.get("PPIG_PROFILE_STARTUP") not in {"1", "true", "TRUE", "yes", "YES"}:
+        return
+
+    try:
+        _log_path = _Path(
+            _os.environ.get(
+                "PPIG_RUNTIME_STARTUP_LOG",
+                "docs/developer/startup_profile/runtime_constructor_profile.tsv",
+            )
+        )
+        _log_path.parent.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        return
+
+    def _write(line: str):
+        try:
+            with _log_path.open("a", encoding="utf-8") as handle:
+                handle.write(line + "\n")
+                handle.flush()
+        except Exception:
+            pass
+
+    _write("event\tclass\telapsed_ms")
+
+    def _is_qt_widget_class(cls):
+        try:
+            names = {base.__name__ for base in cls.__mro__}
+        except Exception:
+            return False
+
+        return bool(names & {"QWidget", "QMainWindow", "QDialog", "QFrame", "QTabWidget"})
+
+    def _wrap_init(cls_name, cls):
+        old_init = getattr(cls, "__init__", None)
+
+        if old_init is None:
+            return
+
+        if getattr(old_init, "_ppig_profile_wrapped", False):
+            return
+
+        def _profiled_init(self, *args, **kwargs):
+            t0 = _time.perf_counter()
+            try:
+                return old_init(self, *args, **kwargs)
+            finally:
+                dt = (_time.perf_counter() - t0) * 1000.0
+                _write(f"init\t{cls_name}\t{dt:.3f}")
+
+        _profiled_init._ppig_profile_wrapped = True
+
+        try:
+            cls.__init__ = _profiled_init
+        except Exception:
+            pass
+
+    for _name, _obj in list(globals().items()):
+        if not isinstance(_obj, type):
+            continue
+
+        if not _is_qt_widget_class(_obj):
+            continue
+
+        _wrap_init(_name, _obj)
+
+    _write("profiler\tenabled\t0.000")
+
+
+_ppig_enable_runtime_startup_profiler()
+
