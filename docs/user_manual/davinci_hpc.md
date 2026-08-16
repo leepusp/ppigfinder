@@ -1,5 +1,7 @@
 # DaVinci / HPC Module
 
+> Note: DaVinci is an optional preconfigured cluster profile. ppigFinder is not dependent on DaVinci and can generate AlphaFold 3 JSON files for server submission or Slurm scripts for other HPC systems. For the generic workflow, see `hpc_submission.md`.
+
 ## Purpose
 
 The DaVinci / HPC module provides an optional connection point for running or preparing project workflows on the DaVinci server or compatible HPC environments.

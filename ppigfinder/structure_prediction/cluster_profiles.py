@@ -43,6 +43,19 @@ class SlurmClusterProfile:
         )
 
 
+
+GENERIC_SLURM_PROFILE = SlurmClusterProfile(
+    name="generic_slurm",
+    partition_by_hint={},
+    gres_by_gpu_hint={
+        "none_by_default": "",
+    },
+    notes=[
+        "Generic Slurm profile: review partition and GPU/GRES directives for the target cluster.",
+        "DaVinci is an optional preconfigured institutional profile, not a ppigFinder requirement.",
+    ],
+)
+
 DAVINCI_PROFILE = SlurmClusterProfile(
     name="davinci",
     partition_by_hint={
@@ -68,11 +81,12 @@ DAVINCI_PROFILE = SlurmClusterProfile(
 
 
 PROFILES: Dict[str, SlurmClusterProfile] = {
+    "generic_slurm": GENERIC_SLURM_PROFILE,
     "davinci": DAVINCI_PROFILE,
 }
 
 
-def get_cluster_profile(name: str = "davinci") -> SlurmClusterProfile:
+def get_cluster_profile(name: str = "generic_slurm") -> SlurmClusterProfile:
     key = name.lower()
     if key not in PROFILES:
         raise KeyError(f"Unknown cluster profile: {name}")
@@ -81,6 +95,6 @@ def get_cluster_profile(name: str = "davinci") -> SlurmClusterProfile:
 
 def resolve_slurm_overrides(
     plan: HPCResourcePlan,
-    cluster: str = "davinci",
+    cluster: str = "generic_slurm",
 ) -> SlurmDirectiveOverrides:
     return get_cluster_profile(cluster).resolve(plan)

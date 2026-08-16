@@ -25,7 +25,7 @@ class StructuralPredictionRequest:
     model_mode: str = "multicomponent_complex"
     priority: str = "normal"
     run_id: str | None = None
-    cluster: str = "davinci"
+    cluster: str = "generic_slurm"
 
 
 @dataclass(frozen=True)

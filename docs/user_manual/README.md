@@ -12,8 +12,9 @@ Recommended reading order:
 6. `orfs.md` — ORF table and interactive ORF browser
 7. `annotation.md` — BLAST, HMM and neighborhood annotation
 8. `alphafold.md` — AlphaFold 3 job generation and PPI analysis
-9. `davinci_hpc.md` — DaVinci/HPC submission workflow
-10. `reports.md` — exports, reports and reproducible snapshots
-11. `troubleshooting.md` — common issues and recovery steps
+9. `hpc_submission.md` — generic HPC/SSH/Slurm submission workflow
+10. `davinci_hpc.md` — optional DaVinci cluster profile example
+11. `reports.md` — exports, reports and reproducible snapshots
+12. `troubleshooting.md` — common issues and recovery steps
 
 For a compact walkthrough, start with `quick_start_v29_14.md`.

@@ -187,7 +187,7 @@ esac
 
 def write_batch_slurm_scripts(
     batch: PredictionBatchPlan,
-    cluster: str = "davinci",
+    cluster: str = "generic_slurm",
     module_commands: Mapping[str, str] | None = None,
     slurm_subdir: str = "slurm",
 ) -> BatchSlurmScripts:
