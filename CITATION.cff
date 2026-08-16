@@ -1,10 +1,34 @@
 cff-version: 1.2.0
-message: "If you use ppigFinder in your research, please cite this software and the associated publication."
+message: "If you use ppigFinder, please cite this software."
 title: "ppigFinder"
 type: software
 version: "2.9.14"
 license: MIT
 repository-code: "https://github.com/leepusp/ppigfinder"
-url: "https://github.com/leepusp/ppigfinder"
+date-released: 2026-08-16
 authors:
-  - name: "ppigFinder Contributors"
+  - given-names: "Gabriel Umaji"
+    family-names: "Oka"
+    affiliation: "Institute of Chemistry, University of São Paulo (IQ-USP), São Paulo, Brazil; São Carlos Institute of Physics, University of São Paulo (IFSC-USP), São Carlos, Brazil"
+    email: "g.oka@ifsc.usp.br"
+  - given-names: "Camilla"
+    family-names: "Adan"
+    affiliation: "Institute of Chemistry, University of São Paulo (IQ-USP), São Paulo, Brazil"
+  - given-names: "Celso Vítor Alves Queiroz"
+    family-names: "Calomeno"
+    affiliation: "Institute of Biomedical Sciences, University of São Paulo (ICB-USP), São Paulo, Brazil"
+    email: "celsovitor.cvc@gmail.com"
+  - given-names: "Chuck Shaker"
+    family-names: "Farah"
+    affiliation: "Institute of Chemistry, University of São Paulo (IQ-USP), São Paulo, Brazil"
+  - given-names: "Robson Francisco"
+    family-names: "de Souza"
+    affiliation: "Institute of Biomedical Sciences, University of São Paulo (ICB-USP), São Paulo, Brazil"
+    email: "rfsouza@usp.br"
+keywords:
+  - protein-protein interaction
+  - AlphaFold 3
+  - bacterial genomics
+  - type IV secretion system
+  - Xanthomonas citri
+  - graphical user interface
