@@ -2,8 +2,8 @@
 """
 AlphaFold 3 CLI integration for ppigFinder.
 
-This module targets the DaVinci-style `af3` command-line wrapper. It does
-not require `module load` when the command is already available in PATH.
+This module targets an `af3` command-line wrapper. It does not assume a
+specific cluster; provide a command path or load the required environment first.
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ import subprocess
 @dataclass
 class AF3CliOptions:
     """
-    Options accepted by the DaVinci AF3 wrapper.
+    Options accepted by an AF3 command-line wrapper.
     """
 
     job_name: str
@@ -56,7 +56,7 @@ def get_af3_help(command: str = "af3", timeout: int = 10) -> str:
     if executable is None:
         raise FileNotFoundError(
             f"Could not find '{command}' in PATH. "
-            "Open a DaVinci shell where af3 is available, or provide the full path."
+            "Load the environment where af3 is available, or provide the full path."
         )
 
     result = subprocess.run(

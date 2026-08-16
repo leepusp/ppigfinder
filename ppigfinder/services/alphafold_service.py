@@ -2,7 +2,7 @@
 """
 AlphaFold 3 service layer.
 
-This service builds DaVinci-compatible AF3 commands and standalone scripts.
+This service builds generic AF3 commands, standalone scripts and server JSON exports.
 It is independent from the GUI and can be used by desktop, CLI or batch modes.
 """
 
@@ -19,6 +19,7 @@ from ppigfinder.alphafold.af3_cli import (
     shell_join,
     write_af3_run_script,
 )
+from ppigfinder.hpc.profiles.generic import GENERIC_AF3
 from ppigfinder.hpc.profiles.davinci import DAVINCI_AF3
 from ppigfinder.alphafold.server_json import (
     build_pair_jobs_from_sequences,
@@ -32,8 +33,9 @@ class AlphaFoldService:
     High-level AF3 orchestration service.
     """
 
-    def __init__(self, command: str | None = None):
-        self.command = command or DAVINCI_AF3.command
+    def __init__(self, command: str | None = None, profile=None):
+        self.profile = profile or GENERIC_AF3
+        self.command = command or self.profile.command
         self._supported_flags: set[str] | None = None
 
     def refresh_supported_flags(self) -> set[str]:
@@ -43,6 +45,46 @@ class AlphaFoldService:
         help_text = get_af3_help(self.command)
         self._supported_flags = detect_af3_flags(help_text)
         return self._supported_flags
+
+    def build_slurm_options(
+        self,
+        job_name: str,
+        fasta: str | None = None,
+        json_path: str | None = None,
+        input_dir: str | None = None,
+        workdir: str | None = None,
+        mode: str | None = "auto",
+        dry_run: bool = False,
+        force: bool = False,
+        partition: str | None = None,
+        ntasks: int | None = None,
+        mem: str | None = None,
+        gres: str | None = None,
+        time: str | None = None,
+        resource_mode: str | None = None,
+        profile=None,
+    ) -> AF3CliOptions:
+        """
+        Build AF3 CLI options using generic or profile-specific Slurm defaults.
+        """
+        profile = profile or self.profile
+        return AF3CliOptions(
+            job_name=job_name,
+            fasta=fasta,
+            json_path=json_path,
+            input_dir=input_dir,
+            workdir=workdir,
+            mode=mode,
+            resource_mode=resource_mode or profile.default_resource_mode,
+            slurm_partition=partition or profile.default_partition,
+            slurm_nodes=profile.default_nodes,
+            slurm_ntasks=ntasks or profile.default_ntasks,
+            slurm_mem=mem or profile.default_mem,
+            slurm_gres=gres or profile.default_gres,
+            slurm_time=time or profile.default_time,
+            dry_run=dry_run,
+            force=force,
+        )
 
     def build_davinci_options(
         self,
@@ -62,24 +104,24 @@ class AlphaFoldService:
         resource_mode: str | None = None,
     ) -> AF3CliOptions:
         """
-        Build options using DaVinci defaults.
+        Backward-compatible alias using the optional DaVinci profile.
         """
-        return AF3CliOptions(
+        return self.build_slurm_options(
             job_name=job_name,
             fasta=fasta,
             json_path=json_path,
             input_dir=input_dir,
             workdir=workdir,
             mode=mode,
-            resource_mode=resource_mode or DAVINCI_AF3.default_resource_mode,
-            slurm_partition=partition or DAVINCI_AF3.default_partition,
-            slurm_nodes=DAVINCI_AF3.default_nodes,
-            slurm_ntasks=ntasks or DAVINCI_AF3.default_ntasks,
-            slurm_mem=mem or DAVINCI_AF3.default_mem,
-            slurm_gres=gres or DAVINCI_AF3.default_gres,
-            slurm_time=time or DAVINCI_AF3.default_time,
             dry_run=dry_run,
             force=force,
+            partition=partition,
+            ntasks=ntasks,
+            mem=mem,
+            gres=gres,
+            time=time,
+            resource_mode=resource_mode,
+            profile=DAVINCI_AF3,
         )
 
     def build_command(self, options: AF3CliOptions, adaptive: bool = True) -> list[str]:
