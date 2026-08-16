@@ -909,6 +909,7 @@ APP_RELEASE_LABEL = f"{APP_VERSION} — {APP_BUILD}"
 
 from ppigfinder.alphafold.hotspot import compute_pae_hotspot
 from ppigfinder.alphafold.results_export import write_af3_results_tsv_file
+from ppigfinder.alphafold.parsed_result import build_af3_job_result
 
 if __name__ == "__main__" and any(a in ("-h", "--help", "--version") for a in sys.argv[1:]):
     if "--version" in sys.argv[1:]:
@@ -19742,84 +19743,10 @@ complexes that share the same architectural pattern.
                 print(f"[AF3 Analysis] motif detection failed for "
                       f"{job_dir.name}: {e}")
 
-        return {
-            'job_name':      job_dir.name,
-            'job_dir':       str(job_dir),
-            # v2.8.1 lazy-loading file paths.  The scan stores only paths
-            # and lightweight metrics; heavy matrices are loaded on demand.
-            'summary_path':   str(sum_path) if sum_path else None,
-            'conf_path':      str(conf_path) if conf_path else None,
-            'model_path':     str(model_cif) if model_cif else None,
-            'ranking_csv_path': str(ranking_csv) if ranking_csv else None,
-            'input_json_path': str(input_json) if input_json else None,
-            'heavy_loaded':   (not lazy),
-            'orf_names':     orf_names,
-            'chain_order':   chain_order,
-            'chain_lens':    chain_lens,
-            'chain_to_orf':  chain_to_orf,
-            'n_chains':      n_chains,
-            # Global metrics
-            'iptm':          iptm,
-            'ptm':           ptm,
-            'mean_plddt':    mean_plddt,
-            'ranking_score': ranking_score,
-            'fraction_disordered': fraction_disordered,
-            'has_clash':     has_clash,
-            # Per-chain metrics (v1.15)
-            'chain_iptm':    chain_iptm,
-            'chain_ptm':     chain_ptm,
-            # Arrays for plotting
-            'pae_matrix':    pae_matrix,
-            'contact_probs': contact_probs,
-            'plddt_arr':     plddt_arr,
-            'token_res_ids': token_res_ids,
-            # Pairwise interface metrics
-            'pair_metrics':  pair_metrics,
-            'pae_inter':     best_pae_inter,
-            'best_pair':     best_pair,
-            'contact_region': best_cr,
-            # Focal metrics (v2.0) — correctly identify domain-limited interactions
-            'pae_min_inter':  (pair_metrics[best_pair].get('pair_pae_min') or
-                               pair_metrics[best_pair].get('pae_min'))
-                              if best_pair in pair_metrics else None,
-            'cp_iptm_inter':  pair_metrics[best_pair].get('pair_iptm')
-                              if best_pair in pair_metrics else None,
-            'contact_frac':   pair_metrics[best_pair].get('contact_frac')
-                              if best_pair in pair_metrics else None,
-            # Hotspot metrics (v2.7)
-            'hotspot':        pair_metrics[best_pair].get('hotspot', {})
-                              if best_pair in pair_metrics else {},
-            # Motifs (v1.16)
-            'motifs':        motifs,
-            # Sequence verification (v2.0)
-            'seq_status':    seq_status,
-            'seq_status_legacy': seq_status_legacy,
-            'seq_chains':    seq_chains,
-            # v2.7 — diagnostic: which fallback tier produced the chain
-            # layout ('confidences', 'pae_matrix', 'input_json',
-            # 'summary_chain_iptm', 'cif', or 'none').  Useful when
-            # debugging why some folders show n_chains=0.
-            'chain_layout_source': chain_layout_source,
-            # ── v2.5 Tier 1: fingerprinting & duplicate detection ─────
-            'seq_fingerprint':       self._af3a_seq_fingerprint(input_seqs),
-            'seq_seed_fingerprint':  self._af3a_seq_seed_fingerprint(
-                                          input_seqs, model_seeds),
-            'model_seeds':           list(model_seeds),
-            # Filled in by _af3a_assign_duplicate_groups after scan:
-            'duplicate_group_id':    -1,    # -1 = singleton
-            'duplicate_role':        None,  # 'canonical' | 'replicate' | None
-            'duplicate_count':       1,
-            # ── v2.5 Tier 2: validation taxonomy ──────────────────────
-            'completeness':          completeness,
-            'truncation_info':       truncation_info,
-            'ambiguity_info':        ambiguity_info,
-            'validation_warnings':   list(validation_warnings),
-            # Extras
-            'ranking_samples': ranking_samples,
-            'partner_name':  (orf_names[1] if len(orf_names) > 1
-                              else chain_order[1] if len(chain_order) > 1
-                              else '-'),
-        }
+        seq_fingerprint = self._af3a_seq_fingerprint(input_seqs)
+        seq_seed_fingerprint = self._af3a_seq_seed_fingerprint(
+            input_seqs, model_seeds)
+        return build_af3_job_result(locals())
 
     def _af3a_derive_token_plddt(self, atom_plddts, token_chain_ids,
                                   token_res_ids, model_cif):
