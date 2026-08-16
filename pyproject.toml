@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ppigfinder"
-version = "2.0.0"
+version = "2.9.14"
 description = "Protein-Protein Interaction Genomic Finder"
 readme = "README.md"
 requires-python = ">=3.8"
