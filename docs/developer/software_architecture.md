@@ -7,10 +7,10 @@ ppigFinder is currently being refactored from a monolithic desktop application i
 ```text
 main.py
   -> ppigfinder.app
-      -> ppigfinder.legacy_v20.ppigFinderApp
+      -> ppigfinder.legacy_v29_14.ppigFinderApp
 ```
 
-The file `ppigfinder/legacy_v20.py` contains the current complete working interface. It is preserved during the refactor and should not be modified unless necessary.
+The file `ppigfinder/legacy_v29_14.py` contains the current complete working interface. It is preserved during the refactor and should not be modified unless necessary. Older standalone and packaged legacy sources are retained for provenance and compatibility checks.
 
 ## Experimental guided interface
 
@@ -69,7 +69,7 @@ Computationally intensive tasks should run outside the main GUI thread. The curr
 
 ## Refactor principle
 
-The refactor should progressively move logic out of `legacy_v20.py` into smaller modules:
+The refactor should progressively move logic out of `legacy_v29_14.py` into smaller modules:
 
 ```text
 legacy GUI event

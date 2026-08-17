@@ -10,12 +10,14 @@
 | `README.md` | Short project overview. |
 | `ARCHITECTURE.md` | High-level technical architecture notes. |
 | `docs/` | User manuals, workflow documentation and developer notes. |
+| `legacy_sources/` | Historical standalone scripts and archived upstream legacy sources preserved for provenance. |
 
 ## Main package layout
 
 | Package | Purpose |
 |---|---|
-| `ppigfinder/legacy_v20.py` | Current functional monolithic GUI kept during the refactor. |
+| `ppigfinder/legacy_v29_14.py` | Current active monolithic GUI kept during the refactor. |
+| `ppigfinder/legacy_v20.py` | Historical packaged legacy GUI retained for provenance and compatibility checks. |
 | `ppigfinder/app.py` | Current desktop launcher/bootstrap. |
 | `ppigfinder/ui/` | Current Qt adapters, modular actions, dialogs and widgets. |
 | `ppigfinder/ui_shell/` | Experimental guided interface: splash, home and modular workspace. |
@@ -38,4 +40,12 @@ Current stable GUI:
 ```text
 main.py
   -> ppigfinder.app
-      -> ppigfinder.legacy_v20.ppigFinderApp
+      -> ppigfinder.legacy_v29_14.ppigFinderApp
+```
+
+## Legacy source archive
+
+Historical standalone scripts and upstream source snapshots are preserved under
+`legacy_sources/`. They are not the active application entry point, but they are
+kept to support reproducibility, provenance tracking and comparison against
+earlier ppigFinder versions.
